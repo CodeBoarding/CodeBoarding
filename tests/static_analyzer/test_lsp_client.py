@@ -6,6 +6,8 @@ without starting a real LSP server.
 
 import json
 import os
+import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -21,6 +23,78 @@ from static_analyzer.engine.lsp_client import (
 )
 from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
 from static_analyzer.exceptions import StaticAnalysisFatalError, WorkspaceSetupError
+
+
+def test_server_requests_do_not_block_output_drain_during_document_open(tmp_path: Path) -> None:
+    server = tmp_path / "server.py"
+    server.write_text(
+        """import json
+import sys
+
+def send(message: dict) -> None:
+    body = json.dumps(message).encode()
+    sys.stdout.buffer.write(f"Content-Length: {len(body)}\\r\\n\\r\\n".encode() + body)
+    sys.stdout.buffer.flush()
+
+opened = False
+answered = False
+while True:
+    header = sys.stdin.buffer.readline()
+    if not header:
+        break
+    length = int(header.split(b":")[1])
+    assert sys.stdin.buffer.readline() == b"\\r\\n"
+    if length > 1000000:
+        send({"jsonrpc": "2.0", "id": "register", "method": "client/registerCapability", "params": {}})
+        send({"jsonrpc": "2.0", "method": "window/logMessage", "params": {"message": "x" * 2000000}})
+    message = json.loads(sys.stdin.buffer.read(length))
+    method = message.get("method")
+    if method == "initialize":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": {"capabilities": {}}})
+    elif method == "textDocument/didOpen":
+        opened = True
+    elif message.get("id") == "register":
+        answered = True
+    elif method == "textDocument/documentSymbol":
+        # A client request may precede the asynchronously written server reply.
+        pending = message["id"]
+    elif method == "shutdown":
+        send({"jsonrpc": "2.0", "id": message["id"], "result": None})
+    elif method == "exit":
+        break
+    if opened and answered and "pending" in globals():
+        send({"jsonrpc": "2.0", "id": pending, "result": [{"name": "ready", "kind": 12}]})
+        del pending
+""",
+        encoding="utf-8",
+    )
+    source = tmp_path / "large.py"
+    source.write_text("# payload\n" * 400000, encoding="utf-8")
+    client = LSPClient([sys.executable, str(server)], tmp_path, default_timeout=5)
+    finished = threading.Event()
+    errors = []
+
+    def open_document() -> None:
+        try:
+            client.did_open(source)
+        except Exception as error:
+            errors.append(error)
+        finally:
+            finished.set()
+
+    client.start()
+    worker = threading.Thread(target=open_document, daemon=True)
+    try:
+        worker.start()
+        assert finished.wait(5), "Opening a document deadlocked while answering a server request"
+        assert not errors
+        assert client.document_symbol(source) == [{"name": "ready", "kind": 12}]
+    finally:
+        if not finished.is_set():
+            assert client._process is not None
+            client._process.kill()
+            worker.join(timeout=5)
+        client.shutdown()
 
 
 class TestLSPClientInit:
