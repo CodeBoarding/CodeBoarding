@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from pathlib import Path
+from typing import Any
 
 from langchain.agents import create_agent
 from langchain.agents.structured_output import OutputToolBinding, ToolStrategy
@@ -15,6 +16,7 @@ from langchain.agents.middleware import (
     ModelRequest,
     ModelResponse,
     ToolCallLimitMiddleware,
+    hook_config,
 )
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
@@ -24,6 +26,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import Field
 
 from agents.agent_responses import AnalysisInsights, LLMBaseModel, RelationEdge, SourceCodeReference
+from agents.component_names import humanize, identifier_path_names, is_natural_name
 from agents.constants import ModelCapabilities
 from agents.llm_config import get_current_agent_context_window, get_current_prompt_profile
 from infra.monitoring.callbacks import MONITORING_CALLBACK
@@ -37,16 +40,17 @@ from agents.tools.base import RepoContext
 from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
-from static_analyzer.clustering.names.tokens import identifier_path_names, is_natural_name
 
 logger = logging.getLogger(__name__)
 
 MAX_SCOPE_TOOL_CALLS = 6
-MAX_SCOPE_MODEL_CALLS = 8
+#: One more than the tool budget needs: the name re-ask shares this run's limit.
+MAX_SCOPE_MODEL_CALLS = 9
 
 #: Headroom for provider framing and approximate token counts.
 SCOPE_INPUT_WINDOW_SHARE = 0.8
-SCOPE_RECURSION_LIMIT = 40
+#: Above the call budgets, which end the run first: six graph nodes per model call.
+SCOPE_RECURSION_LIMIT = 60
 
 
 class ScopeComponentSemantics(LLMBaseModel):
@@ -163,6 +167,73 @@ class ScopeInputBudget(AgentMiddleware):
             logger.warning("Scope %s: truncating tool result %s to fit context", self.scope_id, message.tool_call_id)
 
 
+class ScopeNameValidation(AgentMiddleware):
+    """Repair the answer's names, validate them, and only then ask the model again, once.
+
+    Why inside the run: the re-ask reuses the transcript and shares the run's budgets, and its
+    failure to fit the context costs the names, not the scope's whole answer.
+    """
+
+    def __init__(self, path_names: frozenset[str], named_ids: Collection[str]):
+        self.path_names = path_names
+        self.named_ids = named_ids
+        self.answer: ScopeAnalysisResult | None = None
+        self.rejected: dict[str, str] = {}
+
+    def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> ModelResponse:
+        if self.answer is None:
+            return handler(request)
+        try:
+            return handler(request.override(tools=[]))
+        except ScopeContextTooLargeError as error:
+            logger.warning("The name re-ask does not fit the context: %s", error)
+            return ModelResponse(result=[AIMessage(content="")])
+
+    @hook_config(can_jump_to=["model"])
+    def after_model(self, state: Any, runtime: Any) -> dict[str, Any] | None:
+        result = state.get("structured_response")
+        if self.answer is not None:
+            return {"structured_response": self._take_new_names(result)}
+        if not isinstance(result, ScopeAnalysisResult):
+            return None
+        self.rejected = self._repair(result)
+        if not self.rejected:
+            return {"structured_response": result}
+        self.answer = result
+        names = "\n".join(f"- {group_id}: {name}" for group_id, name in self.rejected.items())
+        logger.info("Asking again for natural names instead of %s", self.rejected)
+        return {"messages": [HumanMessage(content=SCOPE_NAME_RETRY_MESSAGE.format(names=names))], "jump_to": "model"}
+
+    def _repair(self, answer: ScopeAnalysisResult) -> dict[str, str]:
+        """Write the answer's identifiers as words where that makes a name; returns the names it could not."""
+        rejected: dict[str, str] = {}
+        for component in answer.components:
+            if component.group_id not in self.named_ids:
+                continue
+            repaired = humanize(component.name)
+            # A lone word stays rejected: "Infrastructure" is the directory, not a responsibility.
+            if len(repaired.split()) > 1 and is_natural_name(repaired, self.path_names):
+                component.name = repaired
+            elif not is_natural_name(component.name, self.path_names):
+                rejected[component.group_id] = component.name
+        return rejected
+
+    def _take_new_names(self, retry: ScopeAnalysisResult | None) -> ScopeAnalysisResult:
+        """The first answer, with only its rejected names replaced: the re-ask may be partial."""
+        assert self.answer is not None
+        if retry is not None:
+            still_rejected = self._repair(retry)
+            names = {component.group_id: component.name for component in retry.components}
+            for component in self.answer.components:
+                name = names.get(component.group_id, "")
+                if component.group_id in self.rejected and name and component.group_id not in still_rejected:
+                    component.name = name
+                    del self.rejected[component.group_id]
+        if self.rejected:
+            logger.warning("Names still not natural after the re-ask: %s", self.rejected)
+        return self.answer
+
+
 class TransientErrorRetry(AgentMiddleware):
     """Send a model request again when the provider failed it transiently (throttled, 5xx, connection lost).
 
@@ -228,6 +299,9 @@ class ScopeAnalysisAgent(MonitoringMixin):
             )
         )
         middleware: list = [
+            ScopeNameValidation(
+                identifier_path_names(context.scope_files), frozenset(editable_group_ids) - frozenset(locked_name_ids)
+            ),
             RepositoryToolBudget(run_limit=MAX_SCOPE_TOOL_CALLS, exit_behavior="continue"),
             ModelCallLimitMiddleware(run_limit=MAX_SCOPE_MODEL_CALLS, exit_behavior="error"),
             input_budget,
@@ -251,50 +325,19 @@ class ScopeAnalysisAgent(MonitoringMixin):
             enclosing_names,
             max_tokens=max(0, input_budget.max_tokens - prompt_tokens),
         )
-
-        def invoke(messages: list) -> dict:
-            try:
-                return agent.invoke(
-                    {"messages": messages},
-                    config={
-                        "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
-                        "recursion_limit": SCOPE_RECURSION_LIMIT,
-                    },
-                )
-            except Exception as error:
-                raise_if_auth_error(error)
-                raise
-
-        response = invoke([HumanMessage(content=self.analysis_prompt.format(scope_context=scope_context))])
+        try:
+            response = agent.invoke(
+                {"messages": [HumanMessage(content=self.analysis_prompt.format(scope_context=scope_context))]},
+                config={
+                    "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
+                    "recursion_limit": SCOPE_RECURSION_LIMIT,
+                },
+            )
+        except Exception as error:
+            raise_if_auth_error(error)
+            raise
         result = response.get("structured_response")
         if not isinstance(result, ScopeAnalysisResult):
             logger.warning("Scope %s ended without a structured answer", scope.scope_id)
             return None
-
-        # Why a second turn rather than a stricter prompt alone: the same model and prompt name a
-        # scope well on one run and answer with its directory names on the next.
-        path_names = identifier_path_names(context.scope_files)
-        unnatural = {
-            component.group_id: component.name
-            for component in result.components
-            if component.group_id in editable_group_ids
-            and component.group_id not in locked_name_ids
-            and not is_natural_name(component.name, path_names)
-        }
-        if not unnatural:
-            return result
-        logger.info("Scope %s: asking again for natural names instead of %s", scope.scope_id, unnatural)
-        names = "\n".join(f"- {group_id}: {name}" for group_id, name in unnatural.items())
-        answer = invoke(
-            [*response["messages"], HumanMessage(content=SCOPE_NAME_RETRY_MESSAGE.format(names=names))]
-        ).get("structured_response")
-        renamed = (
-            {component.group_id: component.name for component in answer.components}
-            if isinstance(answer, ScopeAnalysisResult)
-            else {}
-        )
-        for component in result.components:
-            if component.group_id in unnatural:
-                name = renamed.get(component.group_id, "")
-                component.name = name if is_natural_name(name, path_names) else ""
         return result

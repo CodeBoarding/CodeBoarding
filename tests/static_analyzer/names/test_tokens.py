@@ -1,11 +1,6 @@
-import pytest
-
 from static_analyzer.clustering.names.tokens import (
     ROLE_WORDS,
     distinctive_word,
-    humanize,
-    identifier_path_names,
-    is_natural_name,
     is_role_named,
     segments,
     stem,
@@ -122,69 +117,3 @@ class TestDistinctiveWord:
 
     def test_a_name_made_of_role_words_has_none(self):
         assert distinctive_word("WebApp", ROLE_WORDS) == ""
-
-
-# Component names that shipped in CodeBoarding PR comments and committed analyses, Sep-Oct 2026.
-SHIPPED_IDENTIFIERS = [
-    "billing_jobs",
-    "action_scripts",
-    "action_support_scripts",
-    "monitoring_and_telemetry",
-    "repository-and-git-utilities",
-    "static-analysis-engine",
-    "PetTypeRepository",
-    "ClientApp",
-    "Catalog.API",
-    "[owner]",
-    "owner",
-    "js",
-]
-
-SHIPPED_NAMES = [
-    "GitHub Action Automation Scripts",
-    "RabbitMQ Event Bus",
-    "DynamoDB Session Store",
-    "WebSocket JSON-RPC Server",
-    "CI/CD Automation & Multi-Format Reporter",
-    ".NET SDK Lifecycle & Environment Resolver",
-    "Next.js Frontend",
-    "Owner",
-    "Basket gRPC Service",
-]
-
-
-class TestNaturalNames:
-    @pytest.mark.parametrize("name", SHIPPED_IDENTIFIERS)
-    def test_an_identifier_is_not_a_name(self, name):
-        assert not is_natural_name(name)
-
-    @pytest.mark.parametrize("name", SHIPPED_NAMES)
-    def test_natural_text_is(self, name):
-        assert is_natural_name(name)
-
-    def test_a_re_cased_identifier_directory_is_not_a_name(self):
-        paths = identifier_path_names(["billing_jobs/handler.py", "owner/Owner.java", "src/EventBus/Bus.cs"])
-
-        assert not is_natural_name("Billing Jobs", paths)
-        assert not is_natural_name("Event Bus", paths)
-        assert is_natural_name("Owner", paths)
-        assert is_natural_name("Invoice Generation Jobs", paths)
-
-
-class TestHumanize:
-    @pytest.mark.parametrize(
-        ("name", "words"),
-        [
-            ("billing_jobs", "Billing Jobs"),
-            ("monitoring_and_telemetry", "Monitoring and Telemetry"),
-            ("order-store", "Order Store"),
-            ("PetTypeRepository", "Pet Type Repository"),
-            ("Ordering.API", "Ordering API"),
-            ("owner", "Owner"),
-            ("Loose files in src.main.java.org.springframework.samples.petclinic", "Loose Files in Petclinic"),
-            ("GitHub Action Automation Scripts", "GitHub Action Automation Scripts"),
-            ("Next.js Frontend", "Next.js Frontend"),
-        ],
-    )
-    def test_writes_an_identifier_as_words_and_leaves_text_alone(self, name, words):
-        assert humanize(name) == words

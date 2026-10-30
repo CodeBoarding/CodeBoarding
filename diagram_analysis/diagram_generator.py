@@ -21,6 +21,7 @@ from agents.agent_responses import (
     Relation,
     SourceCodeReference,
 )
+from agents.component_names import is_natural_name
 from agents.component_ownership import ComponentOwnershipIndex
 from diagram_analysis.incremental_update import (
     IncrementalUpdater,
@@ -84,7 +85,6 @@ from static_analyzer.clustering import (
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
-from static_analyzer.clustering.names.tokens import is_natural_name
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
 from infra.user_config import GROUPER_ENV, GROUPERS
@@ -841,7 +841,7 @@ class DiagramGenerator:
         )
         if unnamed:
             logger.warning(
-                "Scope %s: %d of %d editable groups keep deterministic names (%s)",
+                "Scope %s: the model did not name %d of %d editable groups (%s)",
                 scope.scope_id,
                 len(unnamed),
                 len(editable_group_ids),
@@ -1530,7 +1530,7 @@ class DiagramGenerator:
         self.finalize_for_save(root_analysis, sub_analyses)
         if self._scopes_unnamed:
             logger.warning(
-                "Semantic naming fell back to deterministic names for %d of %d scopes",
+                "The model left components unnamed in %d of %d scopes",
                 self._scopes_unnamed,
                 self._scopes_enriched,
             )
