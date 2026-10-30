@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from infra.clustering_ids import ClusterId, ComponentId, GroupId, ScopeId
 from static_analyzer.cfg import CallGraph, CallSiteLocation
+from static_analyzer.clustering.names.tokens import humanize
 
 
 @dataclass
@@ -72,9 +73,9 @@ class ClusterGroup:
         """The rule name that claimed this group, made unique among ``taken`` and reserved there.
 
         Why: it is the only name a scope has before semantic analysis runs, and the one a
-        group keeps when that analysis fails or skips it.
+        group keeps when that analysis fails or skips it, so it is written as words.
         """
-        base = self.name.strip() or f"Component {self.group_id}"
+        base = humanize(self.name.strip()) or f"Component {self.group_id}"
         name = base
         suffix = 1
         while name in taken:

@@ -2372,6 +2372,68 @@ class TestDiagramGenerator(unittest.TestCase):
             incremental=True,
         )
 
+    def test_an_identifier_name_is_renamed_even_when_its_group_did_not_change(self):
+        """CodeBoarding-action: an unchanged, name-locked ``action_scripts`` shipped on every PR."""
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.changed", NodeType.FUNCTION, "changed.py", 1, 5))
+        graph.add_node(Node("pkg.stable", NodeType.FUNCTION, "stable.py", 1, 5))
+        hierarchy = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": {"pkg.changed"}}),
+                ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"python": {"pkg.stable"}}),
+            ],
+        )
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, graph)
+        gen.static_analysis = static_analysis
+        gen._changed_members = {"pkg.changed"}
+        root_analysis = AnalysisInsights(
+            description="root",
+            components=[
+                Component(name="action_scripts", description="", key_entities=[], component_id="1"),
+                Component(name="release_scripts", description="", key_entities=[], component_id="2"),
+            ],
+            components_relations=[],
+            files={
+                "changed.py": FileEntry(
+                    methods=[MethodEntry(qualified_name="pkg.changed", start_line=1, end_line=5, node_type="FUNCTION")]
+                ),
+                "stable.py": FileEntry(
+                    methods=[MethodEntry(qualified_name="pkg.stable", start_line=1, end_line=5, node_type="FUNCTION")]
+                ),
+            },
+        )
+        baseline = _MembershipBaseline(
+            meta_by_id={
+                "1": _ComponentBaseline(
+                    name="action_scripts",
+                    description="",
+                    key_entities=[],
+                    source_cluster_ids=[],
+                    member_keys=frozenset({("changed.py", "pkg.changed")}),
+                    member_qnames=frozenset({"pkg.changed"}),
+                )
+            }
+        )
+        gen._enrich_scope = Mock()
+
+        gen._enrich_incremental_scopes(hierarchy, root_analysis, {}, {"1"}, baseline)
+
+        call = gen._enrich_scope.call_args
+        self.assertEqual(call.args[2], {"1", "2"})
+        self.assertEqual(call.args[3], frozenset())
+
     def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,

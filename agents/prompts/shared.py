@@ -41,7 +41,11 @@ components this scope sits inside, and a child named after its parent overwrites
 may inspect a specific in-scope file and `getMethodCalls` may inspect one exact in-scope symbol in one direction.
 Do not inventory the scope, browse every file, or repeat a tool call. A runtime budget limits all tools to six calls.
 
-Name each editable group for one responsibility using the codebase's own vocabulary, add a concise description,
+Name each editable group for one responsibility in natural English: two to five words separated by spaces that
+tell a reader what the group does, such as "License Validation API" or "Order Checkout Flow". A directory, file,
+package, or symbol name is not a component name: never answer with snake_case, kebab-case, camelCase, or
+PascalCase identifiers, and do not re-case one either ("billing_jobs" and "Billing Jobs" both just repeat
+the directory). Add a concise description,
 and select only clearly evidenced key entities. Label known directed connections by their architectural meaning.
 You may add a missing non-static relation such as REST, queue, plugin, registry, file, or configuration wiring only
 when exact source symbols on both component sides and concrete textual evidence support it. Names alone are not
@@ -57,7 +61,7 @@ Call `ScopeAnalysisResult` with exactly this shape:
   "components": [
     {{
       "group_id": "an exact supplied group_id",
-      "name": "one responsibility",
+      "name": "natural-language name for one responsibility",
       "description": "one concise sentence",
       "key_entities": [{{"qualified_name": "exact in-scope symbol"}}]
     }}
@@ -83,6 +87,12 @@ For incremental input, return component metadata only for groups whose status is
 true, repeat its existing name exactly. Relations may be returned for any pair touching a changed group; leave
 relations between two unchanged groups alone. Include one component entry per editable group. Do not invent group
 IDs, file membership, source symbols, or calls."""
+
+SCOPE_NAME_RETRY_MESSAGE = """These component names are identifiers or directory and file names, not natural text:
+{names}
+
+Call `ScopeAnalysisResult` again with the same content, giving each of these groups a natural-language name of
+two to five words separated by spaces that says what it does. Do not call any other tool."""
 
 STRICT_TREE_PLAN_SYSTEM_SUFFIX = """
 

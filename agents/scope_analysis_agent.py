@@ -30,12 +30,14 @@ from infra.monitoring.callbacks import MONITORING_CALLBACK
 from agents.llm_errors import ScopeContextTooLargeError, raise_if_auth_error
 from agents.llm_renderers import render_scope_context, scope_file_paths, scope_method_names
 from agents.prompts import get_scope_analysis_prompts
+from agents.prompts.shared import SCOPE_NAME_RETRY_MESSAGE
 from agents.retry import LLM_MAX_ATTEMPTS, classify_llm_error, with_retries
 from agents.tools import MethodCallsTool, ReadFileTool
 from agents.tools.base import RepoContext
 from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.clustering import ClusterScopeResult
+from static_analyzer.clustering.names.tokens import identifier_path_names, is_natural_name
 
 logger = logging.getLogger(__name__)
 
@@ -249,19 +251,50 @@ class ScopeAnalysisAgent(MonitoringMixin):
             enclosing_names,
             max_tokens=max(0, input_budget.max_tokens - prompt_tokens),
         )
-        try:
-            response = agent.invoke(
-                {"messages": [HumanMessage(content=self.analysis_prompt.format(scope_context=scope_context))]},
-                config={
-                    "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
-                    "recursion_limit": SCOPE_RECURSION_LIMIT,
-                },
-            )
-        except Exception as error:
-            raise_if_auth_error(error)
-            raise
+
+        def invoke(messages: list) -> dict:
+            try:
+                return agent.invoke(
+                    {"messages": messages},
+                    config={
+                        "callbacks": [MONITORING_CALLBACK, self.agent_monitoring_callback],
+                        "recursion_limit": SCOPE_RECURSION_LIMIT,
+                    },
+                )
+            except Exception as error:
+                raise_if_auth_error(error)
+                raise
+
+        response = invoke([HumanMessage(content=self.analysis_prompt.format(scope_context=scope_context))])
         result = response.get("structured_response")
         if not isinstance(result, ScopeAnalysisResult):
             logger.warning("Scope %s ended without a structured answer", scope.scope_id)
             return None
+
+        # Why a second turn rather than a stricter prompt alone: the same model and prompt name a
+        # scope well on one run and answer with its directory names on the next.
+        path_names = identifier_path_names(context.scope_files)
+        unnatural = {
+            component.group_id: component.name
+            for component in result.components
+            if component.group_id in editable_group_ids
+            and component.group_id not in locked_name_ids
+            and not is_natural_name(component.name, path_names)
+        }
+        if not unnatural:
+            return result
+        logger.info("Scope %s: asking again for natural names instead of %s", scope.scope_id, unnatural)
+        names = "\n".join(f"- {group_id}: {name}" for group_id, name in unnatural.items())
+        answer = invoke(
+            [*response["messages"], HumanMessage(content=SCOPE_NAME_RETRY_MESSAGE.format(names=names))]
+        ).get("structured_response")
+        renamed = (
+            {component.group_id: component.name for component in answer.components}
+            if isinstance(answer, ScopeAnalysisResult)
+            else {}
+        )
+        for component in result.components:
+            if component.group_id in unnatural:
+                name = renamed.get(component.group_id, "")
+                component.name = name if is_natural_name(name, path_names) else ""
         return result

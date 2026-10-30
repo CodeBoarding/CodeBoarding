@@ -24,6 +24,7 @@ from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
 from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
+from static_analyzer.clustering.names.tokens import is_natural_name
 from diagram_analysis.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -119,10 +120,26 @@ class ScopeAssembler:
             for group_id in ordered_ids
             if group_id in semantics_by_id
             and group_id not in locked_name_ids
-            and semantics_by_id[group_id].name.strip()
+            and is_natural_name(semantics_by_id[group_id].name.strip())
         }
-        taken = {component.name for group_id, component in components.items() if group_id not in proposals}
+        # A directory or identifier name is not kept just because the model gave no better one:
+        # it is replaced by the rule name written as words.
+        fallbacks = {
+            group_id
+            for group_id in ordered_ids
+            if group_id not in proposals
+            and group_id not in locked_name_ids
+            and group_id in components
+            and not is_natural_name(components[group_id].name)
+        }
+        taken = {
+            component.name
+            for group_id, component in components.items()
+            if group_id not in proposals and group_id not in fallbacks
+        }
         taken.update(reserved_names)
+        for group_id in fallbacks:
+            components[group_id].name = groups_by_id[group_id].unique_name(taken)
         named: set[str] = set()
         for group_id in ordered_ids:
             component = components.get(group_id)
