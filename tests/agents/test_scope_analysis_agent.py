@@ -239,8 +239,11 @@ class TestScopeNames(unittest.TestCase):
         validation = ScopeNameValidation(frozenset(), {"1", "2"})
         first = named(("1", "billing"), ("2", "Order Intake"))
 
-        self.assertEqual(validation.after_model({"structured_response": first}, None)["jump_to"], "model")
+        asked = validation.after_model({"structured_response": first}, None)
         update = validation.after_model({"structured_response": named(("1", "Invoice Generation"))}, None)
+
+        assert asked is not None and update is not None
+        self.assertEqual(asked["jump_to"], "model")
 
         self.assertEqual(
             [component.name for component in update["structured_response"].components],
