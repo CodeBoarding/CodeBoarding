@@ -235,8 +235,9 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 > `.codeboarding/` only if you want the baseline to travel with the branch (so a teammate or a
 > fresh checkout can run incremental too). With no baseline at all — or one that predates content
 > versioning — `incremental` fails fast with "run a full analysis first" rather than silently
-> doing a full run. Static-analysis caches are versioned but not migrated; after a cache-version
-> upgrade, run a full analysis once to reindex.
+> doing a full run. Static-analysis caches are versioned but not migrated: after a cache-version
+> upgrade, `incremental` logs a warning and runs one full analysis at the baseline's depth, which
+> counts against your LLM provider like any other full run.
 
 ## Where to use it
 
