@@ -276,7 +276,12 @@ def _lang_to_adapter_name(language: str) -> str | None:
         Language.KOTLIN: AdapterName.KOTLIN,
         Language.PHP: AdapterName.PHP,
         Language.RUST: AdapterName.RUST,
+        Language.CPP: AdapterName.CPP,
         # Scanner spellings with no ``Language`` member of their own.
+        "c++": AdapterName.CPP,
+        "c++ header": AdapterName.CPP,
+        "c header": AdapterName.CPP,
+        "cuda": AdapterName.CPP,
         "tsx": AdapterName.TYPESCRIPT,
         "jsx": AdapterName.JAVASCRIPT,
         "c#": AdapterName.CSHARP,

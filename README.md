@@ -247,10 +247,23 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#.
+- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#, C++ and CUDA.
   - Java needs a JDK (21 recommended).
   - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. Kotlin calls into Java are not drawn yet.
+  - C++ and CUDA share [clangd](https://clangd.llvm.org/), with separate C++ and CUDA parsers for call sites, including `kernel<<<...>>>(...)` launches. Setup downloads clangd 23.1.0 with its resource headers on Linux x86-64, macOS and Windows x64. Other architectures need a native clangd on `PATH`.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
+
+### C++ and NVIDIA CUDA configuration
+
+Provide `compile_commands.json` in the repository root or `build/` (CMake's Ninja/Makefile generators can produce it with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`). Alternatively, provide a root `.clangd` or `compile_flags.txt`. For build directories such as `cpp/build` or `build/debug`, point `CompileFlags.CompilationDatabase` in `.clangd` at that directory. CodeBoarding refuses an unconfigured project; it does not run CMake, fetch project dependencies, or modify `.clangd`.
+
+For CUDA, use the project's clangd configuration when available (for example CCCL's `.clangd`). A raw NVCC compilation database is not necessarily Clang-compatible: configure `CompileFlags.Remove` for unsupported NVCC options, and provide the actual toolkit path, includes, C++ standard and target architecture. Use CUDA language mode for `.cu`/`.cuh`, and for other files only when the project requires it. Do not copy GPU architecture macros from an unrelated project. NVIDIA's [Nsight clangd setup guide](https://docs.nvidia.com/nsight-visual-studio-code-edition/latest/cuda-cpp-language-support/index.html#clangd-setup) describes this configuration.
+
+Cross-platform C++ support does not imply every CUDA toolkit/project builds on every OS. CUDA analysis requires compatible headers and compiler flags, but does not execute GPU code. Clangd errors (including missing standard-library/toolkit headers) stop analysis; warnings do not. Supply the correct compiler path and include directories in the build configuration. Macros, inactive preprocessor branches and template-dependent calls can still limit the graph to the selected build configuration.
+
+The analyzer supplements definition queries with clangd's call hierarchy and active AST for constructors, operators, macros, local lambdas and automatic-object destruction. For unresolved template-dependent calls, bundled libclang 18.1.1 follows actual instantiated bodies and adds their dependencies to the source template. Targets are resolved by compiler declaration locations, never by matching function names. Uninstantiated templates cannot supply concrete targets.
+
+Template completion requires a Clang-compatible `compile_commands.json` or `compile_flags.txt`, including complete SDK and system-header paths. It currently cannot reproduce `.clangd` `CompileFlags` adjustments: export those adjustments into the compilation database instead. Missing headers, unsupported compiler options and incompatible language features fail explicitly rather than produce a guessed graph. Clangd remains the primary language server; libclang is used only when dependent calls remain unresolved.
 
 ## Examples
 

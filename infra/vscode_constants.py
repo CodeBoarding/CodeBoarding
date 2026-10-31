@@ -54,6 +54,9 @@ def update_command_paths(bin_dir):
                 # The release archive is extracted whole; its launcher sits under its own bin/.
                 launcher = "intellij-server.exe" if is_windows else "intellij-server"
                 cmd[0] = find_runnable(bin_dir, launcher, os.path.join("kotlin-lsp", "bin")) or cmd[0]
+            elif key == "cpp":
+                launcher = "clangd.exe" if is_windows else "clangd"
+                cmd[0] = find_runnable(bin_dir, launcher, os.path.join("clangd", "bin")) or cmd[0]
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])
@@ -80,6 +83,13 @@ def update_config(bin_dir=None):
 
 VSCODE_CONFIG = {
     "lsp_servers": {
+        "cpp": {
+            "name": "clangd",
+            "command": ["clangd", "--background-index", "--clang-tidy=false", "--header-insertion=never"],
+            "languages": ["cpp"],
+            "file_extensions": [".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h", ".cu", ".cuh"],
+            "install_commands": "codeboarding-setup (downloads clangd; other architectures can install LLVM on PATH)",
+        },
         "python": {
             "name": "Pyright Language Server",
             "command": ["pyright-langserver", "--stdio"],

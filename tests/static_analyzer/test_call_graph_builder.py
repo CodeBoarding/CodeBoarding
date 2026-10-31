@@ -50,7 +50,7 @@ def _make_adapter() -> MagicMock:
     )
     adapter.get_all_packages.return_value = {"pkg"}
     adapter.get_package_for_file.return_value = "pkg"
-    adapter.refine_document_symbols.side_effect = lambda file_path, symbols, inspector: symbols
+    adapter.refine_document_symbols.side_effect = lambda file_path, symbols, inspector, client: symbols
     adapter.build_edges.return_value = set()
     adapter.get_probe_timeout_minimum.return_value = 0
     adapter.probe_before_open = False

@@ -1812,6 +1812,36 @@ class TestArchiveLauncherTools(unittest.TestCase):
     JDTLS = next(dep for dep in TOOL_REGISTRY if dep.key == "java")
     VERSION = KOTLIN.source.tag  # type: ignore[union-attr]
 
+    def test_clangd_keeps_resource_headers_beside_platform_launcher(self):
+        dep = next(dep for dep in TOOL_REGISTRY if dep.key == "cpp")
+        source = dep.source
+        assert isinstance(source, GitHubToolSource)
+        for (system, machine), asset in source.asset_arch_overrides.items():
+            with self.subTest(system=system, machine=machine), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                archive = base / "release.zip"
+                executable = "clangd.exe" if system == "Windows" else "clangd"
+                with zipfile.ZipFile(archive, "w") as zf:
+                    zf.writestr(f"clangd_{source.tag}/bin/{executable}", "launcher")
+                    zf.writestr(f"clangd_{source.tag}/lib/clang/23/include/stddef.h", "header")
+
+                def download(url, destination, expected_sha256=None):
+                    self.assertEqual(url, f"https://github.com/clangd/clangd/releases/download/{source.tag}/{asset}")
+                    self.assertEqual(expected_sha256, source.sha256[asset])
+                    shutil.copy(archive, destination)
+                    return True
+
+                with (
+                    patch("platform.system", return_value=system),
+                    patch("platform.machine", return_value=machine),
+                    patch("infra.tool_registry.installers.download_asset", side_effect=download),
+                ):
+                    install_archive_tool(base, dep)
+                    self.assertTrue(archive_tool_is_installed(base, dep))
+                    command = resolve_config(base)["lsp_servers"]["cpp"]["command"]
+                    self.assertEqual(command[0], str(base / "bin" / "clangd" / "bin" / executable))
+                    self.assertEqual((base / "bin/clangd/lib/clang/23/include/stddef.h").read_text(), "header")
+
     @staticmethod
     def _zip(path: Path, root: str = "kotlin-server/") -> None:
         """A release zip shaped like JetBrains': one top-level folder, an executable launcher, a symlink."""

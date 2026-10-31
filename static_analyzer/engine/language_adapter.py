@@ -9,8 +9,9 @@ from pathlib import Path
 
 from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
-from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
@@ -433,13 +434,24 @@ class LanguageAdapter(ABC):
         once per element, rather than only constructing the type."""
         return False
 
-    def refine_document_symbols(self, file_path: Path, symbols: list[dict], inspector: SourceInspector) -> list[dict]:
+    def refine_document_symbols(
+        self, file_path: Path, symbols: list[dict], inspector: SourceInspector, client: LSPClient
+    ) -> list[dict]:
         """The server's symbols for a file, completed from source where they cannot tell declarations apart.
 
         Why: a server that names every overload alike files the second under the first one's
         qualified name. Unchanged by default.
         """
         return symbols
+
+    def complete_edges(
+        self,
+        ctx: EdgeBuildContext,
+        source_files: list[Path],
+        edges: dict[tuple[str, str], list[CallSite]],
+        project_root: Path,
+    ) -> None:
+        """Add compiler-resolved dependencies that position-based definition queries cannot express."""
 
     def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
         """Take note of a file's symbol tree before its names are built.
