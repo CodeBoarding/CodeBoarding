@@ -9,7 +9,7 @@ from agents.llm_errors import LLMAuthError, LLMQuotaError
 from diagram_analysis.exceptions import ScopeSemanticsError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
-from codeboarding_workflows.analysis import BaselineUnavailableError, run_incremental
+from codeboarding_workflows.analysis import BaselineUnavailableError, EngineChangedError, run_full, run_incremental
 from diagram_analysis import RunContext
 from diagram_analysis.run_mode import RunMode
 from infra.utils import monitoring_enabled
@@ -48,12 +48,21 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         return
 
     run_context = RunContext.resolve(project_name=run_paths.project_name)
+    should_monitor = args.enable_monitoring or monitoring_enabled()
+    mode = RunMode.INCREMENTAL
 
     try:
-        analysis_path = run_incremental(
+        analysis_path = run_incremental(run_paths, run_context, monitoring_enabled=should_monitor)
+    except EngineChangedError as exc:
+        # Why: an engine release reaches CI unasked, and nobody is there to answer a prompt.
+        logger.warning("%s Running a full analysis instead.", exc)
+        mode = RunMode.FULL
+        analysis_path = run_full(
             run_paths,
             run_context,
-            monitoring_enabled=args.enable_monitoring or monitoring_enabled(),
+            depth_cap=exc.depth_cap,
+            monitoring_enabled=should_monitor,
+            force_full=True,
         )
     except BaselineUnavailableError as exc:
         # Expected: no baseline, or diff failed against the requested base ref.
@@ -61,22 +70,24 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         # to prompt for a full run; no stack trace needed.
         logger.info("Incremental unavailable: %s", exc)
         _emit_error(str(exc))
+        return
     except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
         # A full run would fail the same way, so don't ask for one.
         raise
     except Exception as exc:
         logger.exception("Incremental analysis failed")
         _emit_error(str(exc))
-    else:
-        _emit(
-            {
-                "mode": RunMode.INCREMENTAL,
-                "requiresFullAnalysis": False,
-                "analysis_path": str(analysis_path),
-            }
-        )
-        # Human-facing hint (logs to stderr, so the stdout JSON contract stays clean).
-        print_view_instructions(analysis_path)
+        return
+
+    _emit(
+        {
+            "mode": mode,
+            "requiresFullAnalysis": False,
+            "analysis_path": str(analysis_path),
+        }
+    )
+    # Human-facing hint (logs to stderr, so the stdout JSON contract stays clean).
+    print_view_instructions(analysis_path)
 
 
 def _emit_error(message: str) -> None:

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from agents.content_hash import hash_repo_source_files
 from diagram_analysis.io_utils import read_fingerprint
+from infra.constants import STATIC_ANALYSIS_PKL
 from infra.repo_utils.change_detector import ChangeSet
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,20 @@ class BaselineUnavailableError(RuntimeError):
     Callers must surface a "run full analysis" prompt rather than silently degrading
     to an unscoped run or an empty-but-successful update.
     """
+
+
+class EngineChangedError(BaselineUnavailableError):
+    """Raised when the baseline's static analysis came from an engine version this build cannot read.
+
+    Carries the baseline's depth cap, so a caller that recovers rebuilds at the same depth.
+    """
+
+    def __init__(self, output_dir: Path, depth_cap: int):
+        super().__init__(
+            f"{output_dir / STATIC_ANALYSIS_PKL} was written by a different engine version "
+            "and cannot be reused for an incremental run."
+        )
+        self.depth_cap = depth_cap
 
 
 def diff_file_maps(old: FileHashMap, new: FileHashMap) -> tuple[list[str], list[str], list[str]]:
