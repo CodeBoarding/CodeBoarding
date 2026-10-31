@@ -11,10 +11,14 @@ Adding a new tool:
     3. Add to the ``Language`` enum in ``static_analyzer/config.py``.
 """
 
+import json
 import platform
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
+from typing import Any
 
 
 # -- Public types and constants -----------------------------------------------
@@ -36,10 +40,31 @@ JDTLS_URL_TEMPLATE = "https://download.eclipse.org/jdtls/snapshots/jdt-language-
 RUST_ANALYZER_REPO = "rust-lang/rust-analyzer"
 RUST_ANALYZER_TAG = "2026-10-26"
 
-# JetBrains' kotlin-lsp ships one archive per platform with its own Java runtime inside.
-KOTLIN_LSP_VERSION = "263.6379.0"
+# JetBrains' kotlin-lsp ships one archive per platform with its own Java runtime inside. Only early-access builds
+# exist, and each stops starting about 30 days after its build date, so a pin compiled into a release would die in
+# every installed copy. The pin is a file instead: the wheel's copy is the fallback, and installed Core reads main's
+# copy when a run needs Kotlin, so merging a bump of that file is what publishes it. The file only points at a build:
+# the archives always come from JetBrains, whose licence (section 3.4(d)) rules out mirroring them. The "Kotlin
+# server" workflow opens those bumps from the ``<archive>.sha256`` files JetBrains publishes beside each archive.
+KOTLIN_LSP_PIN_FILE = "kotlin-server-1.json"
+# A public contract: every installed Core reads this path for as long as it runs, so the file cannot move. When
+# JetBrains changes its layout or URLs, the new form goes in a new numbered file and older Core stays on the last
+# build it can run.
+KOTLIN_LSP_PIN_URL = (
+    f"https://raw.githubusercontent.com/CodeBoarding/CodeBoarding/main/infra/tool_registry/{KOTLIN_LSP_PIN_FILE}"
+)
 KOTLIN_LSP_URL_TEMPLATE = "https://download.jetbrains.com/language-server/kotlin-server/{version}/{asset}"
 KOTLIN_LSP_LICENSE_URL = "https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt"
+KOTLIN_LSP_ASSETS = {
+    ("Linux", "x86_64"): "kotlin-server-{version}.tar.gz",
+    ("Linux", "aarch64"): "kotlin-server-{version}-aarch64.tar.gz",
+    ("Darwin", "x86_64"): "kotlin-server-{version}.sit",
+    ("Darwin", "arm64"): "kotlin-server-{version}-aarch64.sit",
+    ("Windows", "AMD64"): "kotlin-server-{version}.win.zip",
+    ("Windows", "ARM64"): "kotlin-server-{version}-aarch64.win.zip",
+}
+_KOTLIN_LSP_VERSION = re.compile(r"[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}")
+_SHA256 = re.compile(r"[0-9a-f]{64}")
 
 # Pinned Node.js runtime for users without system Node; downloaded to
 # <servers_dir>/nodeenv/ via install_embedded_node(). A bump is folded into
@@ -162,6 +187,32 @@ class ToolDependency:
         return (platform.system(), platform.machine()) in self.source.asset_arch_overrides
 
 
+def kotlin_lsp_build(version: Any) -> tuple[int, ...]:
+    """*version* as numbers to compare builds by. Raises ``ValueError`` for anything else: it goes into a URL."""
+    if not isinstance(version, str) or not _KOTLIN_LSP_VERSION.fullmatch(version):
+        raise ValueError(f"not a kotlin-lsp version: {version!r}")
+    return tuple(int(part) for part in version.split("."))
+
+
+def kotlin_lsp_source(pin: Any) -> UpstreamToolSource:
+    """The source a pin file describes. Raises ``ValueError`` for anything less: a pin can come off the network."""
+    if not isinstance(pin, dict):
+        raise ValueError(f"a kotlin-lsp pin is an object, not {type(pin).__name__}")
+    version = pin.get("version", "")
+    kotlin_lsp_build(version)
+    assets = {host: name.format(version=version) for host, name in KOTLIN_LSP_ASSETS.items()}
+    sha256 = pin.get("sha256")
+    if (
+        not isinstance(sha256, dict)
+        or set(sha256) != set(assets.values())
+        or not all(isinstance(value, str) and _SHA256.fullmatch(value) for value in sha256.values())
+    ):
+        raise ValueError(f"kotlin-lsp {version} does not carry a checksum for each of its archives")
+    return UpstreamToolSource(
+        tag=version, url_template=KOTLIN_LSP_URL_TEMPLATE, asset_arch_overrides=assets, sha256=sha256
+    )
+
+
 # Installed before any language is known: tokei is what finds a repository's languages.
 BASE_TOOL_KEYS = frozenset({"tokei"})
 
@@ -267,26 +318,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
         binary_name="intellij-server",
         kind=ToolKind.ARCHIVE,
         config_section=ConfigSection.LSP_SERVERS,
-        source=UpstreamToolSource(
-            tag=KOTLIN_LSP_VERSION,
-            url_template=KOTLIN_LSP_URL_TEMPLATE,
-            asset_arch_overrides={
-                ("Linux", "x86_64"): f"kotlin-server-{KOTLIN_LSP_VERSION}.tar.gz",
-                ("Linux", "aarch64"): f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.tar.gz",
-                ("Darwin", "x86_64"): f"kotlin-server-{KOTLIN_LSP_VERSION}.sit",
-                ("Darwin", "arm64"): f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.sit",
-                ("Windows", "AMD64"): f"kotlin-server-{KOTLIN_LSP_VERSION}.win.zip",
-                ("Windows", "ARM64"): f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.win.zip",
-            },
-            sha256={
-                f"kotlin-server-{KOTLIN_LSP_VERSION}.tar.gz": "ab8ca4455dc2fc5fe1a24db2bccc46c104254d2c465155c4251ee65df8f3f7cc",
-                f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.tar.gz": "50999901ef8bcfa1e58561b6a8d782a72dea5620fcf92a64130807f8924a56fc",
-                f"kotlin-server-{KOTLIN_LSP_VERSION}.sit": "e69e0c9d27b915b2db9ee692ec08d097df1a394d9f21190457ef199f2905f77e",
-                f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.sit": "ebef2e13cd4adc4ec9e04084b848000a3ec7a9d2917c64f269574ce2efe9ecad",
-                f"kotlin-server-{KOTLIN_LSP_VERSION}.win.zip": "72148fa0832c2a45a4b26c55f56197d8d8886bcdb732b910607efc5e2693b9df",
-                f"kotlin-server-{KOTLIN_LSP_VERSION}-aarch64.win.zip": "290f48cb564295239bb678bb66b1ebbd06755b14fd4890f3cdf822f41af011ef",
-            },
-        ),
+        source=kotlin_lsp_source(json.loads((Path(__file__).parent / KOTLIN_LSP_PIN_FILE).read_text("utf-8"))),
         archive_subdir="kotlin-lsp",
         archive_entry="bin/intellij-server",
         license_url=KOTLIN_LSP_LICENSE_URL,

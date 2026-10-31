@@ -23,6 +23,8 @@ from infra.vscode_constants import VSCODE_CONFIG, find_runnable
 from .installers import (
     archive_launcher_path,
     archive_tool_is_installed,
+    archive_tool_is_usable,
+    current_tool,
     package_manager_tool_dir,
     package_manager_tool_is_current,
 )
@@ -68,6 +70,7 @@ def tool_fingerprint(dep: ToolDependency) -> str:
 
     A change makes ``needs_install()`` run that tool's installer again.
     """
+    dep = current_tool(dep)
     parts: list[str] = []
     if isinstance(dep.source, GitHubToolSource):
         parts.append(f"{dep.source.repo}:{dep.source.tag}")
@@ -234,7 +237,7 @@ def resolve_config(base_dir: Path) -> dict[str, Any]:
                     cmd[0] = str(binary_path)
 
         elif dep.kind is ToolKind.ARCHIVE and dep.archive_subdir:
-            if not archive_tool_is_installed(base_dir, dep):
+            if not archive_tool_is_usable(base_dir, dep):
                 continue
             launcher = archive_launcher_path(base_dir, dep)
             if launcher is not None:
