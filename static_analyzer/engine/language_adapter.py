@@ -303,6 +303,14 @@ class LanguageAdapter(ABC):
         """
         return None
 
+    def lift_import_filters(self, project_root: Path) -> bool:
+        """Remove what the server's import did to hide repository sources; True if it needs restarting."""
+        return False
+
+    def restore_import_filters(self) -> None:
+        """Put back what ``lift_import_filters`` changed in the repository, once its servers are stopped."""
+        return None
+
     def discover_source_files(
         self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
     ) -> list[Path]:

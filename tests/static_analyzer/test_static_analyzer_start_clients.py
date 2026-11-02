@@ -40,6 +40,7 @@ def _make_adapter(
     adapter.wait_for_workspace_ready = wait_for_workspace_ready
     adapter.workspace_folders.return_value = []
     adapter.fallback_workspace_folders.return_value = []
+    adapter.lift_import_filters.return_value = False
     return cast(LanguageAdapter, adapter)
 
 
@@ -266,3 +267,51 @@ class TestStartClientsFallbackWorkspace:
         assert client_cls.call_args_list[0].kwargs["workspace_folders"] == [tmp_path / "sources"]
         only.shutdown.assert_not_called()
         assert [client for _, client in analyzer._engine_clients] == [only]
+
+
+class TestStartClientsImportFilters:
+    def test_a_server_whose_import_hid_sources_is_restarted_on_the_same_workspace(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        """The workspace is in the command, and a fresh one would import the filters straight back."""
+        adapter = _make_adapter("Java")
+        adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
+        adapter.lift_import_filters.return_value = True  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        first, second = MagicMock(name="first"), MagicMock(name="second")
+
+        with patch("static_analyzer.LSPClient", side_effect=[first, second]) as client_cls:
+            analyzer.start_clients()
+
+        first.shutdown.assert_called_once()
+        adapter.get_lsp_command.assert_called_once()  # type: ignore[attr-defined]
+        commands = [call.kwargs["command"] for call in client_cls.call_args_list]
+        assert commands == [["java-lsp"], ["java-lsp"]]
+        assert [client for _, client in analyzer._engine_clients] == [second]
+
+    def test_a_server_with_nothing_hidden_is_not_restarted(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        adapter = _make_adapter("Java")
+        adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        only = MagicMock(name="only")
+
+        with patch("static_analyzer.LSPClient", side_effect=[only]):
+            analyzer.start_clients()
+
+        only.shutdown.assert_not_called()
+
+    def test_stopping_restores_after_the_servers_are_down(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        """A live server would see the restored file and rebuild its project with the filters back."""
+        order = MagicMock()
+        adapter = _make_adapter("Java")
+        adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
+        adapter.restore_import_filters.side_effect = lambda: order.restored()  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        client = MagicMock(name="client")
+        client.shutdown.side_effect = lambda: order.stopped()
+
+        with patch("static_analyzer.LSPClient", side_effect=[client]):
+            analyzer.start_clients()
+        analyzer.stop_clients()
+
+        assert [call[0] for call in order.mock_calls] == ["stopped", "restored"]

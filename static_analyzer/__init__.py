@@ -454,18 +454,26 @@ class StaticAnalyzer:
 
         The server is started on the workspace its adapter names (see ``workspace_folders``), and
         one that could not load the project is restarted once on the workspace its adapter
-        describes instead (see ``fallback_workspace_folders``).
+        describes instead (see ``fallback_workspace_folders``). One whose import hid repository
+        sources is restarted once on what it imported (see ``lift_import_filters``).
         """
         adapter, project_path = engine_config.adapter, engine_config.project_path
         logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
         self._prepare_project_once(engine_config)
         initial = adapter.workspace_folders(project_path, engine_config.source_files)
-        engine_client = self._start_engine_client(engine_config, initial or None)
+        command = adapter.get_lsp_command(project_path)
+        engine_client = self._start_engine_client(engine_config, initial or None, command)
         try:
             fallback = adapter.fallback_workspace_folders(engine_client, project_path, engine_config.source_files)
+            lifted = adapter.lift_import_filters(project_path)
         except Exception:
             engine_client.shutdown()
             raise
+        if lifted:
+            logger.info(f"{adapter.language} import hid sources in {project_path}; restarting without its filters")
+            engine_client.shutdown()
+            # The same command, so the server reopens the projects it imported instead of importing them again.
+            return self._start_engine_client(engine_config, initial or None, command)
         if not fallback or fallback == initial:
             return engine_client
         logger.warning(f"{adapter.language} server could not load {project_path}; restarting on {fallback}")
@@ -481,12 +489,15 @@ class StaticAnalyzer:
         return fresh
 
     def _start_engine_client(
-        self, engine_config: EngineConfig, workspace_folders: list[Path] | None = None
+        self,
+        engine_config: EngineConfig,
+        workspace_folders: list[Path] | None = None,
+        command: list[str] | None = None,
     ) -> LSPClient:
         """Launch the server, initialize it, and wait for its workspace where the adapter asks to."""
         adapter, project_path = engine_config.adapter, engine_config.project_path
         t_start = time.monotonic()
-        command = adapter.get_lsp_command(project_path)
+        command = command or adapter.get_lsp_command(project_path)
         # Servers run N at a time share the memory budget; one at a time, or resident, each may use all of it.
         heap = per_engine_memory_budget(self._server_slots) - SERVER_NON_HEAP_BYTES
         init_options = {**adapter.get_lsp_init_options(self.ignore_manager), **adapter.get_lsp_heap_options(heap)}
@@ -538,6 +549,8 @@ class StaticAnalyzer:
                 client.shutdown()
             except Exception as e:
                 logger.error(f"Error shutting down engine LSP client for {engine_config.adapter.language}: {e}")
+        for engine_config in self._engine_configs:
+            engine_config.adapter.restore_import_filters()
         self._engine_clients = []
         self._clients_started = False
         self._cached_results = None

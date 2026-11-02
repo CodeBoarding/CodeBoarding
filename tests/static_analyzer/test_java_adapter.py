@@ -1,4 +1,4 @@
-"""Naming for the Java adapter: what a symbol is called, and which package it sits in."""
+"""The Java adapter: what a symbol is called, which package it sits in, and what the build import hid."""
 
 from pathlib import Path
 
@@ -81,3 +81,68 @@ class TestGetPackageForFile:
             ROOT / "b/src/main/java/com/acme/Two.java",
         ]
         assert adapter.get_all_packages(sources, ROOT) == {"a.src.main.java.com.acme", "b.src.main.java.com.acme"}
+
+
+FILTERED_CLASSPATH = b"""<classpath>
+\t<classpathentry including="**/*Rules.java" kind="src" output="target/classes" path="src/main/java">
+\t\t<attributes><attribute name="maven.pomderived" value="true"/></attributes>
+\t</classpathentry>
+\t<classpathentry excluding="**" kind="src" output="target/classes" path="src/main/resources"/>
+\t<classpathentry including="**/*.jar" kind="lib" path="lib"/>
+</classpath>
+"""
+
+
+class TestImportFilters:
+    def test_a_source_folder_filter_is_dropped_in_every_module(self, tmp_path: Path):
+        modules = [tmp_path / "core", tmp_path / "group" / "utils"]
+        for module in modules:
+            module.mkdir(parents=True)
+            (module / ".classpath").write_bytes(FILTERED_CLASSPATH)
+
+        assert JavaAdapter().lift_import_filters(tmp_path) is True
+
+        for module in modules:
+            lifted = (module / ".classpath").read_bytes()
+            assert b'<classpathentry kind="src" output="target/classes" path="src/main/java">' in lifted
+
+    def test_only_the_inclusion_filter_on_a_source_folder_goes(self, tmp_path: Path):
+        """A resource folder's ``excluding="**"`` and a library's own filter mean something else."""
+        (tmp_path / ".classpath").write_bytes(FILTERED_CLASSPATH)
+
+        JavaAdapter().lift_import_filters(tmp_path)
+
+        lifted = (tmp_path / ".classpath").read_bytes()
+        assert b'excluding="**" kind="src"' in lifted
+        assert b'including="**/*.jar" kind="lib"' in lifted
+
+    def test_a_project_without_filters_is_left_alone(self, tmp_path: Path):
+        """False is what spares every other repository a server restart."""
+        unfiltered = b'<classpath><classpathentry kind="src" path="src/main/java"/></classpath>'
+        (tmp_path / ".classpath").write_bytes(unfiltered)
+
+        assert JavaAdapter().lift_import_filters(tmp_path) is False
+        assert (tmp_path / ".classpath").read_bytes() == unfiltered
+
+    def test_restoring_puts_back_the_imported_file(self, tmp_path: Path):
+        """A repository that commits its ``.classpath`` must not be left modified by an analysis."""
+        (tmp_path / ".classpath").write_bytes(FILTERED_CLASSPATH)
+        adapter = JavaAdapter()
+        adapter.lift_import_filters(tmp_path)
+
+        adapter.restore_import_filters()
+
+        assert (tmp_path / ".classpath").read_bytes() == FILTERED_CLASSPATH
+
+    def test_a_second_import_does_not_replace_what_is_restored(self, tmp_path: Path):
+        """Engines over nested projects import the same module in turn."""
+        classpath = tmp_path / ".classpath"
+        classpath.write_bytes(FILTERED_CLASSPATH)
+        adapter = JavaAdapter()
+        adapter.lift_import_filters(tmp_path)
+        classpath.write_bytes(FILTERED_CLASSPATH.replace(b"Rules", b"Other"))
+        adapter.lift_import_filters(tmp_path)
+
+        adapter.restore_import_filters()
+
+        assert classpath.read_bytes() == FILTERED_CLASSPATH
