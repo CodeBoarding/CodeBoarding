@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import tempfile
 from pathlib import Path
 
@@ -266,8 +267,8 @@ class JavaAdapter(LanguageAdapter):
         A timeout or a lost server is not this, and still fails it.
         """
         data = str(error.get("data", ""))
-        if "NullPointerException" in data and "codeassist.SelectionEngine" in data:
-            logger.warning(f"JDTLS crashed resolving a call site, leaving its edge out: {data.splitlines()[0]}")
+        if re.search(r"Caused by: java\.lang\.NullPointerException.*\n\s*at \S*codeassist\.SelectionEngine", data):
+            logger.warning(f"JDTLS crashed resolving a call site, leaving its edge out: {data}")
             return ErrorVerdict.DECLINED
         return ErrorVerdict.FAILURE
 
