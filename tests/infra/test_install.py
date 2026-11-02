@@ -1,4 +1,5 @@
 import gzip
+import io
 import json
 import os
 import subprocess
@@ -45,6 +46,38 @@ class TestResolveMissingNpm(unittest.TestCase):
         """When auto_install is True but bootstrap fails, return False (don't crash server)."""
         result = install.resolve_missing_npm(auto_install_npm=True, target_dir=Path("/tmp/test"))
         self.assertFalse(result)
+
+    @patch("builtins.input", return_value="n")
+    @patch("infra.install.is_non_interactive_mode", return_value=False)
+    def test_declining_npm_logs_an_error_and_exits(self, mock_non_interactive, mock_input):
+        with self.assertLogs("infra.install", level="ERROR") as logs, self.assertRaises(SystemExit) as raised:
+            install.resolve_missing_npm(auto_install_npm=False)
+        self.assertEqual(raised.exception.code, 1)
+        self.assertIn("npm is required", logs.output[0])
+
+
+class TestMain(unittest.TestCase):
+    @patch("infra.install.write_manifest")
+    @patch("infra.install.run_install")
+    @patch("infra.install.acquire_lock")
+    @patch("infra.install.setup_logging")
+    def test_setup_configures_logging_before_reporting_progress(
+        self, mock_setup_logging, mock_acquire_lock, mock_run_install, mock_write_manifest
+    ):
+        """Why: without a configured handler the INFO-level progress of setup would be dropped."""
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("infra.install.get_servers_dir", return_value=Path(tmp)),
+            patch.object(sys, "argv", ["codeboarding-setup", "--auto-install-npm"]),
+            patch.object(sys, "stdout", io.TextIOWrapper(io.BytesIO())),
+            patch.object(sys, "stderr", io.TextIOWrapper(io.BytesIO())),
+            self.assertLogs("infra.install", level="INFO") as logs,
+        ):
+            install.main()
+
+        mock_setup_logging.assert_called_once_with()
+        mock_run_install.assert_called_once_with(auto_install_npm=True, auto_install_vcpp=False)
+        self.assertIn("Setup complete!", "\n".join(logs.output))
 
 
 class TestResolveNpmAvailability(unittest.TestCase):
