@@ -85,6 +85,9 @@ class JavaConfigScanner:
                         if removed > 0:
                             logger.info(f"Removed {removed} Maven sub-project(s) covered by Gradle root at {root}")
 
+        # After Gradle: a root Gradle replaced no longer vouches for the modules its pom lists.
+        projects = self._without_reactor_modules(projects)
+
         # Process Eclipse projects (only if no Maven/Gradle)
         for root in eclipse_roots:
             if not self.ignore_manager.should_ignore(root):
@@ -101,6 +104,35 @@ class JavaConfigScanner:
             projects.append(JavaProjectConfig(self.repo_path, "none", False))
 
         return projects
+
+    def _without_reactor_modules(self, projects: list[JavaProjectConfig]) -> list[JavaProjectConfig]:
+        """Remove Maven projects a kept root's reactor already imports.
+
+        Why: JDTLS imports the whole reactor from the root pom, so a module's own engine repeats that
+        work, and without the reactor it cannot resolve its sibling modules. Only ``<modules>`` entries
+        at the top level of a pom count, and only inside the root: a commented-out module, a module
+        listed in a profile alone, a path outside the root or a pom file all keep their engine, because
+        the root's engine may not reach them.
+        """
+        maven = {project.root.resolve(): project for project in projects if project.build_system == "maven"}
+        covered: set[Path] = set()
+        # Outermost first: a project still uncovered when its turn comes has no root above it.
+        for root in sorted(maven, key=lambda path: len(path.parts)):
+            if root in covered:
+                continue
+            reached = {root}
+            pending = [root]
+            while pending:
+                for module in maven[pending.pop()].modules:
+                    resolved = module.resolve()
+                    if resolved in maven and resolved not in reached and resolved.is_relative_to(root):
+                        reached.add(resolved)
+                        pending.append(resolved)
+            reached.remove(root)
+            if reached:
+                logger.info(f"Removed {len(reached)} Maven module(s) covered by the reactor at {root}")
+                covered |= reached
+        return [project for project in projects if project.root.resolve() not in covered]
 
     def _find_maven_projects(self) -> list[Path]:
         """Find all directories containing pom.xml."""
