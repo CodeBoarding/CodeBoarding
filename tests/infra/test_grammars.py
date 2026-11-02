@@ -59,6 +59,6 @@ class TestSetupDownloadsTheGrammar:
             patch.object(grammars.language_pack, "download", side_effect=language_pack.DownloadError("offline")),
         ):
             install.download_grammars(tmp_path)
-        assert [record.levelno for record in caplog.records if "not downloaded (offline)" in record.getMessage()] == [
-            logging.WARNING
-        ]
+        [record] = [record for record in caplog.records if "not downloaded (offline)" in record.getMessage()]
+        assert record.levelno == logging.WARNING
+        assert record.exc_info is not None  # the traceback is kept for diagnosis

@@ -107,6 +107,7 @@ def check_npm(target_dir: Path | None = None) -> bool:
             logger.warning(
                 "Step: npm check finished: failure - npm command failed (%s). Skipping Language Servers installation.",
                 e,
+                exc_info=True,
             )
             return False
 
@@ -166,7 +167,7 @@ def bootstrap_npm(target_dir: Path | None = None) -> bool:
             npm_root.mkdir(parents=True, exist_ok=True)
             extract_tarball_safely(io.BytesIO(tarball_response.content), npm_root)
         except (requests.RequestException, KeyError, OSError, ValueError, tarfile.TarError) as e:
-            logger.warning("Step: npm remediation finished: failure - %s", e)
+            logger.warning("Step: npm remediation finished: failure - %s", e, exc_info=True)
             logger.warning("   Install Node.js manually from: https://nodejs.org/en/download")
             logger.warning("   Then verify with: npm --version")
             return False
@@ -571,7 +572,9 @@ def download_grammars(target_dir: Path) -> None:
         download_kotlin_grammar(target_dir)
     except RuntimeError as error:
         logger.warning(
-            "  Kotlin grammar: not downloaded (%s); it will be fetched on first use", error.__cause__ or error
+            "  Kotlin grammar: not downloaded (%s); it will be fetched on first use",
+            error.__cause__ or error,
+            exc_info=True,
         )
     else:
         logger.info("  Kotlin grammar: installed")
