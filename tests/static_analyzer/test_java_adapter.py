@@ -134,6 +134,17 @@ class TestImportFilters:
 
         assert (tmp_path / ".classpath").read_bytes() == FILTERED_CLASSPATH
 
+    def test_an_edit_made_during_the_analysis_is_not_overwritten(self, tmp_path: Path):
+        classpath = tmp_path / ".classpath"
+        classpath.write_bytes(FILTERED_CLASSPATH)
+        adapter = JavaAdapter()
+        adapter.lift_import_filters(tmp_path)
+        classpath.write_bytes(b"<classpath>edited since</classpath>")
+
+        adapter.restore_import_filters()
+
+        assert classpath.read_bytes() == b"<classpath>edited since</classpath>"
+
     def test_a_second_import_does_not_replace_what_is_restored(self, tmp_path: Path):
         """Engines over nested projects import the same module in turn."""
         classpath = tmp_path / ".classpath"

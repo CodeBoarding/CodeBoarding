@@ -31,7 +31,8 @@ class JavaAdapter(LanguageAdapter):
 
     def __init__(self) -> None:
         super().__init__()
-        self._filtered_classpaths: dict[Path, bytes] = {}
+        # What the import wrote, and what ``lift_import_filters`` left in its place.
+        self._filtered_classpaths: dict[Path, tuple[bytes, bytes]] = {}
 
     @property
     def wait_for_workspace_ready(self) -> bool:
@@ -252,14 +253,17 @@ class JavaAdapter(LanguageAdapter):
             original = classpath.read_bytes()
             unfiltered = _CLASSPATH_ENTRY.sub(self._without_inclusion_filter, original)
             if unfiltered != original:
-                self._filtered_classpaths.setdefault(classpath, original)
+                imported, _ = self._filtered_classpaths.get(classpath, (original, b""))
+                self._filtered_classpaths[classpath] = (imported, unfiltered)
                 classpath.write_bytes(unfiltered)
                 lifted = True
         return lifted
 
     def restore_import_filters(self) -> None:
-        for classpath, original in self._filtered_classpaths.items():
-            classpath.write_bytes(original)
+        for classpath, (imported, lifted) in self._filtered_classpaths.items():
+            # Anything else is an edit made since, which outranks what the import wrote.
+            if classpath.is_file() and classpath.read_bytes() == lifted:
+                classpath.write_bytes(imported)
         self._filtered_classpaths.clear()
 
     def get_workspace_settings(self) -> dict | None:

@@ -289,6 +289,19 @@ class TestStartClientsImportFilters:
         assert commands == [["java-lsp"], ["java-lsp"]]
         assert [client for _, client in analyzer._engine_clients] == [second]
 
+    def test_a_failed_restart_restores_what_was_lifted(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        """``stop_clients`` never runs for a language that failed to start."""
+        adapter = _make_adapter("Java")
+        adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
+        adapter.lift_import_filters.return_value = True  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+
+        with patch("static_analyzer.LSPClient", side_effect=[MagicMock(name="first"), RuntimeError("no restart")]):
+            with pytest.raises(RuntimeError):
+                analyzer.start_clients()
+
+        adapter.restore_import_filters.assert_called_once()  # type: ignore[attr-defined]
+
     def test_a_server_with_nothing_hidden_is_not_restarted(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         adapter = _make_adapter("Java")
         adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]

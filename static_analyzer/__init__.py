@@ -472,8 +472,12 @@ class StaticAnalyzer:
         if lifted:
             logger.info(f"{adapter.language} import hid sources in {project_path}; restarting without its filters")
             engine_client.shutdown()
-            # The same command, so the server reopens the projects it imported instead of importing them again.
-            return self._start_engine_client(engine_config, initial or None, command)
+            try:
+                # The same command, so the server reopens the projects it imported instead of importing them again.
+                return self._start_engine_client(engine_config, initial or None, command)
+            except Exception:
+                adapter.restore_import_filters()
+                raise
         if not fallback or fallback == initial:
             return engine_client
         logger.warning(f"{adapter.language} server could not load {project_path}; restarting on {fallback}")
