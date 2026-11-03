@@ -9,10 +9,12 @@ from infra.vscode_constants import VSCODE_CONFIG
 from static_analyzer import _create_engine_configs
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.cpp_templates import complete_template_dependencies
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.models import CallSite
+from static_analyzer.engine.models import CallSite, LanguageAnalysisResult
+from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import WorkspaceSetupError
@@ -43,23 +45,23 @@ def test_cpp_and_cuda_share_one_engine_and_discover_headers(tmp_path: Path, dete
     assert set(configs[0].adapter.discover_source_files(tmp_path, ignore)) == {tmp_path / name for name in names}
 
 
-def test_cpp_requires_build_context(tmp_path: Path) -> None:
+def test_cpp_warns_without_build_context(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     (tmp_path / "CMakeLists.txt").write_text("project(example LANGUAGES CXX)")
-    with pytest.raises(WorkspaceSetupError, match="CMAKE_EXPORT_COMPILE_COMMANDS"):
-        CppAdapter().prepare_project(tmp_path)
+    CppAdapter().prepare_project(tmp_path)
+    assert "using clangd defaults" in caplog.text
+    assert not (tmp_path / "compile_commands.json").exists()
 
 
 @pytest.mark.parametrize("severity", [1, 2])
-def test_cpp_rejects_parse_errors_but_accepts_warnings(severity: int) -> None:
+def test_cpp_retains_parse_diagnostics(severity: int, caplog: pytest.LogCaptureFixture) -> None:
     client = MagicMock(spec=LSPClient)
     client.get_collected_diagnostics.return_value = {
         "kernel.cu": [LSPDiagnostic(message="CUDA header is unavailable", severity=severity)]
     }
+    CppAdapter().wait_for_diagnostics(client)
+    assert client.get_collected_diagnostics()["kernel.cu"][0].severity == severity
     if severity == 1:
-        with pytest.raises(WorkspaceSetupError, match="kernel.cu:1: CUDA header is unavailable"):
-            CppAdapter().wait_for_diagnostics(client)
-    else:
-        CppAdapter().wait_for_diagnostics(client)
+        assert "analysis may be incomplete" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -96,8 +98,10 @@ def test_cpp_overloads_and_same_stem_header_survive_registration(tmp_path: Path)
     }
 
 
-@pytest.mark.parametrize("database", ["compile_flags.txt", "compile_commands.json"])
-def test_template_dependencies_follow_each_instantiation(tmp_path: Path, database: str) -> None:
+@pytest.mark.parametrize("database", ["compile_flags.txt", "compile_commands.json", "shared"])
+def test_template_dependencies_follow_each_instantiation(
+    tmp_path: Path, database: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "project with spaces"
     root.mkdir()
     header = root / "api.hpp"
@@ -126,6 +130,15 @@ def test_template_dependencies_follow_each_instantiation(tmp_path: Path, databas
         ),
         encoding="utf-8",
     )
+    if database == "shared":
+        shared = tmp_path / "analysis commands"
+        shared.mkdir()
+        (root / database).rename(shared / "compile_commands.json")
+        (root / ".clangd").write_text("CompileFlags:\n  Add: [-include, unavailable.hpp]\n")
+        monkeypatch.setenv("CODEBOARDING_CPP_COMPILATION_DATABASE", str(shared))
+        command = CppAdapter().get_lsp_command(root)
+        assert f"--compile-commands-dir={shared}" in command
+        assert "--enable-config=false" in command
     table = SymbolTable(CppAdapter())
     for path, declarations in (
         (
@@ -157,3 +170,102 @@ def test_template_dependencies_follow_each_instantiation(tmp_path: Path, databas
     complete_template_dependencies(ctx, [header, source], root, {(str(source), 1, column)}, edges)
     assert set(edges) == {("main.cpp.forward", "api.hpp.left"), ("main.cpp.forward", "api.hpp.right")}
     assert all(sites == [CallSite.from_lsp_position(str(source), 1, column)] for sites in edges.values())
+
+
+def test_cpp_rejects_missing_shared_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CODEBOARDING_CPP_COMPILATION_DATABASE", str(tmp_path / "absent"))
+    with pytest.raises(WorkspaceSetupError, match="must name a directory"):
+        CppAdapter().prepare_project(tmp_path)
+
+
+@pytest.mark.parametrize("context", ["missing", "clangd", "bad-header"])
+def test_partial_cpp_preserves_edges_and_reports_template_limitations(tmp_path: Path, context: str) -> None:
+    source = tmp_path / "main.cpp"
+    source.write_text('#include "missing.hpp"\nint run() { return missing(1); }\n')
+    if context == "clangd":
+        (tmp_path / ".clangd").write_text("CompileFlags:\n  Add: [-DCUSTOM]\n")
+    elif context == "bad-header":
+        (tmp_path / "compile_flags.txt").write_text("-std=c++20\n")
+    adapter = CppAdapter()
+    table = SymbolTable(adapter)
+    position = {"line": 1, "character": 19}
+    table.register_symbols(
+        source,
+        [
+            {
+                "name": "run",
+                "kind": NodeType.FUNCTION,
+                "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 40}},
+                "selectionRange": {"start": {"line": 1, "character": 4}},
+            }
+        ],
+        [],
+        tmp_path,
+    )
+    client = MagicMock(spec=LSPClient)
+    client.outgoing_calls.return_value = []
+    client.document_ast.return_value = {"kind": "UnresolvedLookup", "range": {"start": position}}
+    client.send_definition_batch.return_value = [[]]
+    client.send_type_definition_batch.return_value = []
+    ctx = EdgeBuildContext(client, table, SourceInspector())
+    site = CallSite.from_lsp_position(str(source), 1, 4)
+    edges = {("existing.caller", "existing.target"): [site]}
+    adapter.complete_edges(ctx, [source], edges, tmp_path)
+    assert edges == {("existing.caller", "existing.target"): [site]}
+    result = convert_to_codeboarding_format(
+        table, LanguageAnalysisResult(diagnostics=ctx.diagnostics), adapter, RepoIgnoreManager(tmp_path)
+    )
+    warning = result["diagnostics"][str(tmp_path)][0]
+    assert warning.code == "cpp-template-analysis-incomplete"
+    assert warning.severity == 2
+    assert "Template-dependent calls may be missing" in warning.message
+
+
+@pytest.mark.parametrize("skip", [False, True])
+def test_optional_hierarchy_preserves_calls_and_reports_omissions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, skip: bool
+) -> None:
+    monkeypatch.setenv("CODEBOARDING_CPP_SKIP_TYPE_HIERARCHY", "1" if skip else "0")
+    source = tmp_path / "main.cpp"
+    lines = ["struct Base {};", "struct Child : Base {};", "int leaf() { return 7; }", "int run() { return leaf(); }"]
+    source.write_text("\n".join(lines))
+    symbols = []
+    for line, name in enumerate(["Base", "Child", "leaf", "run"]):
+        position = {"line": line, "character": lines[line].index(name)}
+        symbols.append(
+            {
+                "name": name,
+                "kind": NodeType.CLASS if line < 2 else NodeType.FUNCTION,
+                "range": {
+                    "start": {"line": line, "character": 0},
+                    "end": {"line": line, "character": len(lines[line])},
+                },
+                "selectionRange": {"start": position, "end": position},
+            }
+        )
+    client = MagicMock(spec=LSPClient)
+    client.document_symbol.return_value = symbols
+    client.document_ast.return_value = {}
+    client.outgoing_calls.return_value = []
+    client.send_definition_batch.side_effect = lambda queries, **_: [
+        [{"uri": source.as_uri(), "range": symbols[2]["selectionRange"]}] for _ in queries
+    ]
+    client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
+    client.send_type_definition_batch.side_effect = lambda queries, **_: [[] for _ in queries]
+    client.type_hierarchy_prepare.side_effect = lambda path, line, column: [
+        {"name": symbols[line]["name"], "uri": source.as_uri(), "selectionRange": symbols[line]["selectionRange"]}
+    ]
+    client.type_hierarchy_supertypes.side_effect = lambda item: (
+        [{"name": "Base", "uri": source.as_uri(), "selectionRange": symbols[0]["selectionRange"]}]
+        if item["name"] == "Child"
+        else []
+    )
+    client.type_hierarchy_subtypes.return_value = []
+    result = CallGraphBuilder(client, CppAdapter(), tmp_path, tmp_path).build([source])
+    assert {(edge.source, edge.destination) for edge in result.cfg.edges} == {("main.cpp.run", "main.cpp.leaf")}
+    if skip:
+        assert result.hierarchy == {}
+        assert result.diagnostics[str(tmp_path)][0].code == "type-hierarchy-disabled"
+    else:
+        assert result.hierarchy["main.cpp.Child"]["superclasses"] == ["main.cpp.Base"]
+        assert result.diagnostics == {}

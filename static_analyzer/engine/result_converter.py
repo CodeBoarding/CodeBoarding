@@ -39,7 +39,7 @@ def convert_to_codeboarding_format(
         - package_relations: dict
         - references: list[Node]
         - source_files: list[str]
-        - diagnostics: dict (empty — diagnostics are collected separately)
+        - diagnostics: dict (analysis limitations; server diagnostics are collected separately)
     """
     language = adapter.language
     call_graph = CallGraph(language=language)
@@ -161,7 +161,7 @@ def convert_to_codeboarding_format(
         "package_relations": result.package_dependencies,
         "references": references,
         "source_files": result.source_files,
-        "diagnostics": {},
+        "diagnostics": result.diagnostics,
         "external_call_sites": external_call_sites,
         "external_callers": list(external_callers.values()),
     }

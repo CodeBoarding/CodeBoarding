@@ -8,6 +8,7 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.models import ExternalCallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
 
 @dataclass
@@ -20,3 +21,4 @@ class EdgeBuildContext:
     # Calls the server resolved into files this engine has no symbols for; the
     # merged graph of every engine is where they can still become edges.
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)
+    diagnostics: FileDiagnosticsMap = field(default_factory=dict)

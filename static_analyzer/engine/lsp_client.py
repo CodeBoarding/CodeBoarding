@@ -13,6 +13,7 @@ import queue
 import subprocess
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -20,6 +21,7 @@ from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
+from static_analyzer.engine.process_memory import format_bytes, process_tree_rss
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import LanguageServerStalledError, StaticAnalysisFatalError, WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
@@ -136,6 +138,10 @@ class LSPClient:
         self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+        self._stderr_tail: deque[str] = deque(maxlen=32)
+        self._peak_rss = 0
+        self._last_memory_sample = 0.0
         self._shutdown_event = threading.Event()
         self._write_lock = threading.Lock()
 
@@ -145,6 +151,7 @@ class LSPClient:
 
         # Diagnostics collection
         self._diagnostics: FileDiagnosticsMap = {}
+        self._ast_limitations: dict[str, LSPDiagnostic] = {}
         self._diagnostics_lock = threading.Lock()
         self._diagnostics_generation: int = 0
 
@@ -187,7 +194,7 @@ class LSPClient:
                 self._command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 cwd=str(self._project_root),
             )
@@ -206,6 +213,11 @@ class LSPClient:
         # Start background reader
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
+        self._stderr_tail.clear()
+        self._peak_rss = 0
+        self._last_memory_sample = 0.0
+        self._stderr_thread = threading.Thread(target=self._read_stderr, daemon=True)
+        self._stderr_thread.start()
 
         root_uri = self._project_root.as_uri()
 
@@ -303,6 +315,10 @@ class LSPClient:
                     pass
         if self._reader_thread and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=2)
+        if self._stderr_thread and self._stderr_thread.is_alive():
+            self._stderr_thread.join(timeout=2)
+        if self._process and self._process.stderr and not (self._stderr_thread and self._stderr_thread.is_alive()):
+            self._process.stderr.close()
         if self._stdout_fd is not None:
             try:
                 os.close(self._stdout_fd)
@@ -356,7 +372,7 @@ class LSPClient:
                 "memory; every later answer would read as empty, so the analysis stops here."
             )
         if self.pid is None:
-            raise StaticAnalysisFatalError("The language server process exited during analysis.")
+            self._raise_process_exited()
 
     # ---- Document management ----
 
@@ -426,7 +442,17 @@ class LSPClient:
             "textDocument/ast", {"textDocument": {"uri": file_path.resolve().as_uri()}}, self._default_timeout
         )
         if not isinstance(result, dict):
-            raise RuntimeError(f"clangd returned no AST for {file_path}")
+            self.check_alive()
+            message = (
+                f"clangd returned no AST for {file_path}; retaining resolved symbols and relationships. "
+                "AST-dependent declarations and calls may be missing."
+            )
+            logger.warning(message)
+            with self._diagnostics_lock:
+                self._ast_limitations[str(file_path.resolve())] = LSPDiagnostic(
+                    code="cpp-ast-unavailable", message=message, severity=2
+                )
+            return {}
         return result
 
     def outgoing_calls(self, file_path: Path, line: int, character: int) -> list[dict]:
@@ -555,7 +581,10 @@ class LSPClient:
     def get_collected_diagnostics(self) -> FileDiagnosticsMap:
         """Return diagnostics collected during analysis."""
         with self._diagnostics_lock:
-            return dict(self._diagnostics)
+            diagnostics = {path: list(items) for path, items in self._diagnostics.items()}
+            for path, limitation in self._ast_limitations.items():
+                diagnostics.setdefault(path, []).append(limitation)
+            return diagnostics
 
     def get_diagnostics_generation(self) -> int:
         """Return a counter bumped on each ``publishDiagnostics`` notification."""
@@ -812,13 +841,23 @@ class LSPClient:
         if remaining <= 0:
             return None
 
+        now = time.monotonic()
+        if self._process and now - self._last_memory_sample >= 30:
+            self._last_memory_sample = now
+            rss = process_tree_rss(self._process.pid)
+            self._peak_rss = max(self._peak_rss, rss)
+            logger.info(
+                "LSP process pid=%s: RSS=%s, sampled peak=%s, open documents=%d",
+                self._process.pid,
+                format_bytes(rss),
+                format_bytes(self._peak_rss),
+                len(self._opened_uris),
+            )
         try:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise StaticAnalysisFatalError(
-                    f"LSP server process exited with code {self._process.returncode}"
-                ) from None
+                self._raise_process_exited()
             return None
 
         # Skip notifications that leaked past the reader loop
@@ -826,6 +865,26 @@ class LSPClient:
             return None
 
         return message
+
+    def _read_stderr(self) -> None:
+        """Drain server stderr while retaining a bounded failure transcript."""
+        assert self._process is not None and self._process.stderr is not None
+        stream = self._process.stderr
+        for raw in iter(lambda: stream.readline(8192), b""):
+            line = raw.decode("utf-8", errors="replace").rstrip()
+            self._stderr_tail.append(line)
+            logger.debug("LSP stderr: %s", line)
+
+    def _raise_process_exited(self) -> None:
+        """Include exit status and server evidence rather than guessing the cause."""
+        if self._stderr_thread:
+            self._stderr_thread.join(timeout=2)
+        code = self._process.poll() if self._process else None
+        detail = f"code {code}" if code is None or code >= 0 else f"signal {-code} (code {code})"
+        raise StaticAnalysisFatalError(
+            f"LSP server process exited with {detail}; sampled peak RSS={format_bytes(self._peak_rss)}, "
+            f"open documents={len(self._opened_uris)}. Recent stderr:\n" + "\n".join(self._stderr_tail)
+        )
 
     def _collect_batch_responses(
         self, method: str, request_ids: list[int], timeout: int

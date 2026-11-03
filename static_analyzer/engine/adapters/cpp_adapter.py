@@ -1,17 +1,24 @@
 """C++ and CUDA analysis using clangd and the project's compiler configuration."""
 
 from collections.abc import Iterator
+import logging
+import os
 from pathlib import Path
+
+from clang.cindex import LibclangError
 
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.cpp_templates import complete_template_dependencies
+from static_analyzer.engine.cpp_templates import compilation_database_override, complete_template_dependencies
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import SymbolIndex
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.exceptions import WorkspaceSetupError
+from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
+
+logger = logging.getLogger(__name__)
 
 
 class CppAdapter(LanguageAdapter):
@@ -30,6 +37,22 @@ class CppAdapter(LanguageAdapter):
     @property
     def fail_on_empty_symbols(self) -> bool:
         return True
+
+    @property
+    def interleave_did_open_with_symbols(self) -> bool:
+        # A bulk open queues thousands of expensive template parses ahead of symbol requests.
+        return True
+
+    @property
+    def skip_type_hierarchy(self) -> bool:
+        return os.environ.get("CODEBOARDING_CPP_SKIP_TYPE_HIERARCHY") == "1"
+
+    def get_lsp_command(self, project_root: Path) -> list[str]:
+        command = super().get_lsp_command(project_root)
+        database = compilation_database_override()
+        if database is not None:
+            command.extend([f"--compile-commands-dir={database}", "--enable-config=false"])
+        return command
 
     def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
         return self.is_callable(a.kind) and self.is_callable(b.kind) and a.definition_location != b.definition_location
@@ -149,12 +172,26 @@ class CppAdapter(LanguageAdapter):
                         edges.setdefault((caller.qualified_name, destructor.qualified_name), []).append(site)
 
         if unresolved:
-            complete_template_dependencies(ctx, source_files, project_root, unresolved, edges)
+            try:
+                complete_template_dependencies(ctx, source_files, project_root, unresolved, edges)
+            except (WorkspaceSetupError, LibclangError) as error:
+                message = (
+                    "C++ template supplementation stopped; retaining resolved relationships. "
+                    f"Template-dependent calls may be missing. {error}"
+                )
+                logger.exception(message)
+                ctx.diagnostics.setdefault(str(project_root), []).append(
+                    LSPDiagnostic(code="cpp-template-analysis-incomplete", message=message, severity=2)
+                )
         for edge, sites in edges.items():
             edges[edge] = list({(site.file, site.line, site.column): site for site in sites}.values())
 
     def prepare_project(self, project_root: Path) -> None:
-        """Require explicit compiler context; never run CMake or overwrite project configuration."""
+        """Prefer explicit compiler context without requiring a project build."""
+        database = compilation_database_override()
+        if database is not None:
+            logger.info("C++ analysis uses shared compilation database %s; .clangd configuration is disabled", database)
+            return
         candidates = (
             project_root / ".clangd",
             project_root / "compile_flags.txt",
@@ -162,8 +199,9 @@ class CppAdapter(LanguageAdapter):
             project_root / "build" / "compile_commands.json",
         )
         if not any(path.is_file() for path in candidates):
-            raise WorkspaceSetupError(
-                f"C++/CUDA analysis requires compiler configuration in {project_root}. "
+            logger.warning(
+                f"C++/CUDA analysis has no compiler configuration in {project_root}; using clangd defaults. "
+                "Relationships may be incomplete. "
                 "Generate compile_commands.json in the root or build directory with "
                 "CMAKE_EXPORT_COMPILE_COMMANDS=ON, or provide .clangd/compile_flags.txt. "
                 "For another build directory, set CompileFlags.CompilationDatabase in .clangd. "
@@ -172,7 +210,7 @@ class CppAdapter(LanguageAdapter):
             )
 
     def wait_for_diagnostics(self, client: LSPClient) -> None:
-        """Reject incomplete Clang ASTs instead of publishing plausible but incorrect edges."""
+        """Retain compiler diagnostics without discarding resolved relationships."""
         client.wait_for_diagnostics_quiesce(idle_seconds=0.5, max_wait=10.0)
         errors = [
             f"{path}:{diagnostic.range.start.line + 1}: {diagnostic.message}"
@@ -181,8 +219,8 @@ class CppAdapter(LanguageAdapter):
             if diagnostic.severity == 1
         ]
         if errors:
-            raise WorkspaceSetupError(
-                f"clangd reported {len(errors)} C++/CUDA error(s); refusing incomplete analysis. "
+            logger.warning(
+                f"clangd reported {len(errors)} C++/CUDA error(s); analysis may be incomplete. "
                 "Check the compilation database, toolkit/standard-library includes and unsupported compiler flags. "
                 + "\n".join(errors[:5])
             )

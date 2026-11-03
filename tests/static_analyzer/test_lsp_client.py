@@ -6,6 +6,7 @@ without starting a real LSP server.
 
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -30,6 +31,52 @@ class TestLSPClientInit:
         assert client._default_timeout == 60
         assert client._collect_diagnostics is False
         assert client._process is None
+
+    def test_server_exit_reports_bounded_stderr_without_blocking(self, tmp_path):
+        code = (
+            "import sys; sys.stdin.buffer.readline(); "
+            "sys.stderr.write('old message\\n' + ('x' * 4096 + '\\n') * 80 + 'fatal compiler failure\\n'); "
+            "sys.stderr.flush(); sys.exit(7)"
+        )
+        client = LSPClient([sys.executable, "-c", code], tmp_path, startup_timeout=10)
+        try:
+            with pytest.raises(StaticAnalysisFatalError) as failure:
+                client.start()
+            assert "code 7" in str(failure.value)
+            assert "fatal compiler failure" in str(failure.value)
+            assert "old message" not in str(failure.value)
+            assert len(str(failure.value)) < 32 * 8192 + 1024
+            with pytest.raises(StaticAnalysisFatalError, match="code 7"):
+                client.check_alive()
+        finally:
+            client.shutdown()
+
+    def test_missing_ast_retains_limitation_after_compiler_diagnostics_refresh(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        source = tmp_path / "header.hpp"
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        with patch.object(client, "_send_request", return_value=None):
+            assert client.document_ast(source) == {}
+            assert client.document_ast(source) == {}
+        client._handle_notification("textDocument/publishDiagnostics", {"uri": source.as_uri(), "diagnostics": []})
+        diagnostics = client.get_collected_diagnostics()[str(source)]
+        assert len(diagnostics) == 1
+        assert diagnostics[0].code == "cpp-ast-unavailable"
+        assert diagnostics[0].severity == 2
+        assert "may be missing" in diagnostics[0].message
+
+    def test_missing_ast_does_not_hide_dead_server(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        with patch.object(client, "_send_request", return_value=None):
+            with pytest.raises(StaticAnalysisFatalError, match="process exited"):
+                client.document_ast(tmp_path / "header.hpp")
+
+    def test_ast_timeout_still_fails(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        with patch.object(client, "_send_request", side_effect=TimeoutError("AST timed out")):
+            with pytest.raises(TimeoutError, match="AST timed out"):
+                client.document_ast(tmp_path / "header.hpp")
 
     def test_custom_timeout(self):
         client = LSPClient(["cmd"], Path("/root"), default_timeout=120)

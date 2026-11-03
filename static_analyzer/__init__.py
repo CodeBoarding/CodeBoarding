@@ -818,7 +818,7 @@ class StaticAnalyzer:
                 return self._analyse_config(engine_config, client)
             except StaticAnalysisFatalError:
                 raise
-            except Exception:
+            except Exception as error:
                 adapter = engine_config.adapter
                 logger.exception(f"Error during engine analysis for {adapter.language} in {engine_config.project_path}")
                 track_lsp_result(
@@ -829,6 +829,10 @@ class StaticAnalyzer:
                     analysis={},
                     diagnostics={},
                 )
+                if adapter.fail_on_empty_symbols is True:
+                    raise StaticAnalysisFatalError(
+                        f"{adapter.language} analysis failed in {engine_config.project_path}; refusing a partial result."
+                    ) from error
                 return []
 
         cap = self._server_slots
@@ -1182,7 +1186,7 @@ class StaticAnalyzer:
         return result
 
     def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
-        """Reject a result with no language, or a non-empty language bucket with zero symbols, before it is cached."""
+        """Reject empty results and missing or empty required-language graphs before caching."""
         # Why: a language that fails is left out, so every one failing (a server that would not start) reads as empty.
         attempted = sorted({config.adapter.language for config in self._engine_configs if config.source_files})
         if attempted and not results.get_languages():
@@ -1196,7 +1200,7 @@ class StaticAnalyzer:
             if adapter.fail_on_empty_symbols is not True:
                 continue
             language = adapter.results_language
-            source_files = results.get_source_files(language)
+            source_files = results.get_source_files(language) or engine_config.source_files
             if not source_files:
                 continue
             try:

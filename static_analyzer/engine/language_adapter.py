@@ -214,6 +214,11 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def skip_type_hierarchy(self) -> bool:
+        """Explicitly omit inheritance extraction while preserving other analysis phases."""
+        return False
+
+    @property
     def workspace_owns_documents(self) -> bool:
         """If True, the server reads documents from the project, not from our didOpen.
 
