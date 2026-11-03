@@ -71,7 +71,7 @@
     "diagram_analysis/run_mode.py": "76a7ee42c56fbee7",
     "diagram_analysis/scope_assembly.py": "ef035c1ba23b0a2e",
     "diagram_analysis/diagram_generator.py": "077cbc636e2826a7",
-    "diagram_analysis/analysis_json.py": "2a1d5884b6062fc0",
+    "diagram_analysis/analysis_json.py": "c7669df093bd0be3",
     "diagram_analysis/cluster_relations.py": "f41d654d42a603f5",
     "diagram_analysis/reference_resolver.py": "1430ea58e1b5eae9",
     "diagram_analysis/file_index.py": "c1d6fe5059e89951",

@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-11-03T14:40:17.651200+00:00",
-    "source_tree_hash": "d8c8f79aefbe1ab8cf512b674187d64b2e21581c58f099cf694f0d333914bd64",
+    "generated_at": "2026-11-03T15:27:01.172892+00:00",
+    "source_tree_hash": "814fcc53e29a861578ace9947a8c4b0648360d8fabfecfdec915fb8de3c0899b",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -4185,7 +4185,7 @@
         "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.build_id_to_name_map",
         "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive"
       ],
-      "content_hash": "2a1d5884b6062fc0",
+      "content_hash": "c7669df093bd0be3",
       "module_hash": "ffc563761e7fa959"
     },
     "diagram_analysis/cluster_relations.py": {
@@ -16998,31 +16998,31 @@
       "file_path": "diagram_analysis/analysis_json.py",
       "qualified_name": "diagram_analysis.analysis_json.parse_unified_analysis",
       "start_line": 508,
-      "end_line": 534,
+      "end_line": 537,
       "type": "FUNCTION",
-      "content_hash": "311ff6c99312f269"
+      "content_hash": "54d7cc26c8ecf1f5"
     },
     "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index": {
       "file_path": "diagram_analysis/analysis_json.py",
       "qualified_name": "diagram_analysis.analysis_json._reconstruct_files_index",
-      "start_line": 537,
-      "end_line": 565,
+      "start_line": 540,
+      "end_line": 568,
       "type": "FUNCTION",
       "content_hash": "df908055884d1410"
     },
     "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.build_id_to_name_map": {
       "file_path": "diagram_analysis/analysis_json.py",
       "qualified_name": "diagram_analysis.analysis_json.build_id_to_name_map",
-      "start_line": 568,
-      "end_line": 574,
+      "start_line": 571,
+      "end_line": 577,
       "type": "FUNCTION",
       "content_hash": "1182c92a9c5b6b1e"
     },
     "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive": {
       "file_path": "diagram_analysis/analysis_json.py",
       "qualified_name": "diagram_analysis.analysis_json._extract_analysis_recursive",
-      "start_line": 577,
-      "end_line": 668,
+      "start_line": 580,
+      "end_line": 671,
       "type": "FUNCTION",
       "content_hash": "2b9a445bea909220"
     },
@@ -28926,6 +28926,12 @@
           "reference_file": "diagram_analysis/run_context.py",
           "reference_start_line": 25,
           "reference_end_line": 37
+        },
+        {
+          "qualified_name": "diagram_analysis.analysis_json.UnifiedAnalysisJson",
+          "reference_file": "diagram_analysis/analysis_json.py",
+          "reference_start_line": 149,
+          "reference_end_line": 163
         }
       ],
       "source_cluster_ids": [
@@ -29285,6 +29291,12 @@
               "reference_file": "diagram_analysis/reference_resolver.py",
               "reference_start_line": 35,
               "reference_end_line": 433
+            },
+            {
+              "qualified_name": "diagram_analysis.analysis_json.UnifiedAnalysisJson",
+              "reference_file": "diagram_analysis/analysis_json.py",
+              "reference_start_line": 149,
+              "reference_end_line": 163
             }
           ],
           "source_cluster_ids": [
@@ -29796,6 +29808,142 @@
           ]
         },
         {
+          "relation": "merges and prunes scope relations",
+          "src_name": "Incremental Scope Updater",
+          "dst_name": "Scope Planning and Assembly",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._attach_static_relations",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.merge_scope_relations",
+              "call_sites": [
+                {
+                  "line": 248,
+                  "column": 30
+                }
+              ],
+              "description": "Merges generated scope relations into component scopes"
+            },
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._generate_scope_relations",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.prune_relations",
+              "call_sites": [
+                {
+                  "line": 332,
+                  "column": 34
+                }
+              ],
+              "description": "Prunes obsolete relations from scope models"
+            }
+          ],
+          "src_id": "5.3",
+          "dst_id": "5.5",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater.__init__",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
+              "call_sites": [
+                {
+                  "line": 47,
+                  "column": 32
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._attach_static_relations",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
+              "call_sites": [
+                {
+                  "line": 248,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._attach_static_relations",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.merge_scope_relations",
+              "call_sites": [
+                {
+                  "line": 248,
+                  "column": 30
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._generate_scope_relations",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
+              "call_sites": [
+                {
+                  "line": 332,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._generate_scope_relations",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.prune_relations",
+              "call_sites": [
+                {
+                  "line": 332,
+                  "column": 34
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
+          "relation": "populates file methods and index entries",
+          "src_name": "Scope Planning and Assembly",
+          "dst_name": "File Index and Coverage Manager",
+          "evidence": "",
+          "key_edges": [
+            {
+              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.populate_file_methods",
+              "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_file_methods_from_nodes",
+              "call_sites": [
+                {
+                  "line": 88,
+                  "column": 38
+                }
+              ],
+              "description": "Populates method spans and files index from parsed nodes"
+            }
+          ],
+          "src_id": "5.5",
+          "dst_id": "5.2",
+          "is_static": true,
+          "all_edges": [
+            {
+              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.populate_file_methods",
+              "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_file_methods_from_nodes",
+              "call_sites": [
+                {
+                  "line": 88,
+                  "column": 38
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.populate_file_methods",
+              "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
+              "call_sites": [
+                {
+                  "line": 91,
+                  "column": 26
+                }
+              ],
+              "description": ""
+            }
+          ]
+        },
+        {
           "relation": "builds file indices and coverage",
           "src_name": "Diagram Generation Orchestrator",
           "dst_name": "File Index and Coverage Manager",
@@ -29803,25 +29951,29 @@
           "key_edges": [
             {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
-              "target": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
+              "target": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage",
               "call_sites": [
+                {
+                  "line": 1185,
+                  "column": 20
+                },
                 {
                   "line": 1191,
                   "column": 25
                 }
               ],
-              "description": "Builds file coverage records across scopes"
+              "description": "Builds coverage reports and refreshes indexed method spans"
             },
             {
-              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._refresh_files_index",
+              "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
               "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
               "call_sites": [
                 {
-                  "line": 1790,
-                  "column": 30
+                  "line": 213,
+                  "column": 25
                 }
               ],
-              "description": "Refreshes file index mappings and method spans"
+              "description": "Reconciles child scope file entries using file indexing"
             }
           ],
           "src_id": "5.1",
@@ -29897,25 +30049,29 @@
           "key_edges": [
             {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
-              "target": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater.update_scope",
+              "target": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater",
               "call_sites": [
                 {
                   "line": 1629,
                   "column": 44
                 }
               ],
-              "description": "Applies incremental updates to target scope components"
+              "description": "Initializes and delegates scope hierarchy updates"
             },
             {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
-              "target": "diagram_analysis/incremental_changes.py|diagram_analysis.incremental_changes.ChangedMembers.has_membership_changes",
+              "target": "diagram_analysis/incremental_changes.py|diagram_analysis.incremental_changes.ChangedMembers",
               "call_sites": [
+                {
+                  "line": 1059,
+                  "column": 49
+                },
                 {
                   "line": 1079,
                   "column": 52
                 }
               ],
-              "description": "Checks membership changes to prepare incremental clustering"
+              "description": "Inspects changed cluster members for incremental clustering"
             }
           ],
           "src_id": "5.1",
@@ -30064,7 +30220,7 @@
                   "column": 16
                 }
               ],
-              "description": "Exposes run context and filesystem paths from package level"
+              "description": "Exposes execution context and path settings via module attributes"
             }
           ],
           "src_id": "5.1",
@@ -30110,18 +30266,18 @@
                   "column": 20
                 }
               ],
-              "description": "Plans incremental scope hierarchy updates"
+              "description": "Plans scope result update during incremental hierarchy application"
             },
             {
               "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.apply_semantics",
+              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
               "call_sites": [
                 {
                   "line": 833,
                   "column": 40
                 }
               ],
-              "description": "Applies component and edge semantics to clustered scopes"
+              "description": "Applies scope semantics and plans updates using the scope assembler"
             }
           ],
           "src_id": "5.1",
@@ -30248,7 +30404,7 @@
                   "column": 33
                 }
               ],
-              "description": "Fixes reference lines on attached static relations"
+              "description": "Fixes source code reference lines across scope relations"
             }
           ],
           "src_id": "5.3",
@@ -30350,96 +30506,6 @@
           ]
         },
         {
-          "relation": "merges and prunes scope relations",
-          "src_name": "Incremental Scope Updater",
-          "dst_name": "Scope Planning and Assembly",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._attach_static_relations",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.merge_scope_relations",
-              "call_sites": [
-                {
-                  "line": 248,
-                  "column": 30
-                }
-              ],
-              "description": "Merges generated scope relations into component scopes"
-            },
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._generate_scope_relations",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.prune_relations",
-              "call_sites": [
-                {
-                  "line": 332,
-                  "column": 34
-                }
-              ],
-              "description": "Prunes obsolete relations from scope models"
-            }
-          ],
-          "src_id": "5.3",
-          "dst_id": "5.5",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater.__init__",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
-              "call_sites": [
-                {
-                  "line": 47,
-                  "column": 32
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._attach_static_relations",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
-              "call_sites": [
-                {
-                  "line": 248,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._attach_static_relations",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.merge_scope_relations",
-              "call_sites": [
-                {
-                  "line": 248,
-                  "column": 30
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._generate_scope_relations",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
-              "call_sites": [
-                {
-                  "line": 332,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater._generate_scope_relations",
-              "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.prune_relations",
-              "call_sites": [
-                {
-                  "line": 332,
-                  "column": 34
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
           "relation": "resolves static references and call sites",
           "src_name": "Scope Planning and Assembly",
           "dst_name": "Diagram Generation Orchestrator",
@@ -30454,18 +30520,7 @@
                   "column": 32
                 }
               ],
-              "description": "Resolves semantic references and attaches static call sites"
-            },
-            {
-              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.apply_semantics",
-              "target": "diagram_analysis/reference_resolver.py|diagram_analysis.reference_resolver.StaticReferenceResolver.fix_key_entities_refs",
-              "call_sites": [
-                {
-                  "line": 174,
-                  "column": 32
-                }
-              ],
-              "description": "Adjusts key entity reference line boundaries"
+              "description": "Attaches static call sites and resolves key entity references in assembled scopes"
             }
           ],
           "src_id": "5.5",
@@ -30546,52 +30601,6 @@
                 {
                   "line": 174,
                   "column": 32
-                }
-              ],
-              "description": ""
-            }
-          ]
-        },
-        {
-          "relation": "populates file methods and index entries",
-          "src_name": "Scope Planning and Assembly",
-          "dst_name": "File Index and Coverage Manager",
-          "evidence": "",
-          "key_edges": [
-            {
-              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.populate_file_methods",
-              "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_file_methods_from_nodes",
-              "call_sites": [
-                {
-                  "line": 88,
-                  "column": 38
-                }
-              ],
-              "description": "Populates method spans and files index from parsed nodes"
-            }
-          ],
-          "src_id": "5.5",
-          "dst_id": "5.2",
-          "is_static": true,
-          "all_edges": [
-            {
-              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.populate_file_methods",
-              "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_file_methods_from_nodes",
-              "call_sites": [
-                {
-                  "line": 88,
-                  "column": 38
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler.populate_file_methods",
-              "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
-              "call_sites": [
-                {
-                  "line": 91,
-                  "column": 26
                 }
               ],
               "description": ""
@@ -37761,17 +37770,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "codeboarding_cli/commands/incremental_analysis.py|codeboarding_cli.commands.incremental_analysis.run_from_args",
-          "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext",
-          "call_sites": [
-            {
-              "line": 50,
-              "column": 30
-            }
-          ],
-          "description": "Initializes analysis run contexts and handles diagram analysis exceptions."
-        },
-        {
           "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.resolve_local_run_paths",
           "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunPaths",
           "call_sites": [
@@ -37781,6 +37779,17 @@
             }
           ],
           "description": "Resolves execution paths and initiates diagram analysis runs"
+        },
+        {
+          "source": "codeboarding_cli/commands/incremental_analysis.py|codeboarding_cli.commands.incremental_analysis.run_from_args",
+          "target": "diagram_analysis/run_context.py|diagram_analysis.run_context.RunContext",
+          "call_sites": [
+            {
+              "line": 50,
+              "column": 30
+            }
+          ],
+          "description": "Initializes analysis run contexts and handles diagram analysis exceptions."
         }
       ],
       "src_id": "4.1",
@@ -39823,6 +39832,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 201,
+              "column": 57
+            }
+          ],
+          "description": "Normalizes source reference paths relative to repository root"
+        },
+        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -39838,28 +39858,6 @@
       "dst_id": "2.2",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
-          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
-          "call_sites": [
-            {
-              "line": 201,
-              "column": 57
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._source_reference_method_key",
-          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
-          "call_sites": [
-            {
-              "line": 188,
-              "column": 17
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
@@ -40042,6 +40040,28 @@
             }
           ],
           "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 201,
+              "column": 57
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._source_reference_method_key",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 188,
+              "column": 17
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -40184,210 +40204,6 @@
       "dst_id": "3.1",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._build_files_index_from_analysis",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
-          "call_sites": [
-            {
-              "line": 178,
-              "column": 60
-            },
-            {
-              "line": 178,
-              "column": 47
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._build_files_index_from_analysis",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry.merge_from",
-          "call_sites": [
-            {
-              "line": 178,
-              "column": 60
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._build_methods_index_from_files",
-          "target": "agents/file_index_models.py|agents.file_index_models.MethodIndexEntry",
-          "call_sites": [
-            {
-              "line": 249,
-              "column": 76
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileMethodGroup",
-          "call_sites": [
-            {
-              "line": 596,
-              "column": 13
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._hydrate_component_methods_from_refs",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileMethodGroup",
-          "call_sites": [
-            {
-              "line": 299,
-              "column": 28
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._hydrate_component_methods_from_refs",
-          "target": "agents/file_index_models.py|agents.file_index_models.MethodEntry",
-          "call_sites": [
-            {
-              "line": 289,
-              "column": 21
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._method_refs_to_placeholders",
-          "target": "agents/file_index_models.py|agents.file_index_models.MethodEntry",
-          "call_sites": [
-            {
-              "line": 235,
-              "column": 9
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
-          "call_sites": [
-            {
-              "line": 544,
-              "column": 17
-            },
-            {
-              "line": 563,
-              "column": 15
-            },
-            {
-              "line": 563,
-              "column": 26
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry.merge_from",
-          "call_sites": [
-            {
-              "line": 563,
-              "column": 15
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index",
-          "target": "agents/file_index_models.py|agents.file_index_models.MethodEntry",
-          "call_sites": [
-            {
-              "line": 555,
-              "column": 17
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.build_unified_analysis_json",
-          "target": "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
-          "call_sites": [
-            {
-              "line": 487,
-              "column": 18
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.from_analysis_to_json",
-          "target": "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
-          "call_sites": [
-            {
-              "line": 392,
-              "column": 18
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.from_component_to_json_component",
-          "target": "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
-          "call_sites": [
-            {
-              "line": 363,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
-          "call_sites": [
-            {
-              "line": 528,
-              "column": 46
-            },
-            {
-              "line": 528,
-              "column": 34
-            },
-            {
-              "line": 531,
-              "column": 40
-            },
-            {
-              "line": 531,
-              "column": 28
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
-          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry.merge_from",
-          "call_sites": [
-            {
-              "line": 528,
-              "column": 46
-            },
-            {
-              "line": 531,
-              "column": 40
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
-          "target": "agents/file_index_models.py|agents.file_index_models.MethodIndexEntry",
-          "call_sites": [
-            {
-              "line": 519,
-              "column": 14
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
           "target": "agents/component_ownership.py|agents.component_ownership.ComponentOwnershipIndex",
@@ -40664,6 +40480,210 @@
             }
           ],
           "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._build_files_index_from_analysis",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
+          "call_sites": [
+            {
+              "line": 178,
+              "column": 60
+            },
+            {
+              "line": 178,
+              "column": 47
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._build_files_index_from_analysis",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry.merge_from",
+          "call_sites": [
+            {
+              "line": 178,
+              "column": 60
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._build_methods_index_from_files",
+          "target": "agents/file_index_models.py|agents.file_index_models.MethodIndexEntry",
+          "call_sites": [
+            {
+              "line": 249,
+              "column": 76
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileMethodGroup",
+          "call_sites": [
+            {
+              "line": 599,
+              "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._hydrate_component_methods_from_refs",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileMethodGroup",
+          "call_sites": [
+            {
+              "line": 299,
+              "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._hydrate_component_methods_from_refs",
+          "target": "agents/file_index_models.py|agents.file_index_models.MethodEntry",
+          "call_sites": [
+            {
+              "line": 289,
+              "column": 21
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._method_refs_to_placeholders",
+          "target": "agents/file_index_models.py|agents.file_index_models.MethodEntry",
+          "call_sites": [
+            {
+              "line": 235,
+              "column": 9
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
+          "call_sites": [
+            {
+              "line": 547,
+              "column": 17
+            },
+            {
+              "line": 566,
+              "column": 15
+            },
+            {
+              "line": 566,
+              "column": 26
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry.merge_from",
+          "call_sites": [
+            {
+              "line": 566,
+              "column": 15
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._reconstruct_files_index",
+          "target": "agents/file_index_models.py|agents.file_index_models.MethodEntry",
+          "call_sites": [
+            {
+              "line": 558,
+              "column": 17
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.build_unified_analysis_json",
+          "target": "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
+          "call_sites": [
+            {
+              "line": 487,
+              "column": 18
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.from_analysis_to_json",
+          "target": "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
+          "call_sites": [
+            {
+              "line": 392,
+              "column": 18
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.from_component_to_json_component",
+          "target": "agents/relation_edges.py|agents.relation_edges.merge_relations_by_pair",
+          "call_sites": [
+            {
+              "line": 363,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry",
+          "call_sites": [
+            {
+              "line": 528,
+              "column": 46
+            },
+            {
+              "line": 528,
+              "column": 34
+            },
+            {
+              "line": 534,
+              "column": 40
+            },
+            {
+              "line": 534,
+              "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
+          "target": "agents/file_index_models.py|agents.file_index_models.FileEntry.merge_from",
+          "call_sites": [
+            {
+              "line": 528,
+              "column": 46
+            },
+            {
+              "line": 534,
+              "column": 40
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json.parse_unified_analysis",
+          "target": "agents/file_index_models.py|agents.file_index_models.MethodIndexEntry",
+          "call_sites": [
+            {
+              "line": 519,
+              "column": 14
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -40674,11 +40694,22 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "diagram_analysis/__init__.py|diagram_analysis.__init__.__getattr__",
+          "target": "agents/llm_config.py|agents.llm_config.configure_models",
+          "call_sites": [
+            {
+              "line": 29,
+              "column": 16
+            }
+          ],
+          "description": "Configures LLM agent models for diagram analysis"
+        },
+        {
           "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
           "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
           "call_sites": [
             {
-              "line": 664,
+              "line": 667,
               "column": 12
             }
           ],
@@ -40696,80 +40727,6 @@
             {
               "line": 29,
               "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
-          "call_sites": [
-            {
-              "line": 664,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/agent_responses.py|agents.agent_responses.Component",
-          "call_sites": [
-            {
-              "line": 615,
-              "column": 21
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
-          "call_sites": [
-            {
-              "line": 651,
-              "column": 13
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge",
-          "call_sites": [
-            {
-              "line": 642,
-              "column": 47
-            },
-            {
-              "line": 647,
-              "column": 47
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge.from_dict",
-          "call_sites": [
-            {
-              "line": 642,
-              "column": 47
-            },
-            {
-              "line": 647,
-              "column": 47
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
-          "target": "agents/agent_responses.py|agents.agent_responses.SourceCodeReference",
-          "call_sites": [
-            {
-              "line": 603,
-              "column": 13
             }
           ],
           "description": ""
@@ -41120,6 +41077,80 @@
             }
           ],
           "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/agent_responses.py|agents.agent_responses.AnalysisInsights",
+          "call_sites": [
+            {
+              "line": 667,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/agent_responses.py|agents.agent_responses.Component",
+          "call_sites": [
+            {
+              "line": 618,
+              "column": 21
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/agent_responses.py|agents.agent_responses.Relation",
+          "call_sites": [
+            {
+              "line": 654,
+              "column": 13
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge",
+          "call_sites": [
+            {
+              "line": 645,
+              "column": 47
+            },
+            {
+              "line": 650,
+              "column": 47
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/agent_responses.py|agents.agent_responses.RelationEdge.from_dict",
+          "call_sites": [
+            {
+              "line": 645,
+              "column": 47
+            },
+            {
+              "line": 650,
+              "column": 47
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._extract_analysis_recursive",
+          "target": "agents/agent_responses.py|agents.agent_responses.SourceCodeReference",
+          "call_sites": [
+            {
+              "line": 606,
+              "column": 13
+            }
+          ],
+          "description": ""
         }
       ]
     },
@@ -41129,6 +41160,32 @@
       "dst_name": "File Index and Coverage Manager",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
+          "target": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage",
+          "call_sites": [
+            {
+              "line": 1185,
+              "column": 20
+            },
+            {
+              "line": 1191,
+              "column": 25
+            }
+          ],
+          "description": "Builds coverage reports and refreshes indexed method spans"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator._reconcile_child_scope",
+          "target": "diagram_analysis/file_index.py|diagram_analysis.file_index.build_files_index",
+          "call_sites": [
+            {
+              "line": 213,
+              "column": 25
+            }
+          ],
+          "description": "Reconciles child scope file entries using file indexing"
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
           "target": "diagram_analysis/file_coverage.py|diagram_analysis.file_coverage.FileCoverage.build",
@@ -41223,6 +41280,32 @@
       "dst_name": "Incremental Scope Updater",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
+          "target": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater",
+          "call_sites": [
+            {
+              "line": 1629,
+              "column": 44
+            }
+          ],
+          "description": "Initializes and delegates scope hierarchy updates"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._prepare_incremental_clustering",
+          "target": "diagram_analysis/incremental_changes.py|diagram_analysis.incremental_changes.ChangedMembers",
+          "call_sites": [
+            {
+              "line": 1059,
+              "column": 49
+            },
+            {
+              "line": 1079,
+              "column": 52
+            }
+          ],
+          "description": "Inspects changed cluster members for incremental clustering"
+        },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_incremental_hierarchy",
           "target": "diagram_analysis/incremental_update.py|diagram_analysis.incremental_update.IncrementalUpdater.update_scope",
@@ -41439,6 +41522,17 @@
             }
           ],
           "description": "Plans incremental scope hierarchy updates"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
+          "target": "diagram_analysis/scope_assembly.py|diagram_analysis.scope_assembly.ScopeAssembler",
+          "call_sites": [
+            {
+              "line": 833,
+              "column": 40
+            }
+          ],
+          "description": "Applies scope semantics and plans updates using the scope assembler"
         },
         {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._apply_scope_semantics",
