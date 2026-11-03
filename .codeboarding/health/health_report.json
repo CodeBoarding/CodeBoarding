@@ -1,17 +1,17 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-10-30T23:32:14.120643+00:00",
-  "overall_score": 0.986624203821656,
+  "timestamp": "2026-11-03T14:38:07.403207+00:00",
+  "overall_score": 0.9973076923076922,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1550,
+      "total_entities_checked": 1552,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993548387096775,
+      "score": 0.9993556701030928,
       "finding_groups": [
         {
           "severity": "warning",
@@ -34,10 +34,10 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 20,
-      "findings_count": 20,
+      "total_entities_checked": 8,
+      "findings_count": 8,
       "warning_count": 1,
-      "score": 0.0,
+      "score": 0.6,
       "finding_groups": [
         {
           "severity": "info",
@@ -80,13 +80,6 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
-              "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 29,
-              "line_end": 29,
-              "metric_value": 0.0
-            },
-            {
               "entity_name": "[unused_variable] \"config\" is not accessed",
               "file_path": "health/checks/unused_code_diagnostics.py",
               "line_start": 267,
@@ -94,87 +87,10 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 153,
-              "line_end": 153,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 204,
-              "line_end": 204,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 308,
-              "line_end": 308,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 390,
-              "line_end": 390,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 366,
-              "line_end": 366,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 423,
-              "line_end": 423,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 502,
-              "line_end": 502,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 525,
-              "line_end": 525,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 510,
-              "line_end": 510,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1030,
-              "line_end": 1030,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1426,
-              "line_end": 1426,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1464,
-              "line_end": 1464,
+              "entity_name": "[unused_variable] \"track_analysis\" is not accessed",
+              "file_path": "codeboarding_workflows/analysis.py",
+              "line_start": 33,
+              "line_end": 33,
               "metric_value": 0.0
             }
           ]
@@ -187,8 +103,8 @@
             {
               "entity_name": "[unused_import] Import \"track_analysis\" is not accessed",
               "file_path": "codeboarding_workflows/analysis.py",
-              "line_start": 29,
-              "line_end": 29,
+              "line_start": 33,
+              "line_end": 33,
               "metric_value": 0.0
             }
           ]
@@ -197,12 +113,6 @@
     }
   ],
   "file_summaries": [
-    {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 12,
-      "warning_findings": 0,
-      "composite_risk_score": 50.0
-    },
     {
       "file_path": "codeboarding_workflows/analysis.py",
       "total_findings": 2,
