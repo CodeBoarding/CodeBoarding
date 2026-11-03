@@ -624,9 +624,11 @@ def print_language_support_summary(npm_available: bool, target_dir: Path):
     logger.info("Step: Language support summary")
     for check in _language_checks_from_registry(target_dir):
         is_available, reason = check.evaluate(npm_available)
-        logger.info("  - %s: %s", check.language, "yes" if is_available else "no")
+        # An unavailable language is a degraded setup, so it stays visible when logging is filtered to WARNING.
+        level = logging.INFO if is_available else logging.WARNING
+        logger.log(level, "  - %s: %s", check.language, "yes" if is_available else "no")
         if reason:
-            logger.info("    reason: %s", reason)
+            logger.log(level, "    reason: %s", reason)
 
 
 def ensure_tools(

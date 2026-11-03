@@ -191,6 +191,43 @@ class TestBootstrapNpm(unittest.TestCase):
         self.assertFalse(result)
         mock_preferred_node_path.assert_called_once_with(target_dir.resolve())
 
+    @patch("infra.install.check_npm")
+    @patch("infra.install.requests.get", side_effect=install.requests.ConnectionError("offline"))
+    @patch("infra.install.preferred_node_path", return_value="/custom/node")
+    def test_failed_download_logs_a_warning_with_the_traceback(
+        self, mock_preferred_node_path, mock_requests_get, mock_check_npm
+    ):
+        """Why: an offline setup carries on, but the handled error must keep its traceback for diagnosis."""
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch.dict(os.environ, {}, clear=True),
+            self.assertLogs("infra.install", level="WARNING") as logs,
+        ):
+            result = install.bootstrap_npm(target_dir=Path(temp_dir))
+
+        self.assertFalse(result)
+        mock_check_npm.assert_not_called()
+        [failure] = [record for record in logs.records if "offline" in record.getMessage()]
+        self.assertIsNotNone(failure.exc_info)
+
+
+class TestLanguageSupportSummary(unittest.TestCase):
+    def test_unavailable_languages_and_reasons_are_warnings(self):
+        """Why: a WARNING-filtered setup log must still say which languages are unavailable and why."""
+        checks = [
+            install.LanguageSupportCheck(language="Python", paths=[], fallback_available=True),
+            install.LanguageSupportCheck(language="Go", paths=[], reason_if_binary_missing="gopls not found"),
+        ]
+        with (
+            patch("infra.install._language_checks_from_registry", return_value=checks),
+            self.assertLogs("infra.install", level="WARNING") as logs,
+        ):
+            install.print_language_support_summary(npm_available=True, target_dir=Path("/tmp/unused"))
+
+        self.assertEqual(
+            logs.output, ["WARNING:infra.install:  - Go: no", "WARNING:infra.install:    reason: gopls not found"]
+        )
+
 
 class TestIsNonInteractiveMode(unittest.TestCase):
     @patch.dict(os.environ, {"CI": "true"})
