@@ -185,11 +185,14 @@ class Repository:
         return gh(*args)
 
     def bumps(self) -> list[dict[str, Any]]:
-        fields = "number,state,headRefName"
+        """Bumps into the base branch only, so a test run into a scratch branch neither blocks nor closes real ones."""
+        fields = "number,state,headRefName,baseRefName"
         pull_requests = json.loads(
             gh("pr", "list", "--repo", self.name, "--state", "all", "--limit", "200", "--json", fields)
         )
-        return [pr for pr in pull_requests if pr["headRefName"].startswith(BRANCH_PREFIX)]
+        return [
+            pr for pr in pull_requests if pr["headRefName"].startswith(BRANCH_PREFIX) and pr["baseRefName"] == self.base
+        ]
 
     def open_bump(self, current: str, pin: dict[str, Any], link: str) -> str:
         """Commit *pin* on the build's own branch and open the pull request, which is what starts its checks."""

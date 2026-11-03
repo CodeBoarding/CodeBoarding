@@ -43,7 +43,7 @@ class Upstream:
             return json.dumps(self.pull_requests)
         if args[:2] == ("api", "repos/Kotlin/kotlin-lsp/releases/latest"):
             return f"kotlin-lsp/v{self.github}"
-        if args[0] == "api" and args[1].endswith("/git/ref/heads/main"):
+        if args[0] == "api" and args[1].endswith(("/git/ref/heads/main", "/git/ref/heads/scratch")):
             return "base-commit"
         self.writes.append(args)
         return "https://github.com/CodeBoarding/CodeBoarding/pull/1" if args[:2] == ("pr", "create") else ""
@@ -82,8 +82,8 @@ def bump(monkeypatch):
     return importlib.import_module("bump_kotlin_server")
 
 
-def bump_pr(number: int, version: str, state: str = "OPEN") -> dict:
-    return {"number": number, "state": state, "headRefName": f"kotlin-server/{version}"}
+def bump_pr(number: int, version: str, state: str = "OPEN", base: str = "main") -> dict:
+    return {"number": number, "state": state, "headRefName": f"kotlin-server/{version}", "baseRefName": base}
 
 
 def value_of(write: tuple[str, ...], field: str) -> str:
@@ -170,6 +170,18 @@ class TestSuperseding:
         [closed] = upstream.written("pr", "close")
         assert closed[2] == "5" and "--delete-branch" in closed
         assert closed[closed.index("--comment") + 1].endswith("/pull/1")
+
+    def test_a_test_bump_into_another_branch_neither_blocks_nor_is_closed(self, bump):
+        upstream = Upstream(bump, marketplace=NEWEST, pull_requests=[bump_pr(5, NEWEST, base="scratch")])
+        upstream.run()
+        assert len(upstream.written("pr", "create")) == 1
+        assert upstream.written("pr", "close") == []
+
+    def test_a_run_started_on_another_branch_targets_it(self, bump):
+        upstream = Upstream(bump)
+        upstream.run("--base", "scratch")
+        [opened] = upstream.written("pr", "create")
+        assert opened[opened.index("--base") + 1] == "scratch"
 
     def test_a_closed_pull_request_is_left_alone(self, bump):
         upstream = Upstream(bump, marketplace=NEWEST, pull_requests=[bump_pr(5, NEWER, "CLOSED")])

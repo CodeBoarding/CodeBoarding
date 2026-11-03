@@ -57,10 +57,6 @@ ARCHIVE_VERSION_STAMP = ".codeboarding-version"
 DOWNLOAD_MAX_FRUITLESS_ATTEMPTS = 5
 DOWNLOAD_PROGRESS_SECONDS = 30
 KOTLIN_LSP_PIN_TIMEOUT_SECONDS = 5
-# A run asks for the pin many times, and an editor's backend can outlive a build's 30 days.
-KOTLIN_LSP_PIN_MAX_AGE_SECONDS = 3600
-
-_kotlin_lsp_pin_read: tuple[float, UpstreamToolSource | None] | None = None
 
 
 # -- Download primitive -------------------------------------------------------
@@ -526,17 +522,13 @@ def archive_launcher_path(target_dir: Path, dep: ToolDependency) -> Path | None:
 
 def _latest_kotlin_lsp_pin() -> UpstreamToolSource | None:
     """The kotlin-lsp pin on main, or None when it cannot be read or is not a valid pin."""
-    global _kotlin_lsp_pin_read
-    if _kotlin_lsp_pin_read is None or time.monotonic() - _kotlin_lsp_pin_read[0] >= KOTLIN_LSP_PIN_MAX_AGE_SECONDS:
-        pin = None
-        try:
-            response = requests.get(KOTLIN_LSP_PIN_URL, timeout=KOTLIN_LSP_PIN_TIMEOUT_SECONDS)
-            response.raise_for_status()
-            pin = kotlin_lsp_source(response.json())
-        except (requests.RequestException, ValueError) as error:
-            logger.warning("Could not read the current kotlin-lsp pin, staying on the local one: %s", error)
-        _kotlin_lsp_pin_read = (time.monotonic(), pin)
-    return _kotlin_lsp_pin_read[1]
+    try:
+        response = requests.get(KOTLIN_LSP_PIN_URL, timeout=KOTLIN_LSP_PIN_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        return kotlin_lsp_source(response.json())
+    except (requests.RequestException, ValueError) as error:
+        logger.warning("Could not read the current kotlin-lsp pin, staying on the local one: %s", error)
+        return None
 
 
 def _usable_kotlin_lsp_build(target_dir: Path, dep: ToolDependency) -> str | None:
@@ -557,6 +549,8 @@ def current_tool(dep: ToolDependency, target_dir: Path | None = None) -> ToolDep
     The newer of main's pin and the wheel's, so a checkout ahead of main (a bump's own CI) runs its own. A newer build
     on main moves the machine up, and main moving back moves it back, which is how a bad build is undone. When main
     cannot be read, the machine keeps its build, or takes the wheel's pin if that is older.
+
+    ``required_tools`` calls this where it selects the tools, so everything after it works on the dep it is given.
     """
     if dep.key != "kotlin" or not isinstance(dep.source, UpstreamToolSource):
         return dep
@@ -572,7 +566,6 @@ def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
     """Whether an archive tool is extracted in full: its launcher at the pinned version, or JDTLS's ``plugins/``."""
     launcher = archive_launcher_path(target_dir, dep)
     if launcher is not None:
-        dep = current_tool(dep, target_dir)
         stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
         return launcher.is_file() and dep.source is not None and _read_stamp(stamp) == dep.source.tag
     return (target_dir / "bin" / dep.archive_subdir / "plugins").is_dir()
@@ -595,7 +588,6 @@ def install_archive_tool(
     on_progress: ProgressCallback | None = None,
 ) -> None:
     """Download and extract an archive tool, a ``.tar.gz`` or a zip (``.zip``, ``.sit``)."""
-    dep = current_tool(dep, target_dir)
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 

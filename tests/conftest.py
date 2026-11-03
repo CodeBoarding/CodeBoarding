@@ -24,5 +24,5 @@ def label_test_telemetry(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_live_kotlin_pin(monkeypatch):
-    """Tests run on the checkout's kotlin-lsp pin: main's copy is network state, and it moves without a commit here."""
-    monkeypatch.setattr("infra.tool_registry.installers._latest_kotlin_lsp_pin", lambda: None)
+    """Tests run on the checkout's kotlin-lsp pin: main's copy and the machine's install are state outside the test."""
+    monkeypatch.setattr("infra.tool_registry.manifest.current_tool", lambda dep, target_dir=None: dep)

@@ -70,7 +70,6 @@ def tool_fingerprint(dep: ToolDependency) -> str:
 
     A change makes ``needs_install()`` run that tool's installer again.
     """
-    dep = current_tool(dep)
     parts: list[str] = []
     if isinstance(dep.source, GitHubToolSource):
         parts.append(f"{dep.source.repo}:{dep.source.tag}")
@@ -85,9 +84,12 @@ def tool_fingerprint(dep: ToolDependency) -> str:
 
 
 def required_tools(languages: Collection[str] = ALL_LANGUAGE_KEYS) -> list[ToolDependency]:
-    """Select base tools and the requested servers; defaults to all languages, an empty collection to base tools."""
+    """Select base tools and the requested servers; defaults to all languages, an empty collection to base tools.
+
+    kotlin-lsp comes at its current pin, which reads main's pin file, so only a selection with Kotlin reads it.
+    """
     wanted = BASE_TOOL_KEYS | set(languages)
-    return [dep for dep in TOOL_REGISTRY if dep.key in wanted]
+    return [current_tool(dep) for dep in TOOL_REGISTRY if dep.key in wanted]
 
 
 def write_manifest(deps: Collection[ToolDependency] = TOOL_REGISTRY) -> None:

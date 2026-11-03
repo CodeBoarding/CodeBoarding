@@ -12,6 +12,7 @@ on:
       - 'infra/tool_registry/kotlin-server-*.json'
       - 'infra/tool_registry/registry.py'
       - 'infra/tool_registry/installers.py'
+      - 'infra/tool_registry/manifest.py'
       - '.github/scripts/check_kotlin_server.py'
       - '.github/scripts/bump_kotlin_server.py'
       - '.github/workflows/kotlin-server.yml'
@@ -62,10 +63,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      # The base is the branch this runs on: main on schedule. Started by hand from a scratch branch with an older
+      # pin, it opens a real bump into that branch, which is how this job and the checks it starts get tested.
       - name: Open a pull request for a newer build
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
-        run: uv run python .github/scripts/bump_kotlin_server.py --repo "$GITHUB_REPOSITORY"
+        run: uv run python .github/scripts/bump_kotlin_server.py --repo "$GITHUB_REPOSITORY" --base "$GITHUB_REF_NAME"
 
   # Plain gh and GITHUB_TOKEN, so that it still works when what failed is the App token or the project's install.
   alert:

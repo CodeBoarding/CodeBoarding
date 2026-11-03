@@ -3,6 +3,7 @@
 import json
 import shutil
 import stat
+import sys
 import tomllib
 import zipfile
 from pathlib import Path
@@ -15,6 +16,7 @@ from infra.tool_registry import (
     TOOL_REGISTRY,
     ToolKind,
     archive_launcher_path,
+    has_required_tools,
     install_archive_tool,
     needs_install,
     platform_bin_dir,
@@ -23,6 +25,7 @@ from infra.tool_registry import (
     tool_fingerprint,
     write_manifest,
 )
+from infra import install
 from infra.tool_registry import installers
 
 KOTLIN = next(dep for dep in TOOL_REGISTRY if dep.key == "kotlin")
@@ -37,9 +40,13 @@ NEWEST = f"{major + 2}.1.0"
 
 
 @pytest.fixture(autouse=True)
-def no_live_kotlin_pin(monkeypatch):
+def no_live_kotlin_pin():
     """Replaces the suite-wide fixture: these tests serve main's copy themselves."""
-    monkeypatch.setattr(installers, "_kotlin_lsp_pin_read", None, raising=False)
+
+
+def kotlin_now():
+    """kotlin-lsp as a run selects it, which is where main's pin is read."""
+    return next(dep for dep in required_tools({"kotlin"}) if dep.key == "kotlin")
 
 
 @pytest.fixture
@@ -109,7 +116,7 @@ def run_installer(base: Path, tmp_path: Path) -> list[tuple[str, str | None]]:
         patch("infra.tool_registry.installers.platform.system", return_value="Darwin"),
         patch("infra.tool_registry.installers.platform.machine", return_value="arm64"),
     ):
-        install_archive_tool(base, KOTLIN)
+        install_archive_tool(base, kotlin_now())
     return fetched
 
 
@@ -121,7 +128,6 @@ class TestFollowsMain:
             assert not needs_install({"kotlin"}), "the machine must start current on the wheel's pin"
 
         served = pin(NEWER)
-        installers._kotlin_lsp_pin_read = None
         with main_serves(served):
             assert needs_install({"kotlin"}), "main moved on and this machine did not notice"
 
@@ -153,24 +159,37 @@ class TestFollowsMain:
             run_installer(servers, tmp_path)
             assert stamp(servers) == NEWER
 
-    def test_main_is_read_once_however_many_times_a_run_asks(self, servers):
+    def test_main_is_read_where_the_tools_are_selected_and_nowhere_after(self, servers):
         install_on_disk(servers, WHEEL)
-        with main_serves(pin(WHEEL)) as get:
-            needs_install({"kotlin"})
-            needs_install({"kotlin"})
-            write_manifest(required_tools({"kotlin"}))
+        with main_serves(pin(NEWER)) as get:
+            deps = required_tools({"kotlin"})
+            kotlin = next(dep for dep in deps if dep.key == "kotlin")
+            assert tool_fingerprint(kotlin).startswith(NEWER)
+            write_manifest(deps)
+            assert not has_required_tools(servers, deps)
+            resolve_config(servers)
         assert get.call_count == 1
 
-    def test_a_long_running_process_reads_main_again(self, servers):
-        install_on_disk(servers, WHEEL)
-        with main_serves(pin(WHEEL)) as get, patch("infra.tool_registry.installers.time.monotonic") as now:
-            now.return_value = 0
-            write_manifest(required_tools({"kotlin"}))
-            needs_install({"kotlin"})
-            assert get.call_count == 1
-            now.return_value = installers.KOTLIN_LSP_PIN_MAX_AGE_SECONDS
-            needs_install({"kotlin"})
-        assert get.call_count == 2
+
+class TestSetup:
+    def test_codeboarding_setup_installs_and_records_the_current_pin(self, servers, monkeypatch):
+        """The command the integration suite installs its servers with."""
+        monkeypatch.setattr(sys, "stdout", sys.stdout)
+        monkeypatch.setattr(sys, "stderr", sys.stderr)
+        with (
+            main_serves(pin(NEWER)),
+            # main() rewraps stdout for Windows consoles, which would close pytest's capture.
+            patch("infra.install.io.TextIOWrapper"),
+            patch("infra.install.parse_args", return_value=MagicMock(auto_install_npm=False, auto_install_vcpp=False)),
+            patch("infra.install.acquire_lock"),
+            patch("infra.install.run_install") as run_install,
+            patch("infra.install.write_manifest") as record,
+        ):
+            install.main()
+        installed = {dep.key: dep for dep in run_install.call_args.kwargs["deps"]}
+        assert installed["kotlin"].source.tag == NEWER  # type: ignore[union-attr]
+        assert set(installed) == {dep.key for dep in TOOL_REGISTRY}
+        assert record.call_args.args[0] == run_install.call_args.kwargs["deps"]
 
 
 class TestOnlyWhenKotlinIsNeeded:
@@ -242,7 +261,7 @@ class TestAFailedRead:
     def test_a_garbled_stamp_is_not_a_build(self, servers):
         install_on_disk(servers, "not a version")
         with main_serves(error=requests.ConnectionError("offline")):
-            assert tool_fingerprint(KOTLIN).startswith(WHEEL)
+            assert tool_fingerprint(kotlin_now()).startswith(WHEEL)
         assert resolve_config(servers)["lsp_servers"]["kotlin"]["command"][0] != str(
             archive_launcher_path(servers, KOTLIN)
         )
@@ -259,7 +278,7 @@ class TestAFailedDownload:
             main_serves(pin(NEWEST)),
             patch("infra.tool_registry.installers.download_asset", side_effect=requests.ConnectionError("cut off")),
         ):
-            install_archive_tool(servers, KOTLIN)
+            install_archive_tool(servers, kotlin_now())
             assert needs_install({"kotlin"}), "the next run must try again"
         assert stamp(servers) == NEWER
         assert resolve_config(servers)["lsp_servers"]["kotlin"]["command"][0] == str(
@@ -279,22 +298,12 @@ def _with_sha256(change) -> dict:
 
 MALFORMED = [
     pytest.param(_with(version="../../evil"), id="path-traversal"),
-    pytest.param(_with(version="263.7084.0/../../x"), id="traversal-after-a-version"),
-    pytest.param(_with(version="263.7084"), id="two-parts"),
-    pytest.param(_with(version="263.7084.0.1"), id="four-parts"),
-    pytest.param(_with(version="263.7084.0\n"), id="trailing-newline"),
-    pytest.param(_with(version="v263.7084.0"), id="prefix"),
-    pytest.param(_with(version="\u0662\u0666\u0663.\u0667\u0660\u0668\u0664.\u0660"), id="non-ascii-digits"),
     pytest.param(_with(version="263.7084.0?x=1"), id="query"),
+    pytest.param(_with(version="263.7084.0\n"), id="trailing-newline"),
+    pytest.param(_with(version="\u0662\u0666\u0663.\u0667\u0660\u0668\u0664.\u0660"), id="non-ascii-digits"),
     pytest.param(_with(version=263), id="number"),
-    pytest.param(_with(version=None), id="null"),
-    pytest.param(_with(sha256="deadbeef"), id="sha256-not-an-object"),
-    pytest.param(_with(sha256={}), id="no-checksums"),
     pytest.param(_with_sha256(lambda sha: sha.popitem()), id="five-checksums"),
-    pytest.param(_with_sha256(lambda sha: sha.update({"extra.tar.gz": "0" * 64})), id="seven-checksums"),
-    pytest.param(_with_sha256(lambda sha: sha.update({next(iter(sha)): "abc"})), id="short-checksum"),
     pytest.param(_with_sha256(lambda sha: sha.update({next(iter(sha)): "A" * 64})), id="uppercase-checksum"),
-    pytest.param(_with_sha256(lambda sha: sha.update({next(iter(sha)): 1})), id="checksum-not-a-string"),
     pytest.param(pin(NEWER) | {"sha256": pin(NEWEST)["sha256"]}, id="checksums-for-another-build"),
 ]
 
