@@ -109,7 +109,11 @@ class ProgrammingLanguageBuilder:
         for suffix in file_suffixes:
             normalized_suffix = suffix if suffix.startswith(".") else f".{suffix}"
             if normalized_suffix in self._extension_to_lsp:
-                return self._extension_to_lsp[normalized_suffix]
+                server_key = self._extension_to_lsp[normalized_suffix]
+                # Ambiguous C headers belong to an existing C++ engine, but must not select one.
+                if server_key == "cpp" and normalized_suffix == ".h":
+                    continue
+                return server_key
 
         return None
 

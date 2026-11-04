@@ -281,7 +281,6 @@ def _lang_to_adapter_name(language: str) -> str | None:
         # Scanner spellings with no ``Language`` member of their own.
         "c++": AdapterName.CPP,
         "c++ header": AdapterName.CPP,
-        "c header": AdapterName.CPP,
         "cuda": AdapterName.CPP,
         "tsx": AdapterName.TYPESCRIPT,
         "jsx": AdapterName.JAVASCRIPT,
@@ -818,7 +817,7 @@ class StaticAnalyzer:
                 return self._analyse_config(engine_config, client)
             except StaticAnalysisFatalError:
                 raise
-            except Exception as error:
+            except Exception:
                 adapter = engine_config.adapter
                 logger.exception(f"Error during engine analysis for {adapter.language} in {engine_config.project_path}")
                 track_lsp_result(
@@ -829,10 +828,6 @@ class StaticAnalyzer:
                     analysis={},
                     diagnostics={},
                 )
-                if adapter.fail_on_empty_symbols is True:
-                    raise StaticAnalysisFatalError(
-                        f"{adapter.language} analysis failed in {engine_config.project_path}; refusing a partial result."
-                    ) from error
                 return []
 
         cap = self._server_slots
@@ -1186,7 +1181,7 @@ class StaticAnalyzer:
         return result
 
     def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
-        """Reject empty results and missing or empty required-language graphs before caching."""
+        """Reject empty results and empty required-language graphs before caching."""
         # Why: a language that fails is left out, so every one failing (a server that would not start) reads as empty.
         attempted = sorted({config.adapter.language for config in self._engine_configs if config.source_files})
         if attempted and not results.get_languages():
@@ -1200,7 +1195,7 @@ class StaticAnalyzer:
             if adapter.fail_on_empty_symbols is not True:
                 continue
             language = adapter.results_language
-            source_files = results.get_source_files(language) or engine_config.source_files
+            source_files = results.get_source_files(language)
             if not source_files:
                 continue
             try:

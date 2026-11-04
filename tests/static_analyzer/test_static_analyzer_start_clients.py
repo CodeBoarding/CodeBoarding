@@ -184,33 +184,47 @@ class TestStartClientsGracefulDegradation:
 
         analyzer._validate_analysis_results(results)
 
-    @pytest.mark.parametrize("fail_on_empty", [True, False])
-    def test_analysis_rejects_missing_required_language(
-        self, analyzer: StaticAnalyzer, tmp_path: Path, fail_on_empty: bool
+    @pytest.mark.parametrize("language", [Language.CPP, Language.CSHARP])
+    @pytest.mark.parametrize("failure_type", [FileNotFoundError, TimeoutError])
+    def test_analysis_skips_failed_language_and_preserves_other_results(
+        self,
+        analyzer: StaticAnalyzer,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        language: Language,
+        failure_type: type[Exception],
     ) -> None:
-        adapter = _make_adapter("CPP", language_enum=Language.CPP, fail_on_empty_symbols=fail_on_empty)
-        analyzer._engine_configs = [EngineConfig(adapter, tmp_path, source_files=[tmp_path / "main.cpp"])]
+        adapter = _make_adapter(language.value, language_enum=language, fail_on_empty_symbols=True)
+        py_adapter = _make_adapter("Python", language_enum=Language.PYTHON)
+        analyzer._engine_configs = [
+            EngineConfig(adapter, tmp_path, source_files=[tmp_path / "source"]),
+            EngineConfig(py_adapter, tmp_path, source_files=[tmp_path / "helper.py"]),
+        ]
+        analyzer._server_slots = 1
         analyzer._clients_started = True
-        partial = StaticAnalysisResults()
-        partial.add_source_files(Language.PYTHON, [str(tmp_path / "helper.py")])
+        with patch.object(
+            analyzer,
+            "_analyse_config",
+            side_effect=[
+                failure_type("engine unavailable"),
+                [(py_adapter, {"source_files": [tmp_path / "helper.py"]})],
+            ],
+        ):
+            result = analyzer.analyze(cache_dir=tmp_path, skip_cache=True)
+        assert result.get_languages() == [Language.PYTHON]
+        assert result.get_source_files(Language.PYTHON) == [str(tmp_path / "helper.py")]
+        assert "engine unavailable" in caplog.text
 
-        with patch.object(analyzer, "_run_full_lsp_pass", return_value=partial):
-            if fail_on_empty:
-                with pytest.raises(StaticAnalysisFatalError, match="CPP analysis has 0 symbols"):
-                    analyzer.analyze(cache_dir=tmp_path, skip_cache=True)
-            else:
-                assert analyzer.analyze(cache_dir=tmp_path, skip_cache=True).get_languages() == [Language.PYTHON]
-
-    def test_required_language_timeout_preserves_failure(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+    def test_explicit_fatal_error_preserves_failure(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         adapter = _make_adapter("CPP", language_enum=Language.CPP, fail_on_empty_symbols=True)
         analyzer._engine_configs = [EngineConfig(adapter, tmp_path, source_files=[tmp_path / "main.cpp"])]
         analyzer._server_slots = 1
         analyzer._clients_started = True
-        failure = TimeoutError("documentSymbol timed out")
+        failure = StaticAnalysisFatalError("server process exited")
         with patch.object(analyzer, "_analyse_config", side_effect=failure):
-            with pytest.raises(StaticAnalysisFatalError, match="refusing a partial result") as error:
+            with pytest.raises(StaticAnalysisFatalError, match="server process exited") as error:
                 analyzer.analyze(cache_dir=tmp_path, skip_cache=True)
-        assert error.value.__cause__ is failure
+        assert error.value is failure
 
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -20,6 +20,7 @@ from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from static_analyzer.programming_language import ProgrammingLanguageBuilder
+from static_analyzer.scanner import ProjectScanner
 
 
 @pytest.mark.parametrize(
@@ -27,22 +28,49 @@ from static_analyzer.programming_language import ProgrammingLanguageBuilder
     [
         [("C++", ".cpp"), ("CUDA", ".cu"), ("C++ Header", ".hpp"), ("C Header", ".h")],
         [("C++ Header", ".hpp"), ("C Header", ".h")],
+        [("C++ Header", ".hxx")],
+        [("C++ Header", ".hh")],
+        [("CUDA", ".cuh")],
+        [("C++", ".cc")],
+        [("C++", ".cxx")],
     ],
 )
 def test_cpp_and_cuda_share_one_engine_and_discover_headers(tmp_path: Path, detected: list[tuple[str, str]]) -> None:
-    names = ["host.cpp", "host.hpp", "device.cu", "device.cuh", "include/api.h"]
+    names = [f"source{suffix}" for _, suffix in detected] + ["include/api.h"]
     for name in names:
         path = tmp_path / name
         path.parent.mkdir(exist_ok=True)
         path.write_text("// source\n")
     builder = ProgrammingLanguageBuilder(VSCODE_CONFIG["lsp_servers"])
     languages = [builder.build(name, 100, 25, {suffix}) for name, suffix in detected]
-    assert {language.lsp_server_key for language in languages} == {"cpp"}
+    assert {language.lsp_server_key for language in languages if language.is_supported_lang()} == {"cpp"}
     ignore = RepoIgnoreManager(tmp_path)
     configs = _create_engine_configs(languages, tmp_path, ignore)
     assert len(configs) == 1
     assert configs[0].adapter.language_enum == Language.CPP
     assert set(configs[0].adapter.discover_source_files(tmp_path, ignore)) == {tmp_path / name for name in names}
+
+
+@pytest.mark.parametrize("primary", ["Python", "C", "C Header"])
+def test_c_headers_do_not_select_cpp(tmp_path: Path, primary: str) -> None:
+    builder = ProgrammingLanguageBuilder(VSCODE_CONFIG["lsp_servers"])
+    header = builder.build("C Header", 10, 10, {".h"})
+    assert not header.is_supported_lang()
+    assert header.lsp_server_key != "cpp"
+    suffix = {"Python": ".py", "C": ".c", "C Header": ".h"}[primary]
+    languages = [header, builder.build(primary, 90, 90, {suffix})]
+    configs = _create_engine_configs(languages, tmp_path, RepoIgnoreManager(tmp_path))
+    assert [config.adapter.language_enum for config in configs] == ([Language.PYTHON] if primary == "Python" else [])
+
+
+@pytest.mark.parametrize("folder", ["include", "build", ".hidden", "tests"])
+def test_cuda_header_only_detection_respects_exclusions(tmp_path: Path, folder: str) -> None:
+    header = tmp_path / folder / "api.cuh"
+    header.parent.mkdir()
+    header.write_text("__device__ int run() { return 1; }\n")
+    with patch("static_analyzer.scanner.subprocess.run", return_value=MagicMock(stdout='{"Total":{"code":0}}')):
+        languages = ProjectScanner(tmp_path).scan()
+    assert [language.lsp_server_key for language in languages] == (["cpp"] if folder == "include" else [])
 
 
 def test_cpp_warns_without_build_context(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
