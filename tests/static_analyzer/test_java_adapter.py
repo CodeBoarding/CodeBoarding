@@ -1,15 +1,59 @@
-"""Naming for the Java adapter: what a symbol is called, and which package it sits in."""
+"""The Java adapter: what a symbol is called, which package it sits in, and which server errors end a run."""
 
 from pathlib import Path
 
 from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
+from static_analyzer.engine.lsp_client import ErrorVerdict
 
 ROOT = Path("/repo")
+SELECTION_CRASH = {
+    "code": -32603,
+    "message": "Internal error.",
+    "data": (
+        "java.util.concurrent.CompletionException: java.lang.NullPointerException: "
+        'Cannot read field "type" because "argument.binding" is null\n'
+        "\tat java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:315)\n"
+        'Caused by: java.lang.NullPointerException: Cannot read field "type" because "argument.binding" is null\n'
+        "\tat org.eclipse.jdt.internal.codeassist.SelectionEngine$1Visitor.visit(SelectionEngine.java:1473)"
+    ),
+}
 
 
 def _name(rel: str, symbol: str, kind: int = NodeType.CLASS, parents: list[tuple[str, int]] | None = None) -> str:
     return JavaAdapter().build_qualified_name(ROOT / rel, symbol, kind, parents or [], ROOT)
+
+
+class TestErrorVerdict:
+    def test_a_code_selection_crash_leaves_one_edge_out(self, caplog):
+        """Retrying crashes the same way, on dropwizard/metrics, and that one site ended the whole analysis."""
+        assert JavaAdapter().error_verdict(SELECTION_CRASH) is ErrorVerdict.DECLINED
+        assert "leaving its edge out" in caplog.text
+        assert "SelectionEngine.java:1473" in caplog.text
+
+    def test_any_other_internal_error_still_fails_the_run(self):
+        """Reading an unknown failure as empty would lose edges silently."""
+        error = {"code": -32603, "message": "Internal error.", "data": "java.lang.OutOfMemoryError: Java heap space"}
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.FAILURE
+
+    def test_a_null_pointer_outside_code_selection_still_fails_the_run(self):
+        error = {"code": -32603, "data": "java.lang.NullPointerException\n\tat org.eclipse.jdt.ls.core.Handler.run"}
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.FAILURE
+
+    def test_a_null_pointer_merely_passing_through_code_selection_still_fails_the_run(self):
+        """Only the frame that threw says the crash is the compiler's."""
+        error = {
+            "code": -32603,
+            "data": (
+                "Caused by: java.lang.NullPointerException\n"
+                "\tat org.eclipse.jdt.ls.core.Handler.run(Handler.java:1)\n"
+                "\tat org.eclipse.jdt.internal.codeassist.SelectionEngine.select(SelectionEngine.java:1030)"
+            ),
+        }
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.FAILURE
+
+    def test_an_error_without_data_still_fails_the_run(self):
+        assert JavaAdapter().error_verdict({"code": -32603, "message": "Internal error."}) is ErrorVerdict.FAILURE
 
 
 class TestBuildQualifiedName:
