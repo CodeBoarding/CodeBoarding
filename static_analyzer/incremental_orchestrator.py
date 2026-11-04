@@ -282,6 +282,7 @@ def _declarations(call_graph: CallGraph) -> list[SymbolInfo]:
                 end_char=0,
                 parent_chain=[(owner_name.rpartition(".")[2], owner.type)] if owner is not None else [],
                 owner_qualified_name=owner_name if owner is not None else "",
+                explicit_identity=getattr(node, "explicit_identity", False),
             )
         )
     return declarations

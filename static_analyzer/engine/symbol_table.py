@@ -163,6 +163,7 @@ class SymbolTable:
             )
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
+            info.explicit_identity = bool(sym.get("qualified_name"))
 
             if sym.get("is_definition", True) or qualified_name not in self._symbols:
                 self._symbols[qualified_name] = info

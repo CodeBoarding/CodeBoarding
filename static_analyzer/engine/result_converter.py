@@ -175,8 +175,9 @@ def _node(sym: SymbolInfo) -> Node:
         line_start=sym.start_line + 1,
         line_end=sym.end_line + 1,
         col_start=sym.start_char,
-        symbol_name=sym.name,
-        owner_qualified_name=sym.owner_qualified_name,
+        symbol_name=sym.name if sym.explicit_identity else "",
+        owner_qualified_name=sym.owner_qualified_name if sym.explicit_identity else "",
+        explicit_identity=sym.explicit_identity,
     )
 
 

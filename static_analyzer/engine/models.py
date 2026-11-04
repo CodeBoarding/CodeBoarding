@@ -31,6 +31,7 @@ class SymbolInfo:
     # Empty for a top-level symbol and for every alias.
     # Why: slicing a qualified name finds the real owner only by luck of the naming scheme.
     owner_qualified_name: str = ""
+    explicit_identity: bool = False
 
     @property
     def definition_location(self) -> tuple[str, int, int]:

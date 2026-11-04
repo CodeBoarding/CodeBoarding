@@ -137,7 +137,9 @@ class CallEdgeSink:
             _, parent_kind = target.parent_chain[-1]
             if self._adapter.is_class_like(parent_kind):
                 parent = self._st.symbols.get(
-                    target.owner_qualified_name or parent_qualified_name(target.qualified_name)
+                    target.owner_qualified_name
+                    if target.explicit_identity
+                    else parent_qualified_name(target.qualified_name)
                 )
                 if parent is not None:
                     extra.append(parent)
@@ -167,14 +169,16 @@ class SymbolIndex:
         self._by_name: dict[tuple[str, str], dict[tuple[str, int, int], SymbolInfo]] = {}
         self.callable_names: set[str] = set()
         """The names the table declares callables under."""
-        for sym in chain(st.symbols.values(), chain.from_iterable(st.file_symbols.values())):
+        redeclarations = (sym for symbols in st.file_symbols.values() for sym in symbols if sym.explicit_identity)
+        for sym in chain(st.symbols.values(), redeclarations):
             position = sym.definition_location
+            name = simple_name(sym.name if sym.explicit_identity else sym.qualified_name)
             self._keep_most_specific(self._by_position, position, sym)
             if sym.kind in CALLABLE_KINDS or sym.kind in CLASS_LIKE_KINDS:
-                at = self._by_name.setdefault((str(sym.file_path), simple_name(sym.name)), {})
+                at = self._by_name.setdefault((str(sym.file_path), name), {})
                 self._keep_most_specific(at, position, sym)
             if sym.kind in CALLABLE_KINDS:
-                self.callable_names.add(simple_name(sym.name))
+                self.callable_names.add(name)
         self._files = {file for file, _, _ in self._by_position}
 
     def resolve(self, def_result: dict) -> SymbolInfo | None:
