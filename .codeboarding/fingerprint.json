@@ -133,7 +133,7 @@
     "static_analyzer/engine/protocols.py": "525a666552255b0d",
     "static_analyzer/engine/adapters/kotlin_adapter.py": "6620e10b9c547449",
     "static_analyzer/engine/adapters/csharp_adapter.py": "082864e2c9a9d428",
-    "static_analyzer/engine/adapters/java_adapter.py": "13043687a1364e99",
+    "static_analyzer/engine/adapters/java_adapter.py": "cd969286b1a28e8f",
     "static_analyzer/engine/adapters/go_adapter.py": "362585352573df22",
     "static_analyzer/engine/adapters/rust_adapter.py": "9349fe979dc7e23e",
     "static_analyzer/engine/adapters/typescript_adapter.py": "1714ba901d2fd51e",
