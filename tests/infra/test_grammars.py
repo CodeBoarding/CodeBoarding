@@ -41,7 +41,7 @@ class TestKotlinLanguage:
 
 
 class TestSetupDownloadsTheGrammar:
-    def test_setup_fetches_kotlin_into_the_servers_dir(self, tmp_path: Path, caplog):
+    def test_setup_fetches_kotlin_into_the_servers_dir(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         caplog.set_level(logging.INFO, logger=install.logger.name)
         with (
             patch.object(grammars.language_pack, "configure") as configure,
@@ -52,7 +52,7 @@ class TestSetupDownloadsTheGrammar:
         download.assert_called_once_with(["kotlin"])
         assert "Kotlin grammar: installed" in caplog.text
 
-    def test_an_offline_setup_carries_on(self, tmp_path: Path, caplog):
+    def test_an_offline_setup_carries_on(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         """Why: an analysis fetches a missing grammar itself, and fails loudly there if it still cannot."""
         with (
             patch.object(grammars.language_pack, "configure"),
