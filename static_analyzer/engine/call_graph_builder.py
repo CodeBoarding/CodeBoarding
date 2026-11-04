@@ -75,6 +75,7 @@ class CallGraphBuilder:
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
         ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        self._adapter.prepare_edges(ctx)
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
         self._adapter.complete_edges(ctx, source_files, edge_set, self._root)

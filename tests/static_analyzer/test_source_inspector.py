@@ -977,6 +977,19 @@ class TestKeywordArgumentValues:
 
 
 class TestDeclaresFunctionValue:
+    @pytest.mark.parametrize(
+        "suffix,source,expected",
+        [
+            ("java", "class C { Runnable task = () -> run(); void run() {} }", False),
+            ("cpp", "auto task = []() { return 1; };", True),
+            ("cu", "auto task = [] __device__ () { return 1; };", True),
+        ],
+    )
+    def test_cpp_lambda_support_does_not_promote_java_fields(self, tmp_path: Path, suffix, source, expected):
+        path = tmp_path / f"sample.{suffix}"
+        path.write_text(source)
+        assert SourceInspector().declares_function_value(path, 0, source.index("task")) is expected
+
     def test_an_arrow_bound_to_a_const(self, tmp_path: Path):
         f = tmp_path / "app.ts"
         f.write_text("const handler = () => 1;\n")

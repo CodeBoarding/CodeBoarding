@@ -75,8 +75,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # server left without edges is rebuilt; bases, implementations and edge-only declarations link across engines.
 # v13: a TypeScript call into a sibling workspace package resolves to its sources without an install or build.
 # v14: handlers, runtime type tests, and variant patterns contribute dependencies without invoking their targets.
+# v15: C++ compiler identities unify declarations and definitions; nodes retain declared names and owners.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v14"
+_TAG_VERSION = "v15"
 
 
 class StaticAnalysisCache:

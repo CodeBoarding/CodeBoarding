@@ -462,6 +462,9 @@ class LanguageAdapter(ABC):
         """
         return symbols
 
+    def prepare_edges(self, ctx: EdgeBuildContext) -> None:
+        """Prepare server documents needed to resolve calls against cached declarations."""
+
     def complete_edges(
         self,
         ctx: EdgeBuildContext,

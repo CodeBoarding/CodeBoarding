@@ -436,6 +436,10 @@ class LSPClient:
 
     # ---- LSP queries ----
 
+    def symbol_info_batch(self, queries: list[tuple[Path, int, int]]) -> list[list[dict]]:
+        """Read clangd's compiler identities and declaration/definition locations."""
+        return self._send_batch("textDocument/symbolInfo", queries, self._position_params, self._default_timeout)
+
     def document_ast(self, file_path: Path) -> dict:
         """Read clangd's compiler AST, including active declarations omitted from its outline."""
         result = self._send_request(

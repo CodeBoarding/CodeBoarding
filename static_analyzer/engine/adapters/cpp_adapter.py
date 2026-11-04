@@ -61,11 +61,9 @@ class CppAdapter(LanguageAdapter):
         self, file_path: Path, symbols: list[dict], inspector: SourceInspector, client: LSPClient
     ) -> list[dict]:
         candidates = inspector.cpp_local_callables(file_path)
-        if not candidates:
-            return symbols
         active = {
             (node["range"]["end"]["line"], node["range"]["end"]["character"])
-            for node in _walk(client.document_ast(file_path))
+            for node in (_walk(client.document_ast(file_path)) if candidates else [])
             if node.get("kind") in {"Function", "Lambda"} and "range" in node
         }
         for candidate in candidates:
@@ -86,7 +84,27 @@ class CppAdapter(LanguageAdapter):
                 owner.setdefault("children", []).append(candidate)
             else:
                 symbols.append(candidate)
+
+        declarations = list(_walk({"children": symbols}))[1:]
+        queries = [(file_path, *_position(item["selectionRange"]["start"])) for item in declarations]
+        # USRs distinguish C++ overloads and identify redeclarations across files.
+        for item, details in zip(declarations, client.symbol_info_batch(queries)):
+            if len(details) != 1 or not details[0].get("usr"):
+                continue
+            identity = details[0]
+            item["name"] = identity["name"]
+            display = ((identity.get("containerName") or "") + identity["name"]).replace("::", ".")
+            item["qualified_name"] = f"{display}[{identity['usr']}]"
+            definition = identity.get("definitionRange") or {}
+            item["is_definition"] = (
+                definition.get("uri") == file_path.resolve().as_uri()
+                and definition.get("range", {}).get("start") == item["selectionRange"]["start"]
+            )
         return symbols
+
+    def prepare_edges(self, ctx: EdgeBuildContext) -> None:
+        for path in sorted({symbol.file_path for symbol in ctx.symbol_table.known}):
+            ctx.lsp.did_open(path)
 
     def complete_edges(
         self,
@@ -97,10 +115,11 @@ class CppAdapter(LanguageAdapter):
     ) -> None:
         index = SymbolIndex(ctx.symbol_table, ctx.source_inspector)
         unresolved: set[tuple[str, int, int]] = set()
+        dependent_ranges: dict[str, list[tuple[tuple[int, int], tuple[int, int]]]] = {}
         destructors: dict[str, list[SymbolInfo]] = {}
-        for symbols in ctx.symbol_table.primary_file_symbols.values():
+        for symbols in ctx.symbol_table.file_symbols.values():
             for symbol in symbols:
-                if symbol.name.startswith("~"):
+                if symbol.name.rsplit("::", 1)[-1].startswith("~"):
                     destructors.setdefault(symbol.owner_qualified_name, []).append(symbol)
         for file_path in source_files:
             for symbol in ctx.symbol_table.primary_file_symbols.get(str(file_path), []):
@@ -119,11 +138,19 @@ class CppAdapter(LanguageAdapter):
                             edges.setdefault((caller.qualified_name, target.qualified_name), []).append(site)
 
             ast = ctx.lsp.document_ast(file_path)
-            dependent = {
-                _position(node["range"]["start"])
+            # CUDA calls through device functors/lambdas remain partial: clangd exposes
+            # a parameter reference, not the instantiated operator(), at these call sites.
+            dependent_nodes = [
+                node
                 for node in _walk_evaluated(ast)
-                if node.get("kind") == "UnresolvedLookup" and "range" in node
-            }
+                if node.get("kind") in {"UnresolvedLookup", "CXXDependentScopeMember"} and "range" in node
+            ]
+            dependent = {_position(node["range"]["start"]) for node in dependent_nodes}
+            dependent_ranges[str(file_path)] = [
+                (_position(node["range"]["start"]), _position(node["range"].get("end", node["range"]["start"])))
+                for node in dependent_nodes
+            ]
+            unresolved.update((str(file_path), line, column) for line, column in dependent)
             references = [
                 node["range"]["start"]
                 for node in _walk_evaluated(ast)
@@ -138,8 +165,8 @@ class CppAdapter(LanguageAdapter):
                 caller = ctx.symbol_table.find_containing_symbol(file_path, line, column)
                 if caller is None or not self.is_callable(caller.kind):
                     continue
-                if not definitions and (line, column) in dependent:
-                    unresolved.add((str(file_path), line, column))
+                if (line, column) in dependent:
+                    continue
                 for definition in definitions:
                     target = index.resolve(definition)
                     if target is not None and self.is_callable(target.kind):
@@ -171,6 +198,20 @@ class CppAdapter(LanguageAdapter):
                         site = CallSite.from_lsp_position(str(file_path), line, column)
                         edges.setdefault((caller.qualified_name, destructor.qualified_name), []).append(site)
 
+        # Navigation candidates for dependent calls are not proven instantiations.
+        for edge, sites in list(edges.items()):
+            remaining = [
+                site
+                for site in sites
+                if not any(
+                    start <= (site.lsp_line, site.lsp_column) < end
+                    for start, end in dependent_ranges.get(site.file, [])
+                )
+            ]
+            if remaining:
+                edges[edge] = remaining
+            else:
+                del edges[edge]
         if unresolved:
             try:
                 complete_template_dependencies(ctx, source_files, project_root, unresolved, edges)

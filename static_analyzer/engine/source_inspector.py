@@ -1085,7 +1085,7 @@ class SourceInspector:
         setter_positions: set[tuple[int, int]] = set()
         overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
         for node in self._walk(parsed.tree.root_node):
-            binding = self._function_value_binding(node)
+            binding = self._function_value_binding(node, file_path)
             if binding is not None:
                 name, literal = binding
                 function_values[parsed.lsp_position(name.start_point)] = parsed.lsp_position(literal.start_point)
@@ -1122,7 +1122,9 @@ class SourceInspector:
         self._usage_index_cache[file_key] = usage_index
         return usage_index
 
-    def _function_value_binding(self, node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode] | None:
+    def _function_value_binding(
+        self, node: TreeSitterNode, file_path: Path
+    ) -> tuple[TreeSitterNode, TreeSitterNode] | None:
         """The name a binding declares and the function literal it binds that name to, when it binds one."""
         if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
             return None
@@ -1137,6 +1139,8 @@ class SourceInspector:
             else:
                 value = value.child_by_field_name(_VALUE_FIELD_BY_BINDING[value.type])
         if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
+            return None
+        if value.type == "lambda_expression" and file_path.suffix.lower() not in LANGUAGE_EXTENSIONS[Language.CPP]:
             return None
         name = (
             node.child_by_field_name("name")

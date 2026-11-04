@@ -175,6 +175,8 @@ def _node(sym: SymbolInfo) -> Node:
         line_start=sym.start_line + 1,
         line_end=sym.end_line + 1,
         col_start=sym.start_char,
+        symbol_name=sym.name,
+        owner_qualified_name=sym.owner_qualified_name,
     )
 
 
@@ -188,8 +190,14 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult, 
     class_qnames = {qname for qname, node in call_graph.nodes.items() if node.type in CLASS_TYPES}
 
     # CONTAINS: each method / nested symbol -> its innermost enclosing class node.
-    for qname in call_graph.nodes:
+    for qname, node in call_graph.nodes.items():
         if qname in class_qnames or qname in known:
+            continue
+        owner = node.owner_qualified_name
+        while owner in call_graph.nodes and owner not in class_qnames:
+            owner = call_graph.nodes[owner].owner_qualified_name
+        if owner in class_qnames:
+            call_graph.add_reference_edge(ReferenceEdge(qname, owner, EdgeKind.CONTAINS))
             continue
         parts = qname.split(".")
         for i in range(len(parts) - 1, 0, -1):

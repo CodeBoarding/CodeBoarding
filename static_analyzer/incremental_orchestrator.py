@@ -267,11 +267,12 @@ def _declarations(call_graph: CallGraph) -> list[SymbolInfo]:
     """
     declarations: list[SymbolInfo] = []
     for qualified_name, node in call_graph.nodes.items():
-        owner_name = qualified_name.split("(", 1)[0].rpartition(".")[0]
+        owner_name = getattr(node, "owner_qualified_name", "") or qualified_name.split("(", 1)[0].rpartition(".")[0]
         owner = call_graph.nodes.get(owner_name) if owner_name else None
         declarations.append(
             SymbolInfo(
-                name=qualified_name[len(owner_name) + 1 :] if owner_name else qualified_name,
+                name=getattr(node, "symbol_name", "")
+                or (qualified_name[len(owner_name) + 1 :] if owner_name else qualified_name),
                 qualified_name=qualified_name,
                 kind=node.type,
                 file_path=Path(node.file_path),
