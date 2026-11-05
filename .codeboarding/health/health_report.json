@@ -1,17 +1,17 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-11-05T15:06:55.414911+00:00",
-  "overall_score": 0.8996539792387543,
+  "timestamp": "2026-11-05T15:10:04.556282+00:00",
+  "overall_score": 0.8889518413597733,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1561,
+      "total_entities_checked": 1570,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993593850096092,
+      "score": 0.9993630573248408,
       "finding_groups": [
         {
           "severity": "warning",
@@ -34,8 +34,8 @@
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 173,
-      "findings_count": 173,
+      "total_entities_checked": 195,
+      "findings_count": 195,
       "warning_count": 77,
       "score": 0.0,
       "finding_groups": [
@@ -715,6 +715,160 @@
               "line_start": 87,
               "line_end": 87,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 325,
+              "line_end": 325,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 74,
+              "line_end": 74,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 97,
+              "line_end": 97,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 100,
+              "line_end": 100,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"ignore_manager\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 149,
+              "line_end": 149,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"heap_bytes\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 153,
+              "line_end": 153,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 239,
+              "line_end": 239,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"error\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 256,
+              "line_end": 256,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 264,
+              "line_end": 264,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 268,
+              "line_end": 268,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 275,
+              "line_end": 275,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"changed_files\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 279,
+              "line_end": 279,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 283,
+              "line_end": 283,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"client\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 288,
+              "line_end": 288,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 297,
+              "line_end": 297,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"project_root\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 312,
+              "line_end": 312,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"a\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 425,
+              "line_end": 425,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 449,
+              "line_end": 449,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 457,
+              "line_end": 457,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"file_path\" is not accessed",
+              "file_path": "static_analyzer/engine/language_adapter.py",
+              "line_start": 465,
+              "line_end": 465,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"symbol_kind\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 153,
+              "line_end": 153,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"detail\" is not accessed",
+              "file_path": "static_analyzer/engine/adapters/java_adapter.py",
+              "line_start": 156,
+              "line_end": 156,
+              "metric_value": 0.0
             }
           ]
         },
@@ -1287,6 +1441,12 @@
       "composite_risk_score": 50.0
     },
     {
+      "file_path": "static_analyzer/engine/language_adapter.py",
+      "total_findings": 19,
+      "warning_findings": 0,
+      "composite_risk_score": 50.0
+    },
+    {
       "file_path": "codeboarding_workflows/analysis.py",
       "total_findings": 2,
       "warning_findings": 1,
@@ -1294,6 +1454,12 @@
     },
     {
       "file_path": "agents/llm_config.py",
+      "total_findings": 2,
+      "warning_findings": 0,
+      "composite_risk_score": 20.0
+    },
+    {
+      "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
@@ -1330,6 +1496,12 @@
     },
     {
       "file_path": "infra/install.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "static_analyzer/__init__.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
