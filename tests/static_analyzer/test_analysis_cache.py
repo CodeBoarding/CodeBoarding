@@ -256,6 +256,33 @@ class TestStaticAnalysisCacheReadTagSha(unittest.TestCase):
         self.assertIsNone(self.cache.read_tag_sha())
 
 
+class TestFromAnotherEngine(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.artifact_dir = Path(self.temp_dir) / CODEBOARDING_DIR_NAME
+        self.cache = StaticAnalysisCache(self.artifact_dir, Path(self.temp_dir))
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_a_pkl_tagged_by_another_version_is_from_another_engine(self):
+        self.cache.save(StaticAnalysisResults(), source_sha="sha")
+        (self.artifact_dir / STATIC_ANALYSIS_SHA).write_text("v1\nsha\n")
+        self.assertTrue(self.cache.from_another_engine())
+
+    def test_this_builds_own_artifact_is_not(self):
+        self.cache.save(StaticAnalysisResults(), source_sha="sha")
+        self.assertFalse(self.cache.from_another_engine())
+
+    def test_no_artifact_is_not(self):
+        self.assertFalse(self.cache.from_another_engine())
+
+    def test_a_tag_without_its_pkl_is_not(self):
+        self.artifact_dir.mkdir(parents=True)
+        (self.artifact_dir / STATIC_ANALYSIS_SHA).write_text("v1\nsha\n")
+        self.assertFalse(self.cache.from_another_engine())
+
+
 class TestLoadWithSha(unittest.TestCase):
     """``load_with_sha`` returns the unpickled cache plus the tag SHA, as a pair.
 

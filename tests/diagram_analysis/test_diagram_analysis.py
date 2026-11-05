@@ -773,6 +773,74 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertIn("  ", json_str)  # 2-space indentation
 
 
+class TestLoadedScopesOwnTheirFiles(unittest.TestCase):
+    """A loaded sub-analysis must look like a live one: indexing the whole repository in every
+    scope cost 2.2M method entries for 25,749 real methods on a 74 MB analysis."""
+
+    @staticmethod
+    def _component(component_id: str, *file_paths: str) -> Component:
+        return Component(
+            name=component_id,
+            description="",
+            key_entities=[],
+            component_id=component_id,
+            file_methods=[
+                FileMethodGroup(
+                    file_path=path,
+                    methods=[
+                        MethodEntry(qualified_name=f"{path}.run", start_line=1, end_line=2, node_type="FUNCTION"),
+                    ],
+                )
+                for path in file_paths
+            ],
+        )
+
+    @staticmethod
+    def _scope(*components: Component) -> AnalysisInsights:
+        scope = AnalysisInsights(description="scope", components=list(components), components_relations=[])
+        scope.files = {
+            group.file_path: FileEntry(methods=list(group.methods), content_hash=f"{group.file_path}-hash")
+            for component in components
+            for group in component.file_methods
+        }
+        return scope
+
+    def _document(self, root: AnalysisInsights, sub: AnalysisInsights) -> str:
+        return build_unified_analysis_json(
+            analysis=root,
+            expandable_components=[root.components[0]],
+            repo_name="repo",
+            repo_dir=Path("."),
+            source_tree_hash="",
+            depth_cap=2,
+            sub_analyses={"1": (sub, [])},
+        )
+
+    def setUp(self):
+        self.document = self._document(
+            self._scope(self._component("1", "a.py", "b.py"), self._component("2", "c.py")),
+            self._scope(self._component("1.1", "a.py"), self._component("1.2", "b.py")),
+        )
+
+    def test_sub_analysis_indexes_only_the_files_its_components_own(self):
+        root, subs = parse_unified_analysis(json.loads(self.document))
+
+        self.assertEqual(set(root.files), {"a.py", "b.py", "c.py"})
+        self.assertEqual(set(subs["1"].files), {"a.py", "b.py"})
+        self.assertEqual(subs["1"].files["a.py"].content_hash, "a.py-hash")
+        self.assertIsNot(subs["1"].files["a.py"], root.files["a.py"])
+
+    def test_saving_a_loaded_tree_writes_the_same_document(self):
+        def without_timestamp(document: str) -> dict:
+            parsed = json.loads(document)
+            del parsed["metadata"]["generated_at"]
+            return parsed
+
+        root, subs = parse_unified_analysis(json.loads(self.document))
+
+        self.assertEqual(without_timestamp(self._document(root, subs["1"])), without_timestamp(self.document))
+
+
 class TestDepthCapPersistence(unittest.TestCase):
     """depth_cap must never be saved lower than the tree's own realized depth —
     a partial run against a shallow baseline that grafts on a deeper subtree

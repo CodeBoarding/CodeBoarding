@@ -55,6 +55,21 @@ def test_run_incremental_detects_changes_git_free(tmp_path: Path, patched) -> No
     detect.assert_called_once_with(tmp_path, tmp_path / "out")
 
 
+def test_run_incremental_refuses_another_engines_baseline_before_starting_anything(tmp_path: Path, patched) -> None:
+    """Why: the IDE prompts on ``BaselineUnavailableError``; a full run there would spend the user's own credits."""
+    gen_cls, _workflow, detect = patched
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    (output_dir / "static_analysis.pkl").write_bytes(b"not-a-real-pickle")
+    (output_dir / "static_analysis.sha").write_text("v1\ndeadbeef\n")
+
+    with pytest.raises(BaselineUnavailableError, match="different engine version"):
+        _invoke(tmp_path)
+
+    gen_cls.assert_not_called()
+    detect.assert_not_called()
+
+
 def test_run_incremental_threads_changeset_to_generator(tmp_path: Path, patched) -> None:
     gen_cls, _workflow, detect = patched
 

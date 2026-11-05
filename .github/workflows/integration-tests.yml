@@ -30,7 +30,9 @@ on:
         type: boolean
 
   # PRs are intentionally not executed, but kept for manual visibility + optional
-  # skip behavior when the listed files are touched.
+  # skip behavior when the listed files are touched. The exception is a kotlin-lsp
+  # bump: its Kotlin leg is the evidence for merging it. That has to be a pull_request
+  # run, because GitHub leaves workflow_dispatch runs out of a pull request's checks.
   pull_request:
     paths:
       - 'infra/install.py'
@@ -66,12 +68,16 @@ jobs:
     name: CodeBoarding-tests
     runs-on: ubuntu-latest
     timeout-minutes: 75
-    # Manual runs are always available. PR runs are intentionally skipped.
-    # Automatic execution is limited to the baseline commit pushed by sync.
+    # Manual runs are always available. PR runs are intentionally skipped, except
+    # kotlin-lsp bumps. Other automatic execution is limited to the baseline commit
+    # pushed by sync.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' &&
-       github.event.head_commit.message == 'chore(codeboarding): sync architecture baseline')
+       github.event.head_commit.message == 'chore(codeboarding): sync architecture baseline') ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       startsWith(github.head_ref, 'kotlin-server/'))
     steps:
       # Mint a short-lived installation token instead of carrying a PAT. It is
       # narrowed to the tests repo and to Actions - it cannot clone the suite
@@ -121,9 +127,10 @@ jobs:
           TESTS_REF: main
           # github.sha is the commit hash for the triggering event:
           # the sync-pushed head commit on main, or the current commit for
-          # manual workflow_dispatch runs.
-          ENGINE_SHA: ${{ github.sha }}
-          LANGUAGE: ${{ github.event.inputs.language }}
+          # manual workflow_dispatch runs. On a pull request it is a merge
+          # commit, so that case names the branch's own head.
+          ENGINE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LANGUAGE: ${{ github.event.inputs.language || (github.event_name == 'pull_request' && 'kotlin') || '' }}
           FULL_MATRIX: ${{ github.event.inputs.full_matrix }}
         run: |
           set -euo pipefail

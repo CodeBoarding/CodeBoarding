@@ -134,6 +134,10 @@ class StaticAnalysisCache:
     def lock_path(self) -> Path:
         return self.artifact_dir / STATIC_ANALYSIS_LOCK
 
+    def from_another_engine(self) -> bool:
+        """Whether a pkl is on disk whose tag names a version this build does not produce."""
+        return self.pkl_path.exists() and self._tag_version_is_stale()
+
     def read_tag_sha(self) -> str | None:
         """Return the source SHA the pkl was saved at, or None if absent/unparsable.
 

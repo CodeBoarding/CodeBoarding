@@ -15,6 +15,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import nodeenv
+import requests
+from infra.tool_registry import installers
 from infra.tool_registry import (
     MINIMUM_NODE_MAJOR_VERSION,
     NODEENV_VERSION_STAMP,
@@ -2004,3 +2006,64 @@ class TestKotlinArchiveSetup(unittest.TestCase):
             ):
                 install_archive_tool(Path(tmp), self.KOTLIN)
             self.assertIn(self.KOTLIN.license_url, stderr.getvalue())
+
+
+class TestDownloadResumes(unittest.TestCase):
+    """CloudFront closes an HTTP/1.1 download after about 6 seconds, so a large archive arrives in pieces."""
+
+    CONTENT = b"abcdefghij" * 1000
+
+    @staticmethod
+    def _response(content: bytes, status: int = 206, breaks: bool = True) -> MagicMock:
+        def chunks(chunk_size: int):
+            yield content
+            if breaks:
+                raise requests.exceptions.ChunkedEncodingError("Connection broken: IncompleteRead")
+
+        return MagicMock(status_code=status, iter_content=chunks)
+
+    def test_a_broken_connection_carries_on_from_the_last_byte(self):
+        head, middle, tail = self.CONTENT[:3000], self.CONTENT[3000:7000], self.CONTENT[7000:]
+        responses = [
+            self._response(head, status=200),
+            self._response(middle),
+            self._response(tail, breaks=False),
+        ]
+        with tempfile.TemporaryDirectory() as tmp, patch("requests.get", side_effect=responses) as get:
+            destination = Path(tmp) / "archive"
+            self.assertTrue(
+                download_asset(
+                    "https://example.com/a", destination, expected_sha256=hashlib.sha256(self.CONTENT).hexdigest()
+                )
+            )
+            self.assertEqual(destination.read_bytes(), self.CONTENT)
+        self.assertEqual(
+            [call.kwargs["headers"] for call in get.call_args_list],
+            [None, {"Range": "bytes=3000-"}, {"Range": "bytes=7000-"}],
+        )
+
+    def test_a_host_that_ignores_the_range_starts_the_file_over(self):
+        responses = [self._response(self.CONTENT[:3000], status=200), self._response(self.CONTENT, 200, breaks=False)]
+        with tempfile.TemporaryDirectory() as tmp, patch("requests.get", side_effect=responses):
+            destination = Path(tmp) / "archive"
+            self.assertTrue(download_asset("https://example.com/a", destination))
+            self.assertEqual(destination.read_bytes(), self.CONTENT)
+
+    def test_a_connection_that_brings_nothing_gives_up_and_leaves_no_partial_file(self):
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("requests.get", side_effect=requests.ConnectionError("refused")) as get,
+        ):
+            destination = Path(tmp) / "archive"
+            with self.assertRaises(requests.ConnectionError):
+                download_asset("https://example.com/a", destination)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+        self.assertEqual(get.call_count, installers.DOWNLOAD_MAX_FRUITLESS_ATTEMPTS)
+
+    def test_a_refused_request_is_not_retried(self):
+        response = MagicMock()
+        response.raise_for_status.side_effect = requests.HTTPError("404")
+        with tempfile.TemporaryDirectory() as tmp, patch("requests.get", return_value=response) as get:
+            with self.assertRaises(requests.HTTPError):
+                download_asset("https://example.com/a", Path(tmp) / "archive")
+        self.assertEqual(get.call_count, 1)
