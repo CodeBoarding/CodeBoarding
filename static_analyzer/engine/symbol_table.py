@@ -77,9 +77,11 @@ class SymbolTable:
         references and hierarchies are still built from the files read.
         """
         for sym in declarations:
-            if sym.qualified_name in self._symbols:
+            existing = self._symbols.get(sym.qualified_name)
+            if existing is not None and existing.is_definition:
                 continue
             self._symbols[sym.qualified_name] = sym
+            self._ref_key_to_symbol[self._naming.build_reference_key(sym.qualified_name)] = sym
             self._file_symbols.setdefault(str(sym.file_path), []).append(sym)
             self._known.append(sym)
 
@@ -164,8 +166,9 @@ class SymbolTable:
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
             info.explicit_identity = bool(sym.get("qualified_name"))
+            info.is_definition = sym.get("is_definition", True)
 
-            if sym.get("is_definition", True) or qualified_name not in self._symbols:
+            if info.is_definition or qualified_name not in self._symbols:
                 self._symbols[qualified_name] = info
                 ref_key = self._naming.build_reference_key(qualified_name)
                 self._ref_key_to_symbol[ref_key] = info

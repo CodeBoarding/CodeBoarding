@@ -32,6 +32,7 @@ class SymbolInfo:
     # Why: slicing a qualified name finds the real owner only by luck of the naming scheme.
     owner_qualified_name: str = ""
     explicit_identity: bool = False
+    is_definition: bool = True
 
     @property
     def definition_location(self) -> tuple[str, int, int]:
