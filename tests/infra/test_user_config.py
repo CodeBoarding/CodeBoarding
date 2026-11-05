@@ -119,6 +119,20 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
+    def test_injects_runcrate_api_key(self) -> None:
+        cfg = UserConfig(provider=ProviderUserConfig(runcrate_api_key="rc_live_test"))
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("RUNCRATE_API_KEY", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["RUNCRATE_API_KEY"] == "rc_live_test"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
     def test_injects_openai_base_url_for_self_hosted_proxy(self):
         cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://127.0.0.1:8000/v1"))
 
