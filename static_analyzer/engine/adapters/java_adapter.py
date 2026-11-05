@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import tempfile
 from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import ErrorVerdict
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -257,6 +259,18 @@ class JavaAdapter(LanguageAdapter):
 
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
+
+    def error_verdict(self, error: dict) -> ErrorVerdict:
+        """A crash in JDT's code selection is final for that call site, and its edge is left out with a warning.
+
+        Why: asking again crashes the same way, so one site the compiler cannot walk must not cost the whole run.
+        A timeout or a lost server is not this, and still fails it.
+        """
+        data = str(error.get("data", ""))
+        if re.search(r"Caused by: java\.lang\.NullPointerException.*\n\s*at \S*codeassist\.SelectionEngine", data):
+            logger.warning(f"JDTLS crashed resolving a call site, leaving its edge out: {data}")
+            return ErrorVerdict.DECLINED
+        return ErrorVerdict.FAILURE
 
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         packages: set[str] = set()

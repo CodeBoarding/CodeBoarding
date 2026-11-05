@@ -25,12 +25,24 @@ from diagram_analysis.io_utils import (
 )
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP, RunContext, RunPaths
 from infra.repo_utils.change_detector import ChangeSet
-from codeboarding_workflows.fingerprint_diff import BaselineUnavailableError, detect_changes_from_fingerprint
+from codeboarding_workflows.fingerprint_diff import (
+    BaselineUnavailableError,
+    EngineChangedError,
+    detect_changes_from_fingerprint,
+)
 from infra.monitoring.telemetry.events import track_analysis
+from static_analyzer.analysis_cache import StaticAnalysisCache
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["BaselineUnavailableError", "run_full", "run_partial", "run_incremental", "run_incremental_workflow"]
+__all__ = [
+    "BaselineUnavailableError",
+    "EngineChangedError",
+    "run_full",
+    "run_partial",
+    "run_incremental",
+    "run_incremental_workflow",
+]
 
 
 def build_generator(
@@ -196,7 +208,8 @@ def run_incremental(
     passes a changed-file set or git refs — the CLI and the wrapper both just say
     "update this directory". The source-tree hash doubles as the warm-start tag.
 
-    Raises ``BaselineUnavailableError`` when no baseline analysis exists — callers
+    Raises ``BaselineUnavailableError`` when no baseline analysis exists, and its
+    subclass ``EngineChangedError`` when another engine version wrote it — callers
     should surface a "run full analysis" prompt rather than silently degrading to
     an unscoped run.
     """
@@ -207,6 +220,10 @@ def run_incremental(
             f"No baseline analysis.json found in '{run_paths.output_dir}'. Run a full analysis first."
         )
     depth_cap = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_CAP)))
+
+    # Why here: the analyzer refuses this pkl too, but only after servers started and a failed run was reported.
+    if StaticAnalysisCache(run_paths.output_dir, run_paths.repo_path).from_another_engine():
+        raise EngineChangedError(run_paths.output_dir, depth_cap)
 
     changes = detect_changes_from_fingerprint(run_paths.repo_path, run_paths.output_dir)
     logger.info(

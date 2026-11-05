@@ -120,16 +120,18 @@ ToolDependency(
     kind=ToolKind.ARCHIVE,
     config_section=ConfigSection.LSP_SERVERS,
     source=UpstreamToolSource(
-        tag=KOTLIN_LSP_VERSION,
-        url_template=KOTLIN_LSP_URL_TEMPLATE,  # with {version} and {asset}
-        asset_arch_overrides={("Linux", "x86_64"): "kotlin-server-<version>.tar.gz", ...},
-        sha256={"kotlin-server-<version>.tar.gz": "...", ...},
+        tag="<version>",
+        url_template="https://example.com/{version}/{asset}",
+        asset_arch_overrides={("Linux", "x86_64"): "server-<version>.tar.gz", ...},
+        sha256={"server-<version>.tar.gz": "...", ...},
     ),
     archive_subdir="kotlin-lsp",
     archive_entry="bin/intellij-server",
     license_url=KOTLIN_LSP_LICENSE_URL,
 )
 ```
+
+kotlin-lsp itself reads its version and checksums from `infra/tool_registry/kotlin-server-1.json`, because each build stops starting about 30 days after it was made. Installed Core reads that file from `main`, so do not move it. The nightly "Kotlin server" workflow opens a pull request for each new build, and merging that pull request publishes the build with no release.
 
 **Built from source** (e.g. gopls, tokei) — no upstream binaries, needs pipeline:
 ```python

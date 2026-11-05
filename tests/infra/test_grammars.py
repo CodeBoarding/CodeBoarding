@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -40,7 +41,8 @@ class TestKotlinLanguage:
 
 
 class TestSetupDownloadsTheGrammar:
-    def test_setup_fetches_kotlin_into_the_servers_dir(self, tmp_path: Path, capsys):
+    def test_setup_fetches_kotlin_into_the_servers_dir(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+        caplog.set_level(logging.INFO, logger=install.logger.name)
         with (
             patch.object(grammars.language_pack, "configure") as configure,
             patch.object(grammars.language_pack, "download") as download,
@@ -48,13 +50,15 @@ class TestSetupDownloadsTheGrammar:
             install.download_grammars(tmp_path)
         assert configure.call_args.args[0].cache_dir == str(tmp_path)
         download.assert_called_once_with(["kotlin"])
-        assert "Kotlin grammar: installed" in capsys.readouterr().out
+        assert "Kotlin grammar: installed" in caplog.text
 
-    def test_an_offline_setup_carries_on(self, tmp_path: Path, capsys):
+    def test_an_offline_setup_carries_on(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         """Why: an analysis fetches a missing grammar itself, and fails loudly there if it still cannot."""
         with (
             patch.object(grammars.language_pack, "configure"),
             patch.object(grammars.language_pack, "download", side_effect=language_pack.DownloadError("offline")),
         ):
             install.download_grammars(tmp_path)
-        assert "not downloaded (offline)" in capsys.readouterr().out
+        [record] = [record for record in caplog.records if "not downloaded (offline)" in record.getMessage()]
+        assert record.levelno == logging.WARNING
+        assert record.exc_info is not None  # the traceback is kept for diagnosis
