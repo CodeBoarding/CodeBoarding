@@ -1,0 +1,123 @@
+name: Kotlin server
+
+# Only early-access builds of kotlin-lsp exist, and each stops starting about 30 days after it was built. Each night
+# this starts the pinned build, opens a pull request for a newer one, and tells a person when neither goes well.
+# Installed Core reads the pin from main, so merging that pull request is what publishes a build: nothing here merges.
+on:
+  schedule:
+    - cron: '30 4 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'infra/tool_registry/kotlin-server-*.json'
+      - 'infra/tool_registry/registry.py'
+      - 'infra/tool_registry/installers.py'
+      - 'infra/tool_registry/manifest.py'
+      - '.github/scripts/check_kotlin_server.py'
+      - '.github/scripts/bump_kotlin_server.py'
+      - '.github/workflows/kotlin-server.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  start-pinned-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DO_NOT_TRACK: '1'
+    outputs:
+      version: ${{ steps.start.outputs.version }}
+      days_left: ${{ steps.start.outputs.days_left }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Start the pinned server
+        id: start
+        run: uv run python .github/scripts/check_kotlin_server.py
+
+  bump:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DO_NOT_TRACK: '1'
+    steps:
+      # Not GITHUB_TOKEN: a pull request opened with it starts no pull_request workflows, and those are the evidence.
+      - name: Mint a token that can open a pull request
+        id: token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.CODEBOARDING_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CODEBOARDING_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # The base is the branch this runs on: main on schedule. Started by hand from a scratch branch with an older
+      # pin, it opens a real bump into that branch, which is how this job and the checks it starts get tested.
+      - name: Open a pull request for a newer build
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: uv run python .github/scripts/bump_kotlin_server.py --repo "$GITHUB_REPOSITORY" --base "$GITHUB_REF_NAME"
+
+  # Plain gh and GITHUB_TOKEN, so that it still works when what failed is the App token or the project's install.
+  alert:
+    needs: [start-pinned-server, bump]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+          VERSION: ${{ needs.start-pinned-server.outputs.version }}
+          DAYS_LEFT: ${{ needs.start-pinned-server.outputs.days_left }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          title='kotlin-lsp needs attention'
+          # Not --search: its index lags, and a miss here would open a second issue.
+          issue=$(gh issue list --state open --limit 1000 --json number,title \
+            -q "[.[] | select(.title == \"$title\")] | first | .number // empty")
+
+          problems=''
+          if [ "$FAILED" = 'true' ]; then
+            problems="- The nightly run failed: $RUN_URL"$'\n'
+          fi
+          if [ -n "$DAYS_LEFT" ] && [ "$DAYS_LEFT" -le 7 ]; then
+            problems+="- kotlin-lsp $VERSION stops starting in about $DAYS_LEFT days."$'\n'
+          fi
+
+          if [ -z "$problems" ]; then
+            if [ -n "$issue" ]; then
+              gh issue close "$issue" --comment "Healthy again: $RUN_URL"
+            fi
+            exit 0
+          fi
+
+          bumps=$(gh pr list --state open --json url,headRefName \
+            -q '.[] | select(.headRefName | startswith("kotlin-server/")) | "- Waiting to be merged: \(.url)"')
+          body="$problems$bumps"
+
+          # A comment rather than an edit: an edit notifies nobody.
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body "$body"
+          else
+            gh issue create --title "$title" --assignee Svilen-Stefanov --body "$body"
+          fi

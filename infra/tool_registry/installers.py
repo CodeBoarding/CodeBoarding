@@ -14,7 +14,9 @@ import stat
 import subprocess
 import sys
 import tarfile
+import time
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,6 +25,7 @@ import requests
 from .paths import (
     embedded_node_path,
     exe_suffix,
+    get_servers_dir,
     node_version_tuple,
     nodeenv_root_dir,
     npm_subprocess_env,
@@ -30,6 +33,7 @@ from .paths import (
     preferred_npm_command,
 )
 from .registry import (
+    KOTLIN_LSP_PIN_URL,
     PINNED_NODE_VERSION,
     PLATFORM_SUFFIX,
     TOOL_REGISTRY,
@@ -40,6 +44,8 @@ from .registry import (
     ToolKind,
     ToolSource,
     UpstreamToolSource,
+    kotlin_lsp_build,
+    kotlin_lsp_source,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +53,10 @@ logger = logging.getLogger(__name__)
 PACKAGE_MANAGER_TOOL_STAMP = ".codeboarding-tool.json"
 # The version an archive with a launcher was extracted at, so a version bump replaces it.
 ARCHIVE_VERSION_STAMP = ".codeboarding-version"
+# Broken connections in a row that brought no new bytes before a download gives up.
+DOWNLOAD_MAX_FRUITLESS_ATTEMPTS = 5
+DOWNLOAD_PROGRESS_SECONDS = 30
+KOTLIN_LSP_PIN_TIMEOUT_SECONDS = 5
 
 
 # -- Download primitive -------------------------------------------------------
@@ -141,17 +151,44 @@ def _extract_compressed_binary(archive_path: Path, inner_path: str, target: Path
         raise
 
 
+def _download_resuming(url: str, temp_dest: Path) -> None:
+    """Download *url* to *temp_dest*, carrying on from the last byte each time the connection breaks.
+
+    Why: CloudFront closes an HTTP/1.1 download after about 6 seconds and ``requests`` has no HTTP/2, so a 360 MB
+    kotlin-lsp archive only arrives over one connection on a very fast link.
+    """
+    received = 0
+    fruitless_attempts = 0
+    last_progress = time.monotonic()
+    while True:
+        attempt_start = received
+        try:
+            headers = {"Range": f"bytes={received}-"} if received else None
+            response = requests.get(url, stream=True, timeout=300, allow_redirects=True, headers=headers)
+            response.raise_for_status()
+            if response.status_code != 206:
+                received = 0  # A host that ignores the range sends the whole file again.
+            with open(temp_dest, "ab" if received else "wb") as f:
+                for chunk in response.iter_content(chunk_size=32768):
+                    if chunk:
+                        f.write(chunk)
+                        received += len(chunk)
+            return
+        except (requests.exceptions.ChunkedEncodingError, requests.ConnectionError):
+            fruitless_attempts = 0 if received > attempt_start else fruitless_attempts + 1
+            if fruitless_attempts >= DOWNLOAD_MAX_FRUITLESS_ATTEMPTS:
+                raise
+            if time.monotonic() - last_progress >= DOWNLOAD_PROGRESS_SECONDS:
+                logger.info("%s: %d MB so far", temp_dest.name, received // 1_000_000)
+                last_progress = time.monotonic()
+
+
 def download_asset(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
     """Download *url* to *destination* via temp-file + rename. Verifies SHA256 if provided."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp_dest = destination.with_suffix(destination.suffix + ".download")
     try:
-        response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
-        response.raise_for_status()
-        with open(temp_dest, "wb") as f:
-            for chunk in response.iter_content(chunk_size=32768):
-                if chunk:
-                    f.write(chunk)
+        _download_resuming(url, temp_dest)
         if temp_dest.stat().st_size == 0:
             temp_dest.unlink(missing_ok=True)
             return False
@@ -483,6 +520,48 @@ def archive_launcher_path(target_dir: Path, dep: ToolDependency) -> Path | None:
     return target_dir / "bin" / dep.archive_subdir / f"{dep.archive_entry}{exe_suffix()}"
 
 
+def _latest_kotlin_lsp_pin() -> UpstreamToolSource | None:
+    """The kotlin-lsp pin on main, or None when it cannot be read or is not a valid pin."""
+    try:
+        response = requests.get(KOTLIN_LSP_PIN_URL, timeout=KOTLIN_LSP_PIN_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        return kotlin_lsp_source(response.json())
+    except (requests.RequestException, ValueError) as error:
+        logger.warning("Could not read the current kotlin-lsp pin, staying on the local one: %s", error)
+        return None
+
+
+def _usable_kotlin_lsp_build(target_dir: Path, dep: ToolDependency) -> str | None:
+    """The build on disk, when its launcher is there and it is at least as new as the wheel's pin."""
+    launcher = archive_launcher_path(target_dir, dep)
+    version = _read_stamp(target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP)
+    if launcher is None or not launcher.is_file() or dep.source is None:
+        return None
+    try:
+        return version if kotlin_lsp_build(version) >= kotlin_lsp_build(dep.source.tag) else None
+    except ValueError:
+        return None
+
+
+def current_tool(dep: ToolDependency, target_dir: Path | None = None) -> ToolDependency:
+    """*dep* as it should be installed now, which ``TOOL_REGISTRY`` cannot say for kotlin-lsp: its pin moves on main.
+
+    The newer of main's pin and the wheel's, so a checkout ahead of main (a bump's own CI) runs its own. A newer build
+    on main moves the machine up, and main moving back moves it back, which is how a bad build is undone. When main
+    cannot be read, the machine keeps its build, or takes the wheel's pin if that is older.
+
+    ``required_tools`` calls this where it selects the tools, so everything after it works on the dep it is given.
+    """
+    if dep.key != "kotlin" or not isinstance(dep.source, UpstreamToolSource):
+        return dep
+    latest = _latest_kotlin_lsp_pin()
+    if latest is not None:
+        return replace(dep, source=max(dep.source, latest, key=lambda source: kotlin_lsp_build(source.tag)))
+    # Only ever stands for a build already on disk, so nothing downloads it without its checksum.
+    installed = _usable_kotlin_lsp_build(target_dir or get_servers_dir(), dep)
+    return replace(dep, source=replace(dep.source, tag=installed)) if installed else dep
+
+
 def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
     """Whether an archive tool is extracted in full: its launcher at the pinned version, or JDTLS's ``plugins/``."""
     launcher = archive_launcher_path(target_dir, dep)
@@ -490,6 +569,17 @@ def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
         stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
         return launcher.is_file() and dep.source is not None and _read_stamp(stamp) == dep.source.tag
     return (target_dir / "bin" / dep.archive_subdir / "plugins").is_dir()
+
+
+def archive_tool_is_usable(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether a run can start an archive tool as it is on disk.
+
+    kotlin-lsp does not have to be at the latest pin for that, which also keeps a build that a failed update left in
+    place. This asks on every run, whatever its languages, so it must not read main's pin.
+    """
+    if dep.key == "kotlin":
+        return _usable_kotlin_lsp_build(target_dir, dep) is not None
+    return archive_tool_is_installed(target_dir, dep)
 
 
 def install_archive_tool(

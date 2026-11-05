@@ -20,3 +20,9 @@ os.environ["CODEBOARDING_SOURCE"] = "tests"
 @pytest.fixture(autouse=True)
 def label_test_telemetry(monkeypatch):
     monkeypatch.setenv("CODEBOARDING_SOURCE", "tests")
+
+
+@pytest.fixture(autouse=True)
+def no_live_kotlin_pin(monkeypatch):
+    """Tests run on the checkout's kotlin-lsp pin: main's copy and the machine's install are state outside the test."""
+    monkeypatch.setattr("infra.tool_registry.manifest.current_tool", lambda dep, target_dir=None: dep)

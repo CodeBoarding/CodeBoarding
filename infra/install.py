@@ -760,7 +760,7 @@ def run_install(
     if any(d.key == "kotlin" for d in selected):
         download_grammars(target)
     install_pre_commit_hooks()
-    if all(dep in selected for dep in TOOL_REGISTRY):
+    if {dep.key for dep in TOOL_REGISTRY} <= {dep.key for dep in selected}:
         print_language_support_summary(npm_available, target)
 
 
@@ -783,8 +783,9 @@ def main() -> None:
     lock_path = servers_dir / ".download.lock"
     with open(lock_path, "w") as lock_fd:
         acquire_lock(lock_fd)
-        run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
-        write_manifest()
+        deps = required_tools()
+        run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp, deps=deps)
+        write_manifest(deps)
 
     logger.info("Setup complete!")
     logger.info("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")

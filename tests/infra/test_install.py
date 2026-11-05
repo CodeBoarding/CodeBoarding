@@ -365,7 +365,7 @@ class TestMainCliLock(unittest.TestCase):
             call_order: list[str] = []
             mock_acquire_lock.side_effect = lambda _fd: call_order.append("acquire")
             mock_run_install.side_effect = lambda **_kwargs: call_order.append("run_install")
-            mock_write_manifest.side_effect = lambda: call_order.append("write_manifest")
+            mock_write_manifest.side_effect = lambda _deps: call_order.append("write_manifest")
 
             install.main()
 
