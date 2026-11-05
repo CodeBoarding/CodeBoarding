@@ -1,18 +1,18 @@
 {
   "metadata": {
-    "generated_at": "2026-11-05T12:25:10.137450+00:00",
-    "source_tree_hash": "9b5e10e0636b4a582fcdd9fa703e53965b70075640c945a63d0a9f59a55256d6",
+    "generated_at": "2026-11-05T13:07:09.981335+00:00",
+    "source_tree_hash": "36826e0bf06b943534ec56d1ab16777558b1a851aa91a8f6ef808e5630eb8a1a",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
     "file_coverage_summary": {
-      "total_files": 346,
+      "total_files": 349,
       "analyzed": 177,
-      "not_analyzed": 169,
+      "not_analyzed": 172,
       "not_analyzed_by_reason": {
-        "other": 14,
+        "other": 15,
         "ignored_directory": 2,
-        "codeboardingignore": 153
+        "codeboardingignore": 155
       }
     },
     "tree_spec": {
@@ -3191,7 +3191,7 @@
         "infra/install.py|infra.install.main",
         "infra/install.py|infra.install._language_checks_from_registry"
       ],
-      "content_hash": "087b7c330c8df9df",
+      "content_hash": "a908d64117518ea0",
       "module_hash": "55e1db29f2b33a14"
     },
     "infra/logging_config.py": {
@@ -3460,6 +3460,7 @@
         "infra/tool_registry/installers.py|infra.tool_registry.installers.resolve_native_asset_name",
         "infra/tool_registry/installers.py|infra.tool_registry.installers._is_compressed_asset",
         "infra/tool_registry/installers.py|infra.tool_registry.installers._extract_compressed_binary",
+        "infra/tool_registry/installers.py|infra.tool_registry.installers._download_resuming",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.download_asset",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.install_native_tools",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.package_manager_tool_dir",
@@ -3469,7 +3470,11 @@
         "infra/tool_registry/installers.py|infra.tool_registry.installers.install_package_manager_tools",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.install_node_tools",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.archive_launcher_path",
+        "infra/tool_registry/installers.py|infra.tool_registry.installers._latest_kotlin_lsp_pin",
+        "infra/tool_registry/installers.py|infra.tool_registry.installers._usable_kotlin_lsp_build",
+        "infra/tool_registry/installers.py|infra.tool_registry.installers.current_tool",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.archive_tool_is_installed",
+        "infra/tool_registry/installers.py|infra.tool_registry.installers.archive_tool_is_usable",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.install_archive_tool",
         "infra/tool_registry/installers.py|infra.tool_registry.installers._read_stamp",
         "infra/tool_registry/installers.py|infra.tool_registry.installers._single_root",
@@ -3480,8 +3485,8 @@
         "infra/tool_registry/installers.py|infra.tool_registry.installers.nodeenv_needs_unofficial_builds",
         "infra/tool_registry/installers.py|infra.tool_registry.installers.install_embedded_node"
       ],
-      "content_hash": "97702ddaf7fe9d77",
-      "module_hash": "d3c4853ccad3a481"
+      "content_hash": "3fee1eb255a63bb7",
+      "module_hash": "6ebebf47b209dccc"
     },
     "infra/tool_registry/java.py": {
       "method_keys": [
@@ -3509,8 +3514,8 @@
         "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
         "infra/tool_registry/manifest.py|infra.tool_registry.manifest._recorded_tools"
       ],
-      "content_hash": "3bb12bddfeeb30d1",
-      "module_hash": "9712b4a771ec969b"
+      "content_hash": "1a2c21c62c7b969f",
+      "module_hash": "15762af4ce674c57"
     },
     "infra/tool_registry/paths.py": {
       "method_keys": [
@@ -3545,10 +3550,12 @@
         "infra/tool_registry/registry.py|infra.tool_registry.registry.UpstreamToolSource",
         "infra/tool_registry/registry.py|infra.tool_registry.registry.PackageManagerToolSource",
         "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolDependency",
-        "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolDependency.is_available_on_host"
+        "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolDependency.is_available_on_host",
+        "infra/tool_registry/registry.py|infra.tool_registry.registry.kotlin_lsp_build",
+        "infra/tool_registry/registry.py|infra.tool_registry.registry.kotlin_lsp_source"
       ],
-      "content_hash": "2b6720ba09306c10",
-      "module_hash": "bcd8da1e7d047225"
+      "content_hash": "a51fae1440a28af6",
+      "module_hash": "6b53f4217630a2df"
     },
     "infra/user_config.py": {
       "method_keys": [
@@ -12361,7 +12368,7 @@
       "start_line": 697,
       "end_line": 764,
       "type": "FUNCTION",
-      "content_hash": "bb9848c22c4cf6cd"
+      "content_hash": "5973e4d0c8019a2e"
     },
     "infra/install.py|infra.install.run_install.unified_progress": {
       "file_path": "infra/install.py",
@@ -12375,15 +12382,15 @@
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.main",
       "start_line": 767,
-      "end_line": 791,
+      "end_line": 792,
       "type": "FUNCTION",
-      "content_hash": "e51ac081f18a7f0a"
+      "content_hash": "3b1507cb16992a54"
     },
     "infra/install.py|infra.install._language_checks_from_registry": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install._language_checks_from_registry",
-      "start_line": 794,
-      "end_line": 886,
+      "start_line": 795,
+      "end_line": 887,
       "type": "FUNCTION",
       "content_hash": "3b97ec9a89062eef"
     },
@@ -13606,184 +13613,224 @@
     "infra/tool_registry/installers.py|infra.tool_registry.installers.asset_url": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.asset_url",
-      "start_line": 55,
-      "end_line": 61,
+      "start_line": 65,
+      "end_line": 71,
       "type": "FUNCTION",
       "content_hash": "655d03cb49ced6af"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.resolve_native_asset_name": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.resolve_native_asset_name",
-      "start_line": 64,
-      "end_line": 86,
+      "start_line": 74,
+      "end_line": 96,
       "type": "FUNCTION",
       "content_hash": "84b8314ba87879f2"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers._is_compressed_asset": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers._is_compressed_asset",
-      "start_line": 89,
-      "end_line": 92,
+      "start_line": 99,
+      "end_line": 102,
       "type": "FUNCTION",
       "content_hash": "13eb9519086230ee"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers._extract_compressed_binary": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers._extract_compressed_binary",
-      "start_line": 95,
-      "end_line": 141,
+      "start_line": 105,
+      "end_line": 151,
       "type": "FUNCTION",
       "content_hash": "0d1e42b3d8a96383"
+    },
+    "infra/tool_registry/installers.py|infra.tool_registry.installers._download_resuming": {
+      "file_path": "infra/tool_registry/installers.py",
+      "qualified_name": "infra.tool_registry.installers._download_resuming",
+      "start_line": 154,
+      "end_line": 183,
+      "type": "FUNCTION",
+      "content_hash": "d7498df064506814"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.download_asset": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.download_asset",
-      "start_line": 144,
-      "end_line": 167,
+      "start_line": 186,
+      "end_line": 204,
       "type": "FUNCTION",
-      "content_hash": "dcb818034d72ebdf"
+      "content_hash": "64251d5146e93282"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.install_native_tools": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.install_native_tools",
-      "start_line": 173,
-      "end_line": 275,
+      "start_line": 210,
+      "end_line": 312,
       "type": "FUNCTION",
       "content_hash": "74525781f20caf7e"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.package_manager_tool_dir": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.package_manager_tool_dir",
-      "start_line": 281,
-      "end_line": 288,
+      "start_line": 318,
+      "end_line": 325,
       "type": "FUNCTION",
       "content_hash": "1ffc89c2c5c17b4a"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.package_manager_tool_fingerprint": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.package_manager_tool_fingerprint",
-      "start_line": 291,
-      "end_line": 305,
+      "start_line": 328,
+      "end_line": 342,
       "type": "FUNCTION",
       "content_hash": "0c337318f24647bb"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.package_manager_tool_is_current": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.package_manager_tool_is_current",
-      "start_line": 308,
-      "end_line": 324,
+      "start_line": 345,
+      "end_line": 361,
       "type": "FUNCTION",
       "content_hash": "f27a1a6b91d9e821"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers._write_package_manager_tool_stamp": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers._write_package_manager_tool_stamp",
-      "start_line": 327,
-      "end_line": 334,
+      "start_line": 364,
+      "end_line": 371,
       "type": "FUNCTION",
       "content_hash": "c015b5905bcfc5a2"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.install_package_manager_tools": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.install_package_manager_tools",
-      "start_line": 337,
-      "end_line": 427,
+      "start_line": 374,
+      "end_line": 464,
       "type": "FUNCTION",
       "content_hash": "671e84ccbfdaafcf"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.install_node_tools": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.install_node_tools",
-      "start_line": 433,
-      "end_line": 473,
+      "start_line": 470,
+      "end_line": 510,
       "type": "FUNCTION",
       "content_hash": "5aca984a2de0812a"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.archive_launcher_path": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.archive_launcher_path",
-      "start_line": 479,
-      "end_line": 483,
+      "start_line": 516,
+      "end_line": 520,
       "type": "FUNCTION",
       "content_hash": "7a9b712fb474a2e7"
+    },
+    "infra/tool_registry/installers.py|infra.tool_registry.installers._latest_kotlin_lsp_pin": {
+      "file_path": "infra/tool_registry/installers.py",
+      "qualified_name": "infra.tool_registry.installers._latest_kotlin_lsp_pin",
+      "start_line": 523,
+      "end_line": 531,
+      "type": "FUNCTION",
+      "content_hash": "5ed72ddc2d9d9f2a"
+    },
+    "infra/tool_registry/installers.py|infra.tool_registry.installers._usable_kotlin_lsp_build": {
+      "file_path": "infra/tool_registry/installers.py",
+      "qualified_name": "infra.tool_registry.installers._usable_kotlin_lsp_build",
+      "start_line": 534,
+      "end_line": 543,
+      "type": "FUNCTION",
+      "content_hash": "e2662ca5fba11368"
+    },
+    "infra/tool_registry/installers.py|infra.tool_registry.installers.current_tool": {
+      "file_path": "infra/tool_registry/installers.py",
+      "qualified_name": "infra.tool_registry.installers.current_tool",
+      "start_line": 546,
+      "end_line": 562,
+      "type": "FUNCTION",
+      "content_hash": "9d291d24d6024355"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.archive_tool_is_installed": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.archive_tool_is_installed",
-      "start_line": 486,
-      "end_line": 492,
+      "start_line": 565,
+      "end_line": 571,
       "type": "FUNCTION",
       "content_hash": "1fb15cdfa38a59c6"
+    },
+    "infra/tool_registry/installers.py|infra.tool_registry.installers.archive_tool_is_usable": {
+      "file_path": "infra/tool_registry/installers.py",
+      "qualified_name": "infra.tool_registry.installers.archive_tool_is_usable",
+      "start_line": 574,
+      "end_line": 582,
+      "type": "FUNCTION",
+      "content_hash": "f24742f85450803e"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.install_archive_tool": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.install_archive_tool",
-      "start_line": 495,
-      "end_line": 557,
+      "start_line": 585,
+      "end_line": 647,
       "type": "FUNCTION",
       "content_hash": "7c9d6553da8119c3"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers._read_stamp": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers._read_stamp",
-      "start_line": 560,
-      "end_line": 564,
+      "start_line": 650,
+      "end_line": 654,
       "type": "FUNCTION",
       "content_hash": "ffa1115ea70561a7"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers._single_root": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers._single_root",
-      "start_line": 567,
-      "end_line": 570,
+      "start_line": 657,
+      "end_line": 660,
       "type": "FUNCTION",
       "content_hash": "29dbc63e0c995331"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers._extract_zip": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers._extract_zip",
-      "start_line": 573,
-      "end_line": 595,
+      "start_line": 663,
+      "end_line": 685,
       "type": "FUNCTION",
       "content_hash": "47a4a4c4b4dce8af"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.install_tools": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.install_tools",
-      "start_line": 601,
-      "end_line": 623,
+      "start_line": 691,
+      "end_line": 713,
       "type": "FUNCTION",
       "content_hash": "0a0c4c71c536076f"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.embedded_node_is_healthy": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.embedded_node_is_healthy",
-      "start_line": 634,
-      "end_line": 660,
+      "start_line": 724,
+      "end_line": 750,
       "type": "FUNCTION",
       "content_hash": "8b134856fabffe17"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.initialize_nodeenv_globals": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.initialize_nodeenv_globals",
-      "start_line": 663,
-      "end_line": 686,
+      "start_line": 753,
+      "end_line": 776,
       "type": "FUNCTION",
       "content_hash": "1419dc8c37cc33af"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.nodeenv_needs_unofficial_builds": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.nodeenv_needs_unofficial_builds",
-      "start_line": 689,
-      "end_line": 704,
+      "start_line": 779,
+      "end_line": 794,
       "type": "FUNCTION",
       "content_hash": "d032bd853ca08862"
     },
     "infra/tool_registry/installers.py|infra.tool_registry.installers.install_embedded_node": {
       "file_path": "infra/tool_registry/installers.py",
       "qualified_name": "infra.tool_registry.installers.install_embedded_node",
-      "start_line": 707,
-      "end_line": 789,
+      "start_line": 797,
+      "end_line": 879,
       "type": "FUNCTION",
       "content_hash": "8ef53df48862b461"
     },
@@ -13814,112 +13861,112 @@
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.installed_version": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.installed_version",
-      "start_line": 48,
-      "end_line": 52,
+      "start_line": 50,
+      "end_line": 54,
       "type": "FUNCTION",
       "content_hash": "1afa2e9f8ae9668a"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.manifest_path": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.manifest_path",
-      "start_line": 55,
-      "end_line": 56,
+      "start_line": 57,
+      "end_line": 58,
       "type": "FUNCTION",
       "content_hash": "37cf33e6ae7dbed9"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.read_manifest": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.read_manifest",
-      "start_line": 59,
-      "end_line": 63,
+      "start_line": 61,
+      "end_line": 65,
       "type": "FUNCTION",
       "content_hash": "c7c6b97dcd55f4a9"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.tool_fingerprint": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.tool_fingerprint",
-      "start_line": 66,
-      "end_line": 81,
+      "start_line": 68,
+      "end_line": 83,
       "type": "FUNCTION",
       "content_hash": "f2b3068e7dc6c568"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.required_tools": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.required_tools",
-      "start_line": 84,
-      "end_line": 87,
+      "start_line": 86,
+      "end_line": 92,
       "type": "FUNCTION",
-      "content_hash": "a273ba81da0bb411"
+      "content_hash": "cc6d1f3086a914c2"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.write_manifest": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.write_manifest",
-      "start_line": 90,
-      "end_line": 108,
+      "start_line": 95,
+      "end_line": 113,
       "type": "FUNCTION",
       "content_hash": "4229265db9a8e338"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.needs_install": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.needs_install",
-      "start_line": 111,
-      "end_line": 120,
+      "start_line": 116,
+      "end_line": 125,
       "type": "FUNCTION",
       "content_hash": "862361e703c8b5e7"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.acquire_lock": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.acquire_lock",
-      "start_line": 126,
-      "end_line": 152,
+      "start_line": 131,
+      "end_line": 157,
       "type": "FUNCTION",
       "content_hash": "609345b2f2bb4776"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.build_config": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.build_config",
-      "start_line": 158,
-      "end_line": 178,
+      "start_line": 163,
+      "end_line": 183,
       "type": "FUNCTION",
       "content_hash": "93e64e74475f4db6"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.package_manager_tool_path": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.package_manager_tool_path",
-      "start_line": 181,
-      "end_line": 192,
+      "start_line": 186,
+      "end_line": 197,
       "type": "FUNCTION",
       "content_hash": "5b3ad73260127dbb"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.resolve_config",
-      "start_line": 195,
-      "end_line": 246,
+      "start_line": 200,
+      "end_line": 251,
       "type": "FUNCTION",
-      "content_hash": "26cc095e40b41cc5"
+      "content_hash": "09b8c8926a14b3d3"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config_from_path": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.resolve_config_from_path",
-      "start_line": 249,
-      "end_line": 274,
+      "start_line": 254,
+      "end_line": 279,
       "type": "FUNCTION",
       "content_hash": "699403eff8783b8b"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest.has_required_tools",
-      "start_line": 277,
-      "end_line": 348,
+      "start_line": 282,
+      "end_line": 353,
       "type": "FUNCTION",
       "content_hash": "f26291f12bfa2bc5"
     },
     "infra/tool_registry/manifest.py|infra.tool_registry.manifest._recorded_tools": {
       "file_path": "infra/tool_registry/manifest.py",
       "qualified_name": "infra.tool_registry.manifest._recorded_tools",
-      "start_line": 351,
-      "end_line": 354,
+      "start_line": 356,
+      "end_line": 359,
       "type": "FUNCTION",
       "content_hash": "07ccc39b0c254082"
     },
@@ -14070,66 +14117,82 @@
     "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolKind": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.ToolKind",
-      "start_line": 59,
-      "end_line": 67,
+      "start_line": 84,
+      "end_line": 92,
       "type": "CLASS",
       "content_hash": "c498b4eeaabcb383"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.ConfigSection": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.ConfigSection",
-      "start_line": 70,
-      "end_line": 74,
+      "start_line": 95,
+      "end_line": 99,
       "type": "CLASS",
       "content_hash": "3c0bab817a17cf07"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolSource": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.ToolSource",
-      "start_line": 78,
-      "end_line": 81,
+      "start_line": 103,
+      "end_line": 106,
       "type": "CLASS",
       "content_hash": "f688ebb311430cc4"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.GitHubToolSource": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.GitHubToolSource",
-      "start_line": 85,
-      "end_line": 106,
+      "start_line": 110,
+      "end_line": 131,
       "type": "CLASS",
       "content_hash": "87b791787a6a7681"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.UpstreamToolSource": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.UpstreamToolSource",
-      "start_line": 110,
-      "end_line": 117,
+      "start_line": 135,
+      "end_line": 142,
       "type": "CLASS",
       "content_hash": "05222c4eef802fbc"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.PackageManagerToolSource": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.PackageManagerToolSource",
-      "start_line": 121,
-      "end_line": 129,
+      "start_line": 146,
+      "end_line": 154,
       "type": "CLASS",
       "content_hash": "c0783c3a82a31ad9"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolDependency": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.ToolDependency",
-      "start_line": 133,
-      "end_line": 162,
+      "start_line": 158,
+      "end_line": 187,
       "type": "CLASS",
       "content_hash": "0ab56dd84a9cb8bd"
     },
     "infra/tool_registry/registry.py|infra.tool_registry.registry.ToolDependency.is_available_on_host": {
       "file_path": "infra/tool_registry/registry.py",
       "qualified_name": "infra.tool_registry.registry.ToolDependency.is_available_on_host",
-      "start_line": 151,
-      "end_line": 162,
+      "start_line": 176,
+      "end_line": 187,
       "type": "METHOD",
       "content_hash": "d883d3d69718b13f"
+    },
+    "infra/tool_registry/registry.py|infra.tool_registry.registry.kotlin_lsp_build": {
+      "file_path": "infra/tool_registry/registry.py",
+      "qualified_name": "infra.tool_registry.registry.kotlin_lsp_build",
+      "start_line": 190,
+      "end_line": 194,
+      "type": "FUNCTION",
+      "content_hash": "a51317308e68c13b"
+    },
+    "infra/tool_registry/registry.py|infra.tool_registry.registry.kotlin_lsp_source": {
+      "file_path": "infra/tool_registry/registry.py",
+      "qualified_name": "infra.tool_registry.registry.kotlin_lsp_source",
+      "start_line": 197,
+      "end_line": 213,
+      "type": "FUNCTION",
+      "content_hash": "39bd19edc711b7f5"
     },
     "infra/user_config.py|infra.user_config.ProviderUserConfig": {
       "file_path": "infra/user_config.py",
@@ -25755,6 +25818,7 @@
             "infra.tool_registry.installers.resolve_native_asset_name",
             "infra.tool_registry.installers._is_compressed_asset",
             "infra.tool_registry.installers._extract_compressed_binary",
+            "infra.tool_registry.installers._download_resuming",
             "infra.tool_registry.installers.download_asset",
             "infra.tool_registry.installers.install_native_tools",
             "infra.tool_registry.installers.package_manager_tool_dir",
@@ -25764,7 +25828,11 @@
             "infra.tool_registry.installers.install_package_manager_tools",
             "infra.tool_registry.installers.install_node_tools",
             "infra.tool_registry.installers.archive_launcher_path",
+            "infra.tool_registry.installers._latest_kotlin_lsp_pin",
+            "infra.tool_registry.installers._usable_kotlin_lsp_build",
+            "infra.tool_registry.installers.current_tool",
             "infra.tool_registry.installers.archive_tool_is_installed",
+            "infra.tool_registry.installers.archive_tool_is_usable",
             "infra.tool_registry.installers.install_archive_tool",
             "infra.tool_registry.installers._read_stamp",
             "infra.tool_registry.installers._single_root",
@@ -25836,7 +25904,9 @@
             "infra.tool_registry.registry.UpstreamToolSource",
             "infra.tool_registry.registry.PackageManagerToolSource",
             "infra.tool_registry.registry.ToolDependency",
-            "infra.tool_registry.registry.ToolDependency.is_available_on_host"
+            "infra.tool_registry.registry.ToolDependency.is_available_on_host",
+            "infra.tool_registry.registry.kotlin_lsp_build",
+            "infra.tool_registry.registry.kotlin_lsp_source"
           ]
         },
         {
@@ -26219,20 +26289,20 @@
             {
               "qualified_name": "infra.tool_registry.manifest.build_config",
               "reference_file": "infra/tool_registry/manifest.py",
-              "reference_start_line": 158,
-              "reference_end_line": 178
+              "reference_start_line": 163,
+              "reference_end_line": 183
             },
             {
               "qualified_name": "infra.tool_registry.manifest.has_required_tools",
               "reference_file": "infra/tool_registry/manifest.py",
-              "reference_start_line": 277,
-              "reference_end_line": 348
+              "reference_start_line": 282,
+              "reference_end_line": 353
             },
             {
               "qualified_name": "infra.tool_registry.manifest.resolve_config",
               "reference_file": "infra/tool_registry/manifest.py",
-              "reference_start_line": 195,
-              "reference_end_line": 246
+              "reference_start_line": 200,
+              "reference_end_line": 251
             }
           ],
           "source_cluster_ids": [
@@ -26295,6 +26365,7 @@
                 "infra.tool_registry.installers.resolve_native_asset_name",
                 "infra.tool_registry.installers._is_compressed_asset",
                 "infra.tool_registry.installers._extract_compressed_binary",
+                "infra.tool_registry.installers._download_resuming",
                 "infra.tool_registry.installers.download_asset",
                 "infra.tool_registry.installers.install_native_tools",
                 "infra.tool_registry.installers.package_manager_tool_dir",
@@ -26304,7 +26375,11 @@
                 "infra.tool_registry.installers.install_package_manager_tools",
                 "infra.tool_registry.installers.install_node_tools",
                 "infra.tool_registry.installers.archive_launcher_path",
+                "infra.tool_registry.installers._latest_kotlin_lsp_pin",
+                "infra.tool_registry.installers._usable_kotlin_lsp_build",
+                "infra.tool_registry.installers.current_tool",
                 "infra.tool_registry.installers.archive_tool_is_installed",
+                "infra.tool_registry.installers.archive_tool_is_usable",
                 "infra.tool_registry.installers.install_archive_tool",
                 "infra.tool_registry.installers._read_stamp",
                 "infra.tool_registry.installers._single_root",
@@ -26376,7 +26451,9 @@
                 "infra.tool_registry.registry.UpstreamToolSource",
                 "infra.tool_registry.registry.PackageManagerToolSource",
                 "infra.tool_registry.registry.ToolDependency",
-                "infra.tool_registry.registry.ToolDependency.is_available_on_host"
+                "infra.tool_registry.registry.ToolDependency.is_available_on_host",
+                "infra.tool_registry.registry.kotlin_lsp_build",
+                "infra.tool_registry.registry.kotlin_lsp_source"
               ]
             }
           ],
@@ -26527,7 +26604,7 @@
                   "column": 14
                 }
               ],
-              "description": "Builds and loads repository tool configurations."
+              "description": "Resolves configuration via tool registry manifest"
             }
           ],
           "src_id": "2.2",
@@ -26554,17 +26631,6 @@
           "evidence": "",
           "key_edges": [
             {
-              "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
-              "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
-              "call_sites": [
-                {
-                  "line": 226,
-                  "column": 32
-                }
-              ],
-              "description": "Resolves runnable binaries and paths for configured tools."
-            },
-            {
               "source": "infra/install.py|infra.install.main",
               "target": "infra/logging_config.py|infra.logging_config.setup_logging",
               "call_sites": [
@@ -26573,7 +26639,7 @@
                   "column": 5
                 }
               ],
-              "description": "Initializes global logging for the installer CLI."
+              "description": "Initializes logging during installation run"
             },
             {
               "source": "infra/install.py|infra.install.run_install",
@@ -26584,7 +26650,18 @@
                   "column": 5
                 }
               ],
-              "description": "Initializes default user configuration templates during installation."
+              "description": "Ensures user configuration template is present before installing tools"
+            },
+            {
+              "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
+              "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
+              "call_sites": [
+                {
+                  "line": 231,
+                  "column": 32
+                }
+              ],
+              "description": "Locates executable runnable commands according to VSCode definitions"
             }
           ],
           "src_id": "2.3",
@@ -26592,11 +26669,33 @@
           "is_static": true,
           "all_edges": [
             {
+              "source": "infra/install.py|infra.install.main",
+              "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+              "call_sites": [
+                {
+                  "line": 774,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "infra/install.py|infra.install.run_install",
+              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+              "call_sites": [
+                {
+                  "line": 717,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
               "call_sites": [
                 {
-                  "line": 326,
+                  "line": 331,
                   "column": 24
                 }
               ],
@@ -26607,7 +26706,7 @@
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
               "call_sites": [
                 {
-                  "line": 226,
+                  "line": 231,
                   "column": 32
                 }
               ],
@@ -26618,30 +26717,8 @@
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
               "call_sites": [
                 {
-                  "line": 264,
+                  "line": 269,
                   "column": 28
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "infra/install.py|infra.install.main",
-              "target": "infra/logging_config.py|infra.logging_config.setup_logging",
-              "call_sites": [
-                {
-                  "line": 774,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "infra/install.py|infra.install.run_install",
-              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-              "call_sites": [
-                {
-                  "line": 717,
-                  "column": 5
                 }
               ],
               "description": ""
@@ -32914,7 +32991,19 @@
       "src_name": "LSP Analysis Engine",
       "dst_name": "Telemetry and Monitoring",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._analyse_config",
+          "target": "infra/monitoring/telemetry/events.py|infra.monitoring.telemetry.events.track_lsp_result",
+          "call_sites": [
+            {
+              "line": 882,
+              "column": 13
+            }
+          ],
+          "description": "Records LSP execution telemetry metrics and status"
+        }
+      ],
       "src_id": "1.1",
       "dst_id": "2.1",
       "is_static": true,
@@ -33193,6 +33282,50 @@
         },
         {
           "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
+          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
+          "call_sites": [
+            {
+              "line": 271,
+              "column": 23
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._write_injected_import",
+          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
+          "call_sites": [
+            {
+              "line": 84,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/kotlin_adapter.py|static_analyzer.engine.adapters.kotlin_adapter._system_path",
+          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.user_data_dir",
+          "call_sites": [
+            {
+              "line": 261,
+              "column": 12
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
+          "target": "infra/tool_registry/java.py|infra.tool_registry.java.find_java_21_or_later",
+          "call_sites": [
+            {
+              "line": 68,
+              "column": 21
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
           "target": "infra/tool_registry/installers.py|infra.tool_registry.installers.install_package_manager_tools",
           "call_sites": [
             {
@@ -33239,50 +33372,6 @@
             {
               "line": 272,
               "column": 24
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter.CSharpAdapter._ensure_csharp_ls_installed",
-          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
-          "call_sites": [
-            {
-              "line": 271,
-              "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/csharp_adapter.py|static_analyzer.engine.adapters.csharp_adapter._write_injected_import",
-          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.get_servers_dir",
-          "call_sites": [
-            {
-              "line": 84,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/kotlin_adapter.py|static_analyzer.engine.adapters.kotlin_adapter._system_path",
-          "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.user_data_dir",
-          "call_sites": [
-            {
-              "line": 261,
-              "column": 12
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
-          "target": "infra/tool_registry/java.py|infra.tool_registry.java.find_java_21_or_later",
-          "call_sites": [
-            {
-              "line": 68,
-              "column": 21
             }
           ],
           "description": ""
@@ -35648,17 +35737,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
-          "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
-          "call_sites": [
-            {
-              "line": 226,
-              "column": 32
-            }
-          ],
-          "description": "Resolves runnable binaries and paths for configured tools."
-        },
-        {
           "source": "infra/install.py|infra.install.main",
           "target": "infra/logging_config.py|infra.logging_config.setup_logging",
           "call_sites": [
@@ -35679,45 +35757,23 @@
             }
           ],
           "description": "Initializes default user configuration templates during installation."
-        }
-      ],
-      "src_id": "2.3",
-      "dst_id": "2.4",
-      "is_static": true,
-      "all_edges": [
-        {
-          "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
-          "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
-          "call_sites": [
-            {
-              "line": 326,
-              "column": 24
-            }
-          ],
-          "description": ""
         },
         {
           "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
           "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
           "call_sites": [
             {
-              "line": 226,
+              "line": 231,
               "column": 32
             }
           ],
-          "description": ""
-        },
-        {
-          "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config_from_path",
-          "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
-          "call_sites": [
-            {
-              "line": 264,
-              "column": 28
-            }
-          ],
-          "description": ""
-        },
+          "description": "Resolves runnable binaries and paths for configured tools."
+        }
+      ],
+      "src_id": "2.3",
+      "dst_id": "2.4",
+      "is_static": true,
+      "all_edges": [
         {
           "source": "infra/install.py|infra.install.main",
           "target": "infra/logging_config.py|infra.logging_config.setup_logging",
@@ -35736,6 +35792,39 @@
             {
               "line": 717,
               "column": 5
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
+          "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
+          "call_sites": [
+            {
+              "line": 331,
+              "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
+          "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
+          "call_sites": [
+            {
+              "line": 231,
+              "column": 32
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config_from_path",
+          "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
+          "call_sites": [
+            {
+              "line": 269,
+              "column": 28
             }
           ],
           "description": ""
@@ -35904,6 +35993,21 @@
       "dst_name": "Repository and File Utilities",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 116,
+              "column": 58
+            },
+            {
+              "line": 119,
+              "column": 23
+            }
+          ],
+          "description": "Filters repository files using ignore patterns before hashing"
+        },
         {
           "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
@@ -36666,7 +36770,31 @@
       "src_name": "LLM Scope Analysis and Invocation",
       "dst_name": "Repository and File Utilities",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "agents/llm_renderers/scope.py|agents.llm_renderers.scope._boundary_reasons",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 268,
+              "column": 24
+            },
+            {
+              "line": 271,
+              "column": 24
+            },
+            {
+              "line": 285,
+              "column": 24
+            },
+            {
+              "line": 288,
+              "column": 24
+            }
+          ],
+          "description": "Normalizes repo paths when formatting boundary references"
+        }
+      ],
       "src_id": "3.2",
       "dst_id": "2.2",
       "is_static": true,
@@ -37291,6 +37419,28 @@
       "dst_name": "Global Configuration and Constants",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
+          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 30,
+              "column": 5
+            }
+          ],
+          "description": "Initializes application logging configuration"
+        },
+        {
+          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
+          "target": "infra/user_config.py|infra.user_config.UserConfig.apply_to_env",
+          "call_sites": [
+            {
+              "line": 33,
+              "column": 14
+            }
+          ],
+          "description": "Applies user-specified configuration values to environment variables"
+        },
         {
           "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
           "target": "infra/user_config.py|infra.user_config.UserConfig",
@@ -39957,17 +40107,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
-          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
-          "call_sites": [
-            {
-              "line": 201,
-              "column": 57
-            }
-          ],
-          "description": "Normalizes source reference paths relative to repository root"
-        },
-        {
           "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -39977,6 +40116,17 @@
             }
           ],
           "description": "Filters file coverage against repository ignore patterns"
+        },
+        {
+          "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
+          "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
+          "call_sites": [
+            {
+              "line": 201,
+              "column": 57
+            }
+          ],
+          "description": "Normalizes source reference paths relative to repository root"
         }
       ],
       "src_id": "5.1",
@@ -40196,6 +40346,21 @@
       "dst_name": "Global Configuration and Constants",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
+          "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 177,
+              "column": 21
+            },
+            {
+              "line": 178,
+              "column": 21
+            }
+          ],
+          "description": "Checks hierarchical relationships between component cluster IDs"
+        },
         {
           "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations._ancestor_relation",
           "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
@@ -44421,6 +44586,28 @@
       "dst_name": "Repository and File Utilities",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 45,
+              "column": 27
+            }
+          ],
+          "description": "Excludes ignored files from function size diagnostics"
+        },
+        {
+          "source": "health/main.py|health.main._run_health_checks",
+          "target": "infra/utils.py|infra.utils.get_artifact_dir",
+          "call_sites": [
+            {
+              "line": 78,
+              "column": 64
+            }
+          ],
+          "description": "Resolves directory path for diagnostic check artifacts"
+        },
         {
           "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
