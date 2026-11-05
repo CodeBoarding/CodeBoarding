@@ -393,6 +393,48 @@ class TestNextResponse:
             client._next_response(time.monotonic() + 5)
 
 
+class TestOutgoingCallsBatch:
+    def test_outgoing_batches_keep_multiple_items_and_empty_queries_in_order(self, monkeypatch):
+        monkeypatch.setattr("static_analyzer.engine.lsp_client.REQUEST_BATCH_SIZE", 2)
+        client = LSPClient(["clangd"], Path("/root"))
+        pending: list[dict] = []
+        rounds = []
+        retried = False
+        collect = client._collect_batch_responses
+
+        def answer(method, ids, timeout):
+            nonlocal retried
+            rounds.append(len(pending))
+            for message in reversed(pending):
+                response = {"id": message["id"]}
+                if method == "textDocument/prepareCallHierarchy":
+                    line = message["params"]["position"]["line"]
+                    response["result"] = [{"data": name} for name in {0: ["a", "b"], 1: [], 2: ["c"]}[line]]
+                else:
+                    name = message["params"]["item"]["data"]
+                    if name == "a" and not retried:
+                        response["error"] = {"code": -32801, "message": "Content modified"}
+                        retried = True
+                    else:
+                        response["result"] = [{"to": {"name": name}}]
+                client._msg_queue.put(response)
+            pending.clear()
+            return collect(method, ids, timeout)
+
+        with (
+            patch.object(client, "_write_message", side_effect=pending.append),
+            patch.object(client, "_collect_batch_responses", side_effect=answer),
+        ):
+            assert client.outgoing_calls_batch([(Path("/root/a.cpp"), line, 0) for line in range(3)]) == [
+                [{"to": {"name": "a"}}, {"to": {"name": "b"}}],
+                [],
+                [{"to": {"name": "c"}}],
+            ]
+            assert client.outgoing_calls_batch([]) == []
+        assert retried
+        assert max(rounds) == 2
+
+
 class TestDocumentSymbol:
     def test_returns_list_result(self):
         client = LSPClient(["cmd"], Path("/root"))

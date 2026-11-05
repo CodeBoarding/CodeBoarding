@@ -446,7 +446,9 @@ class LSPClient:
 
     def symbol_info_batch(self, queries: list[tuple[Path, int, int]]) -> list[list[dict]]:
         """Read clangd's compiler identities and declaration/definition locations."""
-        return self._send_batch("textDocument/symbolInfo", queries, self._position_params, self._default_timeout)
+        return self._send_batch(
+            "textDocument/symbolInfo", queries, lambda q: self._position_params(*q), self._default_timeout
+        )
 
     def document_ast(self, file_path: Path) -> dict | None:
         """Read clangd's compiler AST, including active declarations omitted from its outline."""
@@ -476,18 +478,18 @@ class LSPClient:
             retained -= size
         return result
 
-    def outgoing_calls(self, file_path: Path, line: int, character: int) -> list[dict]:
-        """Resolve compiler-selected callees, including operators and constructor initializers."""
-        items = self._send_request(
-            "textDocument/prepareCallHierarchy",
-            self._position_params(file_path, line, character),
-            self._default_timeout,
+    def outgoing_calls_batch(self, queries: list[tuple[Path, int, int]]) -> list[list[dict]]:
+        """Resolve compiler-selected callees in two batched stages, preserving query order."""
+        prepared = self._send_batch(
+            "textDocument/prepareCallHierarchy", queries, lambda q: self._position_params(*q), self._default_timeout
         )
-        calls: list[dict] = []
-        for item in items or []:
-            result = self._send_request("callHierarchy/outgoingCalls", {"item": item}, self._default_timeout)
-            if isinstance(result, list):
-                calls.extend(result)
+        items = [(index, item) for index, group in enumerate(prepared) for item in group]
+        outgoing = self._send_batch(
+            "callHierarchy/outgoingCalls", items, lambda entry: {"item": entry[1]}, self._default_timeout
+        )
+        calls: list[list[dict]] = [[] for _ in queries]
+        for (index, _), result in zip(items, outgoing):
+            calls[index].extend(result)
         return calls
 
     def document_symbol(self, file_path: Path, timeout: int | None = None) -> list[dict]:
@@ -508,7 +510,7 @@ class LSPClient:
         return self._send_batch(
             "textDocument/definition",
             queries,
-            self._position_params,
+            lambda q: self._position_params(*q),
             self._default_timeout if timeout is None else timeout,
         )
 
@@ -523,7 +525,7 @@ class LSPClient:
         return self._send_batch(
             "textDocument/typeDefinition",
             queries,
-            self._position_params,
+            lambda q: self._position_params(*q),
             self._default_timeout if timeout is None else timeout,
         )
 
@@ -556,7 +558,7 @@ class LSPClient:
         return self._send_batch(
             "textDocument/implementation",
             queries,
-            self._position_params,
+            lambda q: self._position_params(*q),
             self._default_timeout if timeout is None else timeout,
         )
 
@@ -709,12 +711,8 @@ class LSPClient:
             "position": {"line": line, "character": character},
         }
 
-    def _send_batch(
-        self,
-        method: str,
-        queries: list[tuple[Path, int, int]],
-        build_params: Callable[[Path, int, int], dict],
-        timeout: int,
+    def _send_batch[T](
+        self, method: str, queries: list[T], build_params: Callable[[T], dict], timeout: int
     ) -> list[list[dict]]:
         """Send LSP requests ``REQUEST_BATCH_SIZE`` at a time and collect their results in query order.
 
@@ -739,23 +737,19 @@ class LSPClient:
             if unserved:
                 first = chunk[unserved[0]]
                 raise StaticAnalysisFatalError(
-                    f"{len(unserved)} of {len(chunk)} {method} requests went unserved, first at "
-                    f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                    f"{len(unserved)} of {len(chunk)} {method} requests went unserved, first query: "
+                    f"{first!r}. The server timed out or failed the request "
                     "rather than declining it; reading those as empty would silently drop call-graph edges."
                 )
             results.extend(answer.results for answer in by_query)
         return results
 
-    def _send_round(
-        self,
-        method: str,
-        queries: list[tuple[Path, int, int]],
-        build_params: Callable[[Path, int, int], dict],
-        timeout: int,
+    def _send_round[T](
+        self, method: str, queries: list[T], build_params: Callable[[T], dict], timeout: int
     ) -> list[BatchAnswer]:
         """Send one request per query and collect the answers in query order."""
         req_ids: list[int] = []
-        for file_path, line, character in queries:
+        for query in queries:
             self._request_id += 1
             req_id = self._request_id
             req_ids.append(req_id)
@@ -763,7 +757,7 @@ class LSPClient:
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "method": method,
-                "params": build_params(file_path, line, character),
+                "params": build_params(query),
             }
             self._write_message(message)
 
@@ -934,6 +928,12 @@ class LSPClient:
                 err = msg["error"]
                 results[msg_id] = []  # type: ignore[index]
                 err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                if (
+                    isinstance(err, dict)
+                    and err.get("code") == LSP_METHOD_NOT_FOUND
+                    and method in {"textDocument/prepareCallHierarchy", "callHierarchy/outgoingCalls"}
+                ):
+                    raise MethodNotFoundError(f"{method}: {err_msg}")
                 if isinstance(err, dict) and err.get("code") == LSP_METHOD_NOT_FOUND and method in LSP_REQUIRED_METHODS:
                     raise StaticAnalysisFatalError(
                         f"The language server does not implement {method}: {err_msg}. "
@@ -1136,7 +1136,7 @@ class LSPClient:
                     self._server_ready.set()
                     # Passes after an import are kotlin-lsp's continual re-indexing, every few seconds.
                     logger.log(
-                        logging.DEBUG if self.import_finished.is_set() else logging.INFO,
+                        (logging.DEBUG if self.import_finished.is_set() else logging.INFO),
                         "LSP server: workspace indexing ended (%s)",
                         " ".join(filter(None, [title, message_text])),
                     )

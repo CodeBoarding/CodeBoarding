@@ -11,10 +11,10 @@ from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.cpp_templates import complete_template_dependencies
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import SymbolIndex
-from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
-from static_analyzer.exceptions import WorkspaceSetupError
+from static_analyzer.exceptions import StaticAnalysisFatalError, WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -121,10 +121,20 @@ class CppAdapter(LanguageAdapter):
                 if symbol.name.rsplit("::", 1)[-1].startswith("~"):
                     destructors.setdefault(symbol.owner_qualified_name, []).append(symbol)
         for file_path in source_files:
-            for symbol in ctx.symbol_table.primary_file_symbols.get(str(file_path), []):
-                if not self.is_callable(symbol.kind):
-                    continue
-                for call in ctx.lsp.outgoing_calls(file_path, symbol.start_line, symbol.start_char):
+            callables = [
+                (file_path, symbol.start_line, symbol.start_char)
+                for symbol in ctx.symbol_table.primary_file_symbols.get(str(file_path), [])
+                if self.is_callable(symbol.kind)
+            ]
+            try:
+                outgoing = ctx.lsp.outgoing_calls_batch(callables)
+            except MethodNotFoundError as error:
+                raise StaticAnalysisFatalError(
+                    "C++ analysis requires clangd 20 or newer for outgoing call hierarchy support. "
+                    "Upgrade the configured clangd executable or use CodeBoarding's bundled clangd."
+                ) from error
+            for calls in outgoing:
+                for call in calls:
                     item = call["to"]
                     target = index.resolve({"uri": item["uri"], "range": item["selectionRange"]})
                     if target is None:

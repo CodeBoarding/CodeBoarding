@@ -12,11 +12,12 @@ from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.cpp_templates import complete_template_dependencies
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
-from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import CallSite, LanguageAnalysisResult
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from static_analyzer.programming_language import ProgrammingLanguageBuilder
 from static_analyzer.scanner import ProjectScanner
@@ -118,7 +119,7 @@ def test_ast_limitations_survive_both_analysis_phases(tmp_path: Path, asts: list
         }
     ]
     client.document_ast.side_effect = asts
-    client.outgoing_calls.return_value = []
+    client.outgoing_calls_batch.return_value = []
     client.symbol_info_batch.return_value = []
     client.send_definition_batch.side_effect = lambda queries, **_: [[] for _ in queries]
     client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
@@ -141,6 +142,35 @@ def test_ast_limitations_survive_both_analysis_phases(tmp_path: Path, asts: list
     analyzer.collected_diagnostics = {}
     analyzer._collect_diagnostics_for(CppAdapter(), client, analysis)
     assert analyzer.collected_diagnostics[Language.CPP][str(source)] == expected
+
+
+@pytest.mark.parametrize("unsupported", ["textDocument/prepareCallHierarchy", "callHierarchy/outgoingCalls"])
+def test_unsupported_call_hierarchy_reports_clangd_upgrade(tmp_path: Path, unsupported: str) -> None:
+    source = tmp_path / "main.cpp"
+    source.write_text("int run() { return 1; }")
+    adapter = CppAdapter()
+    table = SymbolTable(adapter)
+    table.register_symbols(
+        source,
+        [{"name": "run", "kind": NodeType.FUNCTION, "range": {"start": {"line": 0, "character": 4}}}],
+        [],
+        tmp_path,
+    )
+    client = LSPClient(["clangd"], tmp_path)
+
+    def respond(message):
+        response = {"id": message["id"]}
+        if message["method"] == unsupported:
+            response["error"] = {"code": -32601, "message": "Method not found"}
+        else:
+            response["result"] = [{"name": "run"}]
+        client._msg_queue.put(response)
+
+    with patch.object(client, "_write_message", side_effect=respond):
+        with pytest.raises(StaticAnalysisFatalError, match="clangd 20 or newer") as failure:
+            adapter.complete_edges(EdgeBuildContext(client, table, SourceInspector()), [source], {}, tmp_path)
+    assert isinstance(failure.value.__cause__, MethodNotFoundError)
+    assert "Upgrade" in str(failure.value)
 
 
 def test_cpp_overloads_and_same_stem_header_survive_registration(tmp_path: Path) -> None:
@@ -254,7 +284,7 @@ def test_partial_cpp_preserves_edges_and_reports_template_limitations(tmp_path: 
         tmp_path,
     )
     client = MagicMock(spec=LSPClient)
-    client.outgoing_calls.return_value = []
+    client.outgoing_calls_batch.return_value = []
     client.document_ast.return_value = {"kind": "UnresolvedLookup", "range": {"start": position}}
     client.send_definition_batch.return_value = [[]]
     client.send_type_definition_batch.return_value = []
@@ -299,7 +329,7 @@ def test_cpp_resolves_concrete_bases_without_guessing_dependent_bases(tmp_path: 
     client = MagicMock(spec=LSPClient)
     client.document_symbol.return_value = symbols
     client.document_ast.return_value = {}
-    client.outgoing_calls.return_value = []
+    client.outgoing_calls_batch.return_value = []
     client.send_definition_batch.side_effect = lambda queries, **_: [
         [{"uri": source.as_uri(), "range": symbols[2]["selectionRange"]}] for _ in queries
     ]
