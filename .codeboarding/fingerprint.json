@@ -43,7 +43,7 @@
     "static_analyzer/programming_language.py": "b9b95fa8faf2e463",
     "static_analyzer/language_results.py": "4930495e9bb41c0b",
     "static_analyzer/graph_definitions.py": "c2a0a4bb55fe0d24",
-    "static_analyzer/java_config_scanner.py": "eb2705ee957254ea",
+    "static_analyzer/java_config_scanner.py": "fc50428cb938cd0f",
     "static_analyzer/typescript_config_scanner.py": "f93219d33aac1602",
     "static_analyzer/analysis_cache.py": "6d714e7d97d4154d",
     "static_analyzer/dotnet_solution.py": "7a5614cd6bbcf889",
