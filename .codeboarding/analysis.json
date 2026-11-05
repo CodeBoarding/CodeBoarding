@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-11-04T23:23:56.560137+00:00",
-    "source_tree_hash": "b72f8b4842016a96432165e5bf3c2041d8ceab85b1260cb669fa8eb2766fb2ca",
+    "generated_at": "2026-11-05T12:25:10.137450+00:00",
+    "source_tree_hash": "9b5e10e0636b4a582fcdd9fa703e53965b70075640c945a63d0a9f59a55256d6",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -1853,7 +1853,7 @@
       }
     }
   },
-  "description": "The root scope coordinates the static analysis, architectural discovery, and documentation generation pipeline. Static analyzers parse source trees into control flow graphs, while the diagram analysis pipeline plans component scopes, consults LLM agents to infer architectural semantics, runs code health diagnostics, and delegates rendering to CLI output generators.",
+  "description": "The root scope coordinates static analysis, architectural discovery, and documentation generation pipelines across multi-language repositories. Static analyzers parse codebases into control flow graphs and syntax nodes, while diagram analysis orchestrates architectural planning and AI agent analysis against discovered components, validated by health diagnostics and rendered through CLI workflows and documentation generators.",
   "files": {
     "static_analyzer/__init__.py": {
       "method_keys": [
@@ -3191,8 +3191,8 @@
         "infra/install.py|infra.install.main",
         "infra/install.py|infra.install._language_checks_from_registry"
       ],
-      "content_hash": "8346d19f31f23a6f",
-      "module_hash": "d795035ebd0ded50"
+      "content_hash": "087b7c330c8df9df",
+      "module_hash": "55e1db29f2b33a14"
     },
     "infra/logging_config.py": {
       "method_keys": [
@@ -12142,248 +12142,248 @@
     "infra/install.py|infra.install.LanguageSupportCheck": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.LanguageSupportCheck",
-      "start_line": 54,
-      "end_line": 73,
+      "start_line": 55,
+      "end_line": 74,
       "type": "CLASS",
       "content_hash": "0b5bfe5f9ab1caaa"
     },
     "infra/install.py|infra.install.LanguageSupportCheck.evaluate": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.LanguageSupportCheck.evaluate",
-      "start_line": 63,
-      "end_line": 73,
+      "start_line": 64,
+      "end_line": 74,
       "type": "METHOD",
       "content_hash": "d1d406033ea20518"
     },
     "infra/install.py|infra.install.check_rust_toolchain": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.check_rust_toolchain",
-      "start_line": 76,
-      "end_line": 89,
+      "start_line": 77,
+      "end_line": 90,
       "type": "FUNCTION",
       "content_hash": "0cd5aff7094b5a2f"
     },
     "infra/install.py|infra.install.check_npm": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.check_npm",
-      "start_line": 92,
-      "end_line": 112,
+      "start_line": 93,
+      "end_line": 115,
       "type": "FUNCTION",
-      "content_hash": "c6457973872131b8"
+      "content_hash": "4ffc9531575639af"
     },
     "infra/install.py|infra.install.bootstrapped_npm_cli_path": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.bootstrapped_npm_cli_path",
-      "start_line": 115,
-      "end_line": 117,
+      "start_line": 118,
+      "end_line": 120,
       "type": "FUNCTION",
       "content_hash": "b74e5774aa923aff"
     },
     "infra/install.py|infra.install.extract_tarball_safely": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.extract_tarball_safely",
-      "start_line": 120,
-      "end_line": 128,
+      "start_line": 123,
+      "end_line": 131,
       "type": "FUNCTION",
       "content_hash": "63bea6bf0fd0fa9f"
     },
     "infra/install.py|infra.install.bootstrap_npm": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.bootstrap_npm",
-      "start_line": 131,
-      "end_line": 180,
+      "start_line": 134,
+      "end_line": 183,
       "type": "FUNCTION",
-      "content_hash": "5451b72f62f06a95"
+      "content_hash": "ff1eb971ef571bb6"
     },
     "infra/install.py|infra.install.is_non_interactive_mode": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.is_non_interactive_mode",
-      "start_line": 183,
-      "end_line": 189,
+      "start_line": 186,
+      "end_line": 192,
       "type": "FUNCTION",
       "content_hash": "e04473aef6157510"
     },
     "infra/install.py|infra.install.ensure_node_runtime": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.ensure_node_runtime",
-      "start_line": 192,
-      "end_line": 245,
+      "start_line": 195,
+      "end_line": 248,
       "type": "FUNCTION",
-      "content_hash": "09d403102d354711"
+      "content_hash": "ae5058f38dc0da37"
     },
     "infra/install.py|infra.install.resolve_missing_npm": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.resolve_missing_npm",
-      "start_line": 248,
-      "end_line": 273,
+      "start_line": 251,
+      "end_line": 276,
       "type": "FUNCTION",
-      "content_hash": "e7e2239b8dfb8318"
+      "content_hash": "4995a7561845b1ad"
     },
     "infra/install.py|infra.install.resolve_npm_availability": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.resolve_npm_availability",
-      "start_line": 276,
-      "end_line": 283,
+      "start_line": 279,
+      "end_line": 286,
       "type": "FUNCTION",
       "content_hash": "fefa733f0fc4f163"
     },
     "infra/install.py|infra.install.parse_args": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.parse_args",
-      "start_line": 286,
-      "end_line": 299,
+      "start_line": 289,
+      "end_line": 302,
       "type": "FUNCTION",
       "content_hash": "1ea924296ca1b432"
     },
     "infra/install.py|infra.install.get_platform_bin_dir": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.get_platform_bin_dir",
-      "start_line": 302,
-      "end_line": 304,
+      "start_line": 305,
+      "end_line": 307,
       "type": "FUNCTION",
       "content_hash": "543a73448d30c52e"
     },
     "infra/install.py|infra.install.install_node_servers": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.install_node_servers",
-      "start_line": 307,
-      "end_line": 333,
+      "start_line": 310,
+      "end_line": 336,
       "type": "FUNCTION",
-      "content_hash": "894cf9783b1b0bcb"
+      "content_hash": "94af9a0d52537568"
     },
     "infra/install.py|infra.install.BinaryStatus": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.BinaryStatus",
-      "start_line": 340,
-      "end_line": 345,
+      "start_line": 343,
+      "end_line": 348,
       "type": "CLASS",
       "content_hash": "7743d7983f49cd79"
     },
     "infra/install.py|infra.install.verify_binary": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.verify_binary",
-      "start_line": 348,
-      "end_line": 373,
+      "start_line": 351,
+      "end_line": 376,
       "type": "FUNCTION",
       "content_hash": "8f62dc7a92d2340e"
     },
     "infra/install.py|infra.install.install_vcpp_redistributable": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.install_vcpp_redistributable",
-      "start_line": 376,
-      "end_line": 443,
+      "start_line": 379,
+      "end_line": 450,
       "type": "FUNCTION",
-      "content_hash": "7f9740df90977404"
+      "content_hash": "00c4cfaa11d8267f"
     },
     "infra/install.py|infra.install.resolve_missing_vcpp": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.resolve_missing_vcpp",
-      "start_line": 446,
-      "end_line": 467,
+      "start_line": 453,
+      "end_line": 474,
       "type": "FUNCTION",
-      "content_hash": "09ff73a5e25bb6bb"
+      "content_hash": "71eb007cf732d33d"
     },
     "infra/install.py|infra.install.download_binaries": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.download_binaries",
-      "start_line": 470,
-      "end_line": 514,
+      "start_line": 477,
+      "end_line": 521,
       "type": "FUNCTION",
-      "content_hash": "cce18904e5c7312a"
+      "content_hash": "96f1171d38381c8b"
     },
     "infra/install.py|infra.install.download_jdtls": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.download_jdtls",
-      "start_line": 517,
-      "end_line": 527,
+      "start_line": 524,
+      "end_line": 534,
       "type": "FUNCTION",
-      "content_hash": "d73d3a12742b0fe9"
+      "content_hash": "bb21a9a2b99287b2"
     },
     "infra/install.py|infra.install.install_package_manager_lsp_servers": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.install_package_manager_lsp_servers",
-      "start_line": 530,
-      "end_line": 555,
+      "start_line": 537,
+      "end_line": 562,
       "type": "FUNCTION",
-      "content_hash": "aa83b515eade09d7"
+      "content_hash": "88be30f05627eaa9"
     },
     "infra/install.py|infra.install.download_grammars": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.download_grammars",
-      "start_line": 558,
-      "end_line": 570,
+      "start_line": 565,
+      "end_line": 581,
       "type": "FUNCTION",
-      "content_hash": "ad26192cbda15a5f"
+      "content_hash": "c0feec3566a5401b"
     },
     "infra/install.py|infra.install.install_pre_commit_hooks": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.install_pre_commit_hooks",
-      "start_line": 573,
-      "end_line": 608,
+      "start_line": 584,
+      "end_line": 619,
       "type": "FUNCTION",
-      "content_hash": "c7618ffee9af6600"
+      "content_hash": "1c8cb18b7189e286"
     },
     "infra/install.py|infra.install.print_language_support_summary": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.print_language_support_summary",
-      "start_line": 611,
-      "end_line": 618,
+      "start_line": 622,
+      "end_line": 631,
       "type": "FUNCTION",
-      "content_hash": "efa257776cbc2c51"
+      "content_hash": "f21002fe3f781229"
     },
     "infra/install.py|infra.install.ensure_tools": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.ensure_tools",
-      "start_line": 621,
-      "end_line": 657,
+      "start_line": 634,
+      "end_line": 670,
       "type": "FUNCTION",
       "content_hash": "11695c0363866100"
     },
     "infra/install.py|infra.install.enable_on_demand_install": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.enable_on_demand_install",
-      "start_line": 663,
-      "end_line": 669,
+      "start_line": 676,
+      "end_line": 682,
       "type": "FUNCTION",
       "content_hash": "919a56ba054a2845"
     },
     "infra/install.py|infra.install.ensure_language_servers": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.ensure_language_servers",
-      "start_line": 672,
-      "end_line": 681,
+      "start_line": 685,
+      "end_line": 694,
       "type": "FUNCTION",
       "content_hash": "b6bd0c10ced0c0c3"
     },
     "infra/install.py|infra.install.run_install": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.run_install",
-      "start_line": 684,
-      "end_line": 751,
+      "start_line": 697,
+      "end_line": 764,
       "type": "FUNCTION",
       "content_hash": "bb9848c22c4cf6cd"
     },
     "infra/install.py|infra.install.run_install.unified_progress": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.run_install.unified_progress",
-      "start_line": 720,
-      "end_line": 724,
+      "start_line": 733,
+      "end_line": 737,
       "type": "FUNCTION",
       "content_hash": "927122600b7ea264"
     },
     "infra/install.py|infra.install.main": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install.main",
-      "start_line": 754,
-      "end_line": 779,
+      "start_line": 767,
+      "end_line": 791,
       "type": "FUNCTION",
-      "content_hash": "95c6dcf62a1d58df"
+      "content_hash": "e51ac081f18a7f0a"
     },
     "infra/install.py|infra.install._language_checks_from_registry": {
       "file_path": "infra/install.py",
       "qualified_name": "infra.install._language_checks_from_registry",
-      "start_line": 782,
-      "end_line": 874,
+      "start_line": 794,
+      "end_line": 886,
       "type": "FUNCTION",
       "content_hash": "3b97ec9a89062eef"
     },
@@ -25400,14 +25400,20 @@
         {
           "qualified_name": "infra.install.ensure_language_servers",
           "reference_file": "infra/install.py",
-          "reference_start_line": 672,
-          "reference_end_line": 681
+          "reference_start_line": 685,
+          "reference_end_line": 694
         },
         {
           "qualified_name": "infra.user_config.UserConfig",
           "reference_file": "infra/user_config.py",
           "reference_start_line": 148,
           "reference_end_line": 160
+        },
+        {
+          "qualified_name": "infra.clustering_ids.is_self_or_descendant",
+          "reference_file": "infra/clustering_ids.py",
+          "reference_start_line": 52,
+          "reference_end_line": 54
         }
       ],
       "source_cluster_ids": [
@@ -26207,8 +26213,8 @@
             {
               "qualified_name": "infra.install.run_install",
               "reference_file": "infra/install.py",
-              "reference_start_line": 684,
-              "reference_end_line": 751
+              "reference_start_line": 697,
+              "reference_end_line": 764
             },
             {
               "qualified_name": "infra.tool_registry.manifest.build_config",
@@ -26521,7 +26527,7 @@
                   "column": 14
                 }
               ],
-              "description": "Builds resolved tool and LSP command configuration for runtime retrieval."
+              "description": "Builds and loads repository tool configurations."
             }
           ],
           "src_id": "2.2",
@@ -26542,22 +26548,11 @@
           ]
         },
         {
-          "relation": "resolves tools and templates using",
+          "relation": "loads configuration and runtime definitions from",
           "src_name": "Tool Registry and Installer",
           "dst_name": "Global Configuration and Constants",
           "evidence": "",
           "key_edges": [
-            {
-              "source": "infra/install.py|infra.install.run_install",
-              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-              "call_sites": [
-                {
-                  "line": 704,
-                  "column": 5
-                }
-              ],
-              "description": "Ensures user config template exists during installation setup."
-            },
             {
               "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
@@ -26567,24 +26562,35 @@
                   "column": 32
                 }
               ],
-              "description": "Finds tool and language server executables within base directories."
+              "description": "Resolves runnable binaries and paths for configured tools."
+            },
+            {
+              "source": "infra/install.py|infra.install.main",
+              "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+              "call_sites": [
+                {
+                  "line": 774,
+                  "column": 5
+                }
+              ],
+              "description": "Initializes global logging for the installer CLI."
+            },
+            {
+              "source": "infra/install.py|infra.install.run_install",
+              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+              "call_sites": [
+                {
+                  "line": 717,
+                  "column": 5
+                }
+              ],
+              "description": "Initializes default user configuration templates during installation."
             }
           ],
           "src_id": "2.3",
           "dst_id": "2.4",
           "is_static": true,
           "all_edges": [
-            {
-              "source": "infra/install.py|infra.install.run_install",
-              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-              "call_sites": [
-                {
-                  "line": 704,
-                  "column": 5
-                }
-              ],
-              "description": ""
-            },
             {
               "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
               "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
@@ -26614,6 +26620,28 @@
                 {
                   "line": 264,
                   "column": 28
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "infra/install.py|infra.install.main",
+              "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+              "call_sites": [
+                {
+                  "line": 774,
+                  "column": 5
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "infra/install.py|infra.install.run_install",
+              "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+              "call_sites": [
+                {
+                  "line": 717,
+                  "column": 5
                 }
               ],
               "description": ""
@@ -33153,17 +33181,6 @@
       "is_static": true,
       "all_edges": [
         {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
-          "target": "infra/install.py|infra.install.ensure_language_servers",
-          "call_sites": [
-            {
-              "line": 299,
-              "column": 9
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._start_engine_client",
           "target": "infra/tool_registry/paths.py|infra.tool_registry.paths.ensure_node_on_path",
           "call_sites": [
@@ -33266,6 +33283,17 @@
             {
               "line": 68,
               "column": 21
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
+          "target": "infra/install.py|infra.install.ensure_language_servers",
+          "call_sites": [
+            {
+              "line": 299,
+              "column": 9
             }
           ],
           "description": ""
@@ -35614,22 +35642,11 @@
       ]
     },
     {
-      "relation": "resolves tools and templates using",
+      "relation": "loads configuration and runtime definitions from",
       "src_name": "Tool Registry and Installer",
       "dst_name": "Global Configuration and Constants",
       "evidence": "",
       "key_edges": [
-        {
-          "source": "infra/install.py|infra.install.run_install",
-          "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-          "call_sites": [
-            {
-              "line": 704,
-              "column": 5
-            }
-          ],
-          "description": "Ensures user config template exists during installation setup."
-        },
         {
           "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.resolve_config",
           "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
@@ -35639,24 +35656,35 @@
               "column": 32
             }
           ],
-          "description": "Finds tool and language server executables within base directories."
+          "description": "Resolves runnable binaries and paths for configured tools."
+        },
+        {
+          "source": "infra/install.py|infra.install.main",
+          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 774,
+              "column": 5
+            }
+          ],
+          "description": "Initializes global logging for the installer CLI."
+        },
+        {
+          "source": "infra/install.py|infra.install.run_install",
+          "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+          "call_sites": [
+            {
+              "line": 717,
+              "column": 5
+            }
+          ],
+          "description": "Initializes default user configuration templates during installation."
         }
       ],
       "src_id": "2.3",
       "dst_id": "2.4",
       "is_static": true,
       "all_edges": [
-        {
-          "source": "infra/install.py|infra.install.run_install",
-          "target": "infra/user_config.py|infra.user_config.ensure_config_template",
-          "call_sites": [
-            {
-              "line": 704,
-              "column": 5
-            }
-          ],
-          "description": ""
-        },
         {
           "source": "infra/tool_registry/manifest.py|infra.tool_registry.manifest.has_required_tools",
           "target": "infra/vscode_constants.py|infra.vscode_constants.find_runnable",
@@ -35686,6 +35714,28 @@
             {
               "line": 264,
               "column": 28
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "infra/install.py|infra.install.main",
+          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 774,
+              "column": 5
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "infra/install.py|infra.install.run_install",
+          "target": "infra/user_config.py|infra.user_config.ensure_config_template",
+          "call_sites": [
+            {
+              "line": 717,
+              "column": 5
             }
           ],
           "description": ""
@@ -39907,17 +39957,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 1184,
-              "column": 26
-            }
-          ],
-          "description": "Filters file coverage against repository ignore patterns"
-        },
-        {
           "source": "diagram_analysis/analysis_json.py|diagram_analysis.analysis_json._relativize_key_entities",
           "target": "infra/repo_utils/path_utils.py|infra.repo_utils.path_utils.normalize_repo_path",
           "call_sites": [
@@ -39927,6 +39966,17 @@
             }
           ],
           "description": "Normalizes source reference paths relative to repository root"
+        },
+        {
+          "source": "diagram_analysis/diagram_generator.py|diagram_analysis.diagram_generator.DiagramGenerator._build_file_coverage",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 1184,
+              "column": 26
+            }
+          ],
+          "description": "Filters file coverage against repository ignore patterns"
         }
       ],
       "src_id": "5.1",
@@ -44460,7 +44510,19 @@
       "src_name": "Health Check Execution and Diagnostics",
       "dst_name": "Global Configuration and Constants",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "health/main.py|health.main.run_health_check_local",
+          "target": "infra/logging_config.py|infra.logging_config.setup_logging",
+          "call_sites": [
+            {
+              "line": 47,
+              "column": 5
+            }
+          ],
+          "description": "Configures logging before running health check routines."
+        }
+      ],
       "src_id": "6.1",
       "dst_id": "2.4",
       "is_static": true,
