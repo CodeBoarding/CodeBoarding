@@ -214,11 +214,6 @@ class LanguageAdapter(ABC):
         return False
 
     @property
-    def skip_type_hierarchy(self) -> bool:
-        """Explicitly omit inheritance extraction while preserving other analysis phases."""
-        return False
-
-    @property
     def workspace_owns_documents(self) -> bool:
         """If True, the server reads documents from the project, not from our didOpen.
 
@@ -437,6 +432,11 @@ class LanguageAdapter(ABC):
     def resolves_bases_by_definition(self) -> bool:
         """Whether a server without ``typeHierarchy`` has each base named in a type's header resolved
         by a definition query, rather than matched by its simple name against every type in the repository."""
+        return False
+
+    @property
+    def resolves_bases_by_type_definition(self) -> bool:
+        """Use type definitions instead of type hierarchy, following aliases to their underlying bases."""
         return False
 
     @property

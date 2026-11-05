@@ -270,9 +270,19 @@ _VALUE_GROUP_NODE_TYPES = frozenset(
     }
 )
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
-    {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration", "object_declaration"}
+    {
+        "class_declaration",
+        "interface_declaration",
+        "record_declaration",
+        "struct_declaration",
+        "object_declaration",
+        "class_specifier",
+        "struct_specifier",
+    }
 )
-_BASE_LIST_NODE_TYPES = frozenset({"base_list", "superclass", "super_interfaces", "extends_interfaces"})
+_BASE_LIST_NODE_TYPES = frozenset(
+    {"base_list", "superclass", "super_interfaces", "extends_interfaces", "base_class_clause"}
+)
 # Kotlin writes each supertype -- ``Animal``, ``Animal(1)``, ``Animal by impl`` -- as its own child of the
 # declaration, wrapped around one ``user_type``.
 _DELEGATION_SPECIFIER_NODE_TYPES = frozenset({"delegation_specifier"})
@@ -1380,6 +1390,8 @@ class SourceInspector:
             if child.type not in _BASE_LIST_NODE_TYPES:
                 continue
             for base in child.named_children:
+                if base.type == "access_specifier":
+                    continue
                 if base.type in _BASE_GROUP_NODE_TYPES:
                     nodes.extend(base.named_children)
                 else:

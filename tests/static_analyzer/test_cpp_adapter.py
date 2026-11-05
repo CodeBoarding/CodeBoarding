@@ -249,13 +249,15 @@ def test_partial_cpp_preserves_edges_and_reports_template_limitations(tmp_path: 
     assert "Template-dependent calls may be missing" in warning.message
 
 
-@pytest.mark.parametrize("skip", [False, True])
-def test_optional_hierarchy_preserves_calls_and_reports_omissions(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, skip: bool
-) -> None:
-    monkeypatch.setenv("CODEBOARDING_CPP_SKIP_TYPE_HIERARCHY", "1" if skip else "0")
-    source = tmp_path / "main.cpp"
-    lines = ["struct Base {};", "struct Child : Base {};", "int leaf() { return 7; }", "int run() { return leaf(); }"]
+@pytest.mark.parametrize("suffix", ["cpp", "cu"])
+def test_cpp_resolves_concrete_bases_without_guessing_dependent_bases(tmp_path: Path, suffix: str) -> None:
+    source = tmp_path / f"main.{suffix}"
+    lines = [
+        "struct Base {};",
+        "template<class T> struct Child : public Base, T {};",
+        "int leaf() { return 7; }",
+        "int run() { return leaf(); }",
+    ]
     source.write_text("\n".join(lines))
     symbols = []
     for line, name in enumerate(["Base", "Child", "leaf", "run"]):
@@ -279,21 +281,19 @@ def test_optional_hierarchy_preserves_calls_and_reports_omissions(
         [{"uri": source.as_uri(), "range": symbols[2]["selectionRange"]}] for _ in queries
     ]
     client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
-    client.send_type_definition_batch.side_effect = lambda queries, **_: [[] for _ in queries]
-    client.type_hierarchy_prepare.side_effect = lambda path, line, column: [
-        {"name": symbols[line]["name"], "uri": source.as_uri(), "selectionRange": symbols[line]["selectionRange"]}
+    client.send_type_definition_batch.side_effect = lambda queries, **_: [
+        (
+            [{"uri": source.as_uri(), "range": symbols[0]["selectionRange"]}]
+            if line == 1 and column == lines[1].index("Base")
+            else []
+        )
+        for _, line, column in queries
     ]
-    client.type_hierarchy_supertypes.side_effect = lambda item: (
-        [{"name": "Base", "uri": source.as_uri(), "selectionRange": symbols[0]["selectionRange"]}]
-        if item["name"] == "Child"
-        else []
-    )
-    client.type_hierarchy_subtypes.return_value = []
+    client.type_hierarchy_prepare.return_value = []
     result = CallGraphBuilder(client, CppAdapter(), tmp_path, tmp_path).build([source])
-    assert {(edge.source, edge.destination) for edge in result.cfg.edges} == {("main.cpp.run", "main.cpp.leaf")}
-    if skip:
-        assert result.hierarchy == {}
-        assert result.diagnostics[str(tmp_path)][0].code == "type-hierarchy-disabled"
-    else:
-        assert result.hierarchy["main.cpp.Child"]["superclasses"] == ["main.cpp.Base"]
-        assert result.diagnostics == {}
+    assert {(edge.source, edge.destination) for edge in result.cfg.edges} == {
+        (f"main.{suffix}.run", f"main.{suffix}.leaf")
+    }
+    assert result.hierarchy[f"main.{suffix}.Child"]["superclasses"] == [f"main.{suffix}.Base"]
+    assert result.hierarchy[f"main.{suffix}.Base"]["subclasses"] == [f"main.{suffix}.Child"]
+    assert result.diagnostics == {}

@@ -272,7 +272,7 @@ To give both passes the same explicit compiler commands, set `CODEBOARDING_CPP_C
 
 Missing supplemental ASTs are recorded as `cpp-ast-unavailable` diagnostics, not treated as complete coverage. Language-server exits remain fatal; errors include the exit code or signal and recent stderr. Runtime logs include sampled process-tree RSS and open-document counts to diagnose large-project failures. The sampled peak is not an operating-system high-water measurement.
 
-For projects that trigger clangd type-hierarchy crashes, `CODEBOARDING_CPP_SKIP_TYPE_HIERARCHY=1` explicitly omits C++ inheritance extraction. Call relationships and symbols are still analyzed, and result diagnostics record `type-hierarchy-disabled`. This is an incomplete-coverage workaround, not a compiler fix; type hierarchy remains enabled by default.
+C++/CUDA inheritance is resolved through type-definition queries at source-written base types, following aliases and avoiding clangd's type-hierarchy requests, which can crash on dependent bases. Concrete bases remain linked even alongside unresolved template parameters; unresolved bases and instantiation-specific inheritance are not guessed. No environment switch is needed.
 
 ## Examples
 

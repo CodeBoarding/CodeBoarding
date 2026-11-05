@@ -57,6 +57,10 @@ class HierarchyBuilder:
             hierarchy[sym.qualified_name] = {"superclasses": [], "subclasses": []}
 
         logger.info("Hierarchy: %d class symbols to process", len(class_symbols))
+        if self._adapter.resolves_bases_by_type_definition is True:
+            self._resolve_bases_by_definition(class_symbols, hierarchy)
+            return hierarchy
+
         type_hierarchy_supported = False
         for sym in class_symbols:
             try:
@@ -164,7 +168,12 @@ class HierarchyBuilder:
                 for line, char in bases
                 if (file_key, line, char) not in by_position
             ]
-            answers = iter(self._lsp.send_definition_batch(queries)) if queries else iter(())
+            query_bases = (
+                self._lsp.send_type_definition_batch
+                if self._adapter.resolves_bases_by_type_definition is True
+                else self._lsp.send_definition_batch
+            )
+            answers = iter(query_bases(queries)) if queries else iter(())
             for (line, char), bases in sites:
                 sub = by_position.get((file_key, line, char))
                 for base_line, base_char in bases:

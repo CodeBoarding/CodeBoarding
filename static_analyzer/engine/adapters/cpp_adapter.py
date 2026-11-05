@@ -2,7 +2,6 @@
 
 from collections.abc import Iterator
 import logging
-import os
 from pathlib import Path
 
 from clang.cindex import LibclangError
@@ -44,8 +43,9 @@ class CppAdapter(LanguageAdapter):
         return True
 
     @property
-    def skip_type_hierarchy(self) -> bool:
-        return os.environ.get("CODEBOARDING_CPP_SKIP_TYPE_HIERARCHY") == "1"
+    def resolves_bases_by_type_definition(self) -> bool:
+        """clangd's type-hierarchy preparation can crash on dependent C++ bases."""
+        return True
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
         command = super().get_lsp_command(project_root)
@@ -66,12 +66,12 @@ class CppAdapter(LanguageAdapter):
             for node in (_walk(client.document_ast(file_path)) if candidates else [])
             if node.get("kind") in {"Function", "Lambda"} and "range" in node
         }
+        existing = list(_walk({"children": symbols}))[1:]
         for candidate in candidates:
             end = candidate["range"]["end"]
             if (end["line"], end["character"]) not in active:
                 continue
             position = _position(candidate["selectionRange"]["start"])
-            existing = list(_walk({"children": symbols}))[1:]
             if any(_position(item["selectionRange"]["start"]) == position for item in existing):
                 continue
             owners = [
@@ -84,6 +84,7 @@ class CppAdapter(LanguageAdapter):
                 owner.setdefault("children", []).append(candidate)
             else:
                 symbols.append(candidate)
+            existing.extend(_walk(candidate))
 
         declarations = list(_walk({"children": symbols}))[1:]
         queries = [(file_path, *_position(item["selectionRange"]["start"])) for item in declarations]

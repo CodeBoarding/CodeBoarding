@@ -28,6 +28,8 @@ from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagno
 
 logger = logging.getLogger(__name__)
 
+LSP_MEMORY_SAMPLE_INTERVAL_SECONDS = 30
+LSP_STDERR_TAIL_LINES = 32
 LSP_METHOD_NOT_FOUND = -32601
 # Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
 # any other code is the server declining for itself, as gopls does for a free function.
@@ -139,7 +141,7 @@ class LSPClient:
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
-        self._stderr_tail: deque[str] = deque(maxlen=32)
+        self._stderr_tail: deque[str] = deque(maxlen=LSP_STDERR_TAIL_LINES)
         self._peak_rss = 0
         self._last_memory_sample = 0.0
         self._shutdown_event = threading.Event()
@@ -846,11 +848,11 @@ class LSPClient:
             return None
 
         now = time.monotonic()
-        if self._process and now - self._last_memory_sample >= 30:
+        if self._process and now - self._last_memory_sample >= LSP_MEMORY_SAMPLE_INTERVAL_SECONDS:
             self._last_memory_sample = now
             rss = process_tree_rss(self._process.pid)
             self._peak_rss = max(self._peak_rss, rss)
-            logger.info(
+            logger.debug(
                 "LSP process pid=%s: RSS=%s, sampled peak=%s, open documents=%d",
                 self._process.pid,
                 format_bytes(rss),

@@ -18,7 +18,6 @@ from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
@@ -84,16 +83,6 @@ class CallGraphBuilder:
 
         next_phase = 3
         hierarchy: dict[str, dict] = {}
-        if self._adapter.skip_type_hierarchy is True:
-            skip_hierarchy = True
-            message = (
-                f"{self._adapter.language} type hierarchy was explicitly disabled; "
-                "inheritance relationships are omitted. Resolved call relationships are retained."
-            )
-            logger.warning(message)
-            ctx.diagnostics.setdefault(str(self._root), []).append(
-                LSPDiagnostic(code="type-hierarchy-disabled", message=message, severity=2)
-            )
         if skip_hierarchy:
             logger.info("Phase %d (hierarchy): skipped", next_phase)
         else:
