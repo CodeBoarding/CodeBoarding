@@ -44,6 +44,7 @@ from infra.tool_registry import (
 from infra.tool_registry.java import find_java_21_or_later
 from infra.tool_registry.manifest import _recorded_tools
 from infra.tool_registry.registry import ConfigSection, PackageManagerToolSource
+from infra.logging_config import setup_logging
 from infra.vscode_constants import VSCODE_CONFIG
 from infra.user_config import ensure_config_template
 
@@ -91,7 +92,7 @@ def check_rust_toolchain() -> tuple[bool, str | None]:
 
 def check_npm(target_dir: Path | None = None) -> bool:
     """Check if npm is available via the configured Node.js runtime or PATH."""
-    print("Step: npm check started")
+    logger.info("Step: npm check started")
 
     target = (target_dir or get_servers_dir()).resolve()
     npm_command = preferred_npm_command(target)
@@ -100,15 +101,17 @@ def check_npm(target_dir: Path | None = None) -> bool:
         try:
             env = npm_subprocess_env(target)
             result = subprocess.run([*npm_command, "--version"], capture_output=True, text=True, check=True, env=env)
-            print(f"Step: npm check finished: success (version {result.stdout.strip()})")
+            logger.info("Step: npm check finished: success (version %s)", result.stdout.strip())
             return True
         except Exception as e:
-            print(
-                f"Step: npm check finished: failure - npm command failed ({e}). Skipping Language Servers installation."
+            logger.warning(
+                "Step: npm check finished: failure - npm command failed (%s). Skipping Language Servers installation.",
+                e,
+                exc_info=True,
             )
             return False
 
-    print("Step: npm check finished: failure - npm not found")
+    logger.warning("Step: npm check finished: failure - npm not found")
     return False
 
 
@@ -134,17 +137,17 @@ def bootstrap_npm(target_dir: Path | None = None) -> bool:
     target.mkdir(parents=True, exist_ok=True)
     node_path = preferred_node_path(target)
 
-    print("Step: npm remediation started")
-    print(f"   target: {target}")
-    print("   impact: installs npm into the CodeBoarding tools directory and invokes it via Node.js")
+    logger.info("Step: npm remediation started")
+    logger.info("   target: %s", target)
+    logger.info("   impact: installs npm into the CodeBoarding tools directory and invokes it via Node.js")
 
     if not node_path:
-        print("Step: npm remediation finished: failure - no Node.js runtime available")
-        print("   Set CODEBOARDING_NODE_PATH or install Node.js from: https://nodejs.org/en/download")
+        logger.warning("Step: npm remediation finished: failure - no Node.js runtime available")
+        logger.warning("   Set CODEBOARDING_NODE_PATH or install Node.js from: https://nodejs.org/en/download")
         return False
 
     os.environ.setdefault("CODEBOARDING_NODE_PATH", node_path)
-    print(f"   node: {os.environ['CODEBOARDING_NODE_PATH']}")
+    logger.info("   node: %s", os.environ["CODEBOARDING_NODE_PATH"])
 
     npm_cli = bootstrapped_npm_cli_path(target)
     if not npm_cli.exists():
@@ -155,7 +158,7 @@ def bootstrap_npm(target_dir: Path | None = None) -> bool:
             metadata_response.raise_for_status()
             metadata = metadata_response.json()
             tarball_url = metadata["dist"]["tarball"]
-            print(f"   source: {tarball_url}")
+            logger.info("   source: %s", tarball_url)
 
             tarball_response = requests.get(tarball_url, timeout=60)
             tarball_response.raise_for_status()
@@ -164,19 +167,19 @@ def bootstrap_npm(target_dir: Path | None = None) -> bool:
             npm_root.mkdir(parents=True, exist_ok=True)
             extract_tarball_safely(io.BytesIO(tarball_response.content), npm_root)
         except (requests.RequestException, KeyError, OSError, ValueError, tarfile.TarError) as e:
-            print(f"Step: npm remediation finished: failure - {e}")
-            print("   Install Node.js manually from: https://nodejs.org/en/download")
-            print("   Then verify with: npm --version")
+            logger.warning("Step: npm remediation finished: failure - %s", e, exc_info=True)
+            logger.warning("   Install Node.js manually from: https://nodejs.org/en/download")
+            logger.warning("   Then verify with: npm --version")
             return False
 
     npm_available = check_npm(target)
     if not npm_available:
-        print("Step: npm remediation finished: failure - npm still not found after bootstrap")
-        print("   You can install Node.js manually from: https://nodejs.org/en/download")
-        print("   Then verify with: npm --version")
+        logger.warning("Step: npm remediation finished: failure - npm still not found after bootstrap")
+        logger.warning("   You can install Node.js manually from: https://nodejs.org/en/download")
+        logger.warning("   Then verify with: npm --version")
         return False
 
-    print("Step: npm remediation finished: success")
+    logger.info("Step: npm remediation finished: success")
     return True
 
 
@@ -209,7 +212,7 @@ def ensure_node_runtime(
     if preferred_node_path(target):
         return True
 
-    print("Step: Node.js runtime required for TypeScript/JavaScript/PHP/Python language servers")
+    logger.info("Step: Node.js runtime required for TypeScript/JavaScript/PHP/Python language servers")
 
     if not auto_install_npm and not is_non_interactive_mode():
         try:
@@ -225,23 +228,23 @@ def ensure_node_runtime(
             choice = "y"
 
         if choice not in {"y", "yes"}:
-            print(
-                "Warning: skipping Node.js bootstrap. Node-based language servers "
+            logger.warning(
+                "Skipping Node.js bootstrap. Node-based language servers "
                 "(TypeScript, JavaScript, PHP, Pyright) will be unavailable."
             )
             return False
 
-    print(f"Step: Node.js bootstrap started (pinned version {PINNED_NODE_VERSION})")
+    logger.info("Step: Node.js bootstrap started (pinned version %s)", PINNED_NODE_VERSION)
     target.mkdir(parents=True, exist_ok=True)
     installed = install_embedded_node(target)
 
     if not installed:
-        print("Warning: Node.js bootstrap failed. Node-based language servers will be unavailable.")
-        print("   Install Node.js manually from https://nodejs.org/en/download and retry,")
-        print("   or set CODEBOARDING_NODE_PATH to an existing Node.js binary.")
+        logger.warning("Node.js bootstrap failed. Node-based language servers will be unavailable.")
+        logger.warning("   Install Node.js manually from https://nodejs.org/en/download and retry,")
+        logger.warning("   or set CODEBOARDING_NODE_PATH to an existing Node.js binary.")
         return False
 
-    print("Step: Node.js bootstrap finished: success")
+    logger.info("Step: Node.js bootstrap finished: success")
     return True
 
 
@@ -252,7 +255,7 @@ def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None 
     In non-interactive mode (VS Code extension / CI) the function never raises —
     a missing npm just means Node-based language servers will be unavailable.
     """
-    print("Step: npm required for TypeScript/JavaScript/PHP/Python language servers")
+    logger.info("Step: npm required for TypeScript/JavaScript/PHP/Python language servers")
 
     if not auto_install_npm and not is_non_interactive_mode():
         try:
@@ -263,13 +266,13 @@ def resolve_missing_npm(auto_install_npm: bool = False, target_dir: Path | None 
             choice = "y"
 
         if choice not in {"y", "yes"}:
-            print("Error: npm is required. Install Node.js from https://nodejs.org/en/download and retry.")
+            logger.error("npm is required. Install Node.js from https://nodejs.org/en/download and retry.")
             raise SystemExit(1)
 
     installed = bootstrap_npm(target_dir=target_dir)
     if not installed:
-        print("Warning: npm bootstrap failed. Node-based language servers will be unavailable.")
-        print("   Install Node.js from https://nodejs.org/en/download to enable them.")
+        logger.warning("npm bootstrap failed. Node-based language servers will be unavailable.")
+        logger.warning("   Install Node.js from https://nodejs.org/en/download to enable them.")
     return installed
 
 
@@ -308,7 +311,7 @@ def install_node_servers(
     target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] = TOOL_REGISTRY
 ):
     """Install the selected Node.js servers using npm; defaults to every registered Node.js server."""
-    print("Step: Node.js servers installation started")
+    logger.info("Step: Node.js servers installation started")
     target_dir.mkdir(parents=True, exist_ok=True)
 
     node_deps = [d for d in deps if d.kind is ToolKind.NODE]
@@ -325,9 +328,9 @@ def install_node_servers(
     for dep in node_deps:
         name, path = names.get(dep.key, dep.binary_name), target_dir / "node_modules" / ".bin" / dep.binary_name
         if path.exists():
-            print(f"Step: {name} installation finished: success")
+            logger.info("Step: %s installation finished: success", name)
         else:
-            print(f"Step: {name} installation finished: warning - Binary not found")
+            logger.warning("Step: %s installation finished: warning - Binary not found", name)
             success = False
 
     return success
@@ -382,14 +385,14 @@ def install_vcpp_redistributable() -> bool:
     if platform.system() != "Windows":
         return False
 
-    print("Step: Visual C++ Redistributable installation started")
-    print("  The downloaded binary requires the Visual C++ runtime (vcruntime140.dll).")
+    logger.info("Step: Visual C++ Redistributable installation started")
+    logger.info("  The downloaded binary requires the Visual C++ runtime (vcruntime140.dll).")
 
     installer_path = Path("static_analyzer/servers/bin/vc_redist.x64.exe")
     installer_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        print("  Downloading VC++ Redistributable...")
+        logger.info("  Downloading VC++ Redistributable...")
         response = requests.get(VCREDIST_URL, stream=True, timeout=120, allow_redirects=True)
         response.raise_for_status()
         with open(installer_path, "wb") as f:
@@ -397,7 +400,7 @@ def install_vcpp_redistributable() -> bool:
                 if chunk:
                     f.write(chunk)
 
-        print("  Running installer (this will request administrator privileges)...")
+        logger.info("  Running installer (this will request administrator privileges)...")
         # Use PowerShell Start-Process with -Verb RunAs to trigger UAC elevation,
         # then /install /passive for a non-interactive install with progress bar.
         ps_command = (
@@ -417,35 +420,39 @@ def install_vcpp_redistributable() -> bool:
             pass  # Installer may still be releasing; not critical
 
         if result.returncode == 0:
-            print("Step: Visual C++ Redistributable installation finished: success")
+            logger.info("Step: Visual C++ Redistributable installation finished: success")
             return True
         elif result.returncode == 1638:
             # 1638 = newer version already installed
-            print("Step: Visual C++ Redistributable installation finished: success (newer version already present)")
+            logger.info(
+                "Step: Visual C++ Redistributable installation finished: success (newer version already present)"
+            )
             return True
         elif result.returncode == 3010:
             # 3010 = success, reboot required
-            print("Step: Visual C++ Redistributable installation finished: success (reboot may be needed)")
+            logger.info("Step: Visual C++ Redistributable installation finished: success (reboot may be needed)")
             return True
         else:
-            print(f"Step: Visual C++ Redistributable installation finished: failure (exit code {result.returncode})")
-            print("  You may need to run the installer manually with administrator privileges.")
-            print(f"  Download from: {VCREDIST_URL}")
+            logger.warning(
+                "Step: Visual C++ Redistributable installation finished: failure (exit code %s)", result.returncode
+            )
+            logger.warning("  You may need to run the installer manually with administrator privileges.")
+            logger.warning("  Download from: %s", VCREDIST_URL)
             return False
 
-    except Exception as e:
+    except Exception:
         try:
             installer_path.unlink(missing_ok=True)
         except PermissionError:
             pass
-        print(f"Step: Visual C++ Redistributable installation finished: failure - {e}")
-        print(f"  Download and install manually from: {VCREDIST_URL}")
+        logger.exception("Step: Visual C++ Redistributable installation finished: failure")
+        logger.warning("  Download and install manually from: %s", VCREDIST_URL)
         return False
 
 
 def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
     """Offer actionable paths when the Visual C++ Redistributable is missing."""
-    print("Step: Visual C++ Redistributable required for downloaded binaries (vcruntime140.dll)")
+    logger.info("Step: Visual C++ Redistributable required for downloaded binaries (vcruntime140.dll)")
 
     if auto_install_vcpp or is_non_interactive_mode():
         return install_vcpp_redistributable()
@@ -462,8 +469,8 @@ def resolve_missing_vcpp(auto_install_vcpp: bool = False) -> bool:
     if choice in {"y", "yes"}:
         return install_vcpp_redistributable()
 
-    print("Step: VC++ Redistributable installation skipped by user")
-    print(f"   Download and install manually from: {VCREDIST_URL}")
+    logger.warning("Step: VC++ Redistributable installation skipped by user")
+    logger.warning("   Download and install manually from: %s", VCREDIST_URL)
     return False
 
 
@@ -474,7 +481,7 @@ def download_binaries(
     deps: Collection[ToolDependency] = TOOL_REGISTRY,
 ):
     """Download the selected native binaries; defaults to every registered native tool."""
-    print("Step: Binary download started")
+    logger.info("Step: Binary download started")
     native_deps = [d for d in deps if d.kind is ToolKind.NATIVE]
     install_native_tools(target_dir, native_deps, on_progress=on_progress)
 
@@ -489,41 +496,41 @@ def download_binaries(
                 continue
             status = verify_binary(binary_path)
             if status == BinaryStatus.OK:
-                print(f"  {dep.binary_name}: verification passed")
+                logger.info("  %s: verification passed", dep.binary_name)
             elif status == BinaryStatus.MISSING_VCPP:
-                print(f"  {dep.binary_name}: verification failed - missing Visual C++ runtime")
+                logger.warning("  %s: verification failed - missing Visual C++ runtime", dep.binary_name)
                 vcpp_failures.append(dep.binary_name)
             else:
-                print(f"  {dep.binary_name}: verification failed - binary could not be loaded")
-                print(f"    The binary may be corrupted or blocked by antivirus software.")
-                print(f"    Try deleting {binary_path} and re-running setup.")
+                logger.warning("  %s: verification failed - binary could not be loaded", dep.binary_name)
+                logger.warning("    The binary may be corrupted or blocked by antivirus software.")
+                logger.warning("    Try deleting %s and re-running setup.", binary_path)
                 load_errors.append(dep.binary_name)
 
         if vcpp_failures and resolve_missing_vcpp(auto_install_vcpp=auto_install_vcpp):
             for name in vcpp_failures:
                 binary_path = bin_dir / f"{name}.exe"
                 if verify_binary(binary_path) == BinaryStatus.OK:
-                    print(f"  {name}: verification passed after VC++ install")
+                    logger.info("  %s: verification passed after VC++ install", name)
 
         if load_errors:
-            print(
-                f"  Warning: {', '.join(load_errors)} could not be loaded. "
-                f"Language support for those tools will be unavailable."
+            logger.warning(
+                "  %s could not be loaded. Language support for those tools will be unavailable.",
+                ", ".join(load_errors),
             )
 
-    print("Step: Binary download finished")
+    logger.info("Step: Binary download finished")
 
 
 def download_jdtls(
     target_dir: Path, on_progress: ProgressCallback | None = None, deps: Collection[ToolDependency] = TOOL_REGISTRY
 ):
     """Download the selected archive tools; defaults to every registered archive tool."""
-    print("Step: JDTLS download started")
+    logger.info("Step: JDTLS download started")
     archive_deps = [d for d in deps if d.kind is ToolKind.ARCHIVE]
     for dep in archive_deps:
         install_archive_tool(target_dir, dep, on_progress=on_progress)
 
-    print("Step: JDTLS download finished")
+    logger.info("Step: JDTLS download finished")
     return True
 
 
@@ -538,21 +545,21 @@ def install_package_manager_lsp_servers(
     pm_deps = [d for d in deps if d.kind is ToolKind.PACKAGE_MANAGER]
     if not pm_deps:
         return
-    print("Step: Package-manager tool installation started")
+    logger.info("Step: Package-manager tool installation started")
     install_package_manager_tools(target_dir, pm_deps, on_progress=on_progress)
     for dep in pm_deps:
         binary_path = package_manager_tool_path(target_dir, dep)
         if binary_path is None:
-            print(f"  {dep.binary_name}: not installed (unsupported platform)")
+            logger.info("  %s: not installed (unsupported platform)", dep.binary_name)
             continue
         if binary_path.exists():
-            print(f"  {dep.binary_name}: installed")
+            logger.info("  %s: installed", dep.binary_name)
         else:
             manager = (
                 dep.source.manager_binary if isinstance(dep.source, PackageManagerToolSource) else "package manager"
             )
-            print(f"  {dep.binary_name}: not installed ({manager} unavailable or install failed)")
-    print("Step: Package-manager tool installation finished")
+            logger.warning("  %s: not installed (%s unavailable or install failed)", dep.binary_name, manager)
+    logger.info("Step: Package-manager tool installation finished")
 
 
 def download_grammars(target_dir: Path) -> None:
@@ -560,14 +567,18 @@ def download_grammars(target_dir: Path) -> None:
 
     Not fatal: an analysis downloads a missing grammar on first use and fails there if it cannot.
     """
-    print("Step: Kotlin grammar download started")
+    logger.info("Step: Kotlin grammar download started")
     try:
         download_kotlin_grammar(target_dir)
     except RuntimeError as error:
-        print(f"  Kotlin grammar: not downloaded ({error.__cause__ or error}); it will be fetched on first use")
+        logger.warning(
+            "  Kotlin grammar: not downloaded (%s); it will be fetched on first use",
+            error.__cause__ or error,
+            exc_info=True,
+        )
     else:
-        print("  Kotlin grammar: installed")
-    print("Step: Kotlin grammar download finished")
+        logger.info("  Kotlin grammar: installed")
+    logger.info("Step: Kotlin grammar download finished")
 
 
 def install_pre_commit_hooks():
@@ -589,7 +600,7 @@ def install_pre_commit_hooks():
             # Pre-commit not installed - this is fine for regular users
             return
 
-        print("Step: pre-commit hooks installation started")
+        logger.info("Step: pre-commit hooks installation started")
 
         # Install pre-commit hooks
         subprocess.run(
@@ -598,7 +609,7 @@ def install_pre_commit_hooks():
             capture_output=True,
             text=True,
         )
-        print("Step: pre-commit hooks installation finished: success")
+        logger.info("Step: pre-commit hooks installation finished: success")
 
     except subprocess.CalledProcessError:
         # Silently skip if installation fails
@@ -609,13 +620,15 @@ def install_pre_commit_hooks():
 
 
 def print_language_support_summary(npm_available: bool, target_dir: Path):
-    """Print which language analyses are currently available based on installed tools."""
-    print("Step: Language support summary")
+    """Log which language analyses are currently available based on installed tools."""
+    logger.info("Step: Language support summary")
     for check in _language_checks_from_registry(target_dir):
         is_available, reason = check.evaluate(npm_available)
-        print(f"  - {check.language}: {'yes' if is_available else 'no'}")
+        # An unavailable language is a degraded setup, so it stays visible when logging is filtered to WARNING.
+        level = logging.INFO if is_available else logging.WARNING
+        logger.log(level, "  - %s: %s", check.language, "yes" if is_available else "no")
         if reason:
-            print(f"    reason: {reason}")
+            logger.log(level, "    reason: %s", reason)
 
 
 def ensure_tools(
@@ -758,9 +771,9 @@ def main() -> None:
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
     args = parse_args()
+    setup_logging()
 
-    print("CodeBoarding Setup")
-    print("=" * 40)
+    logger.info("CodeBoarding Setup")
 
     # Lock at the entry point, not inside run_install() — ensure_tools()
     # calls run_install() while already holding this lock, and same-process
@@ -773,10 +786,9 @@ def main() -> None:
         run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp)
         write_manifest()
 
-    print("\n" + "=" * 40)
-    print("Setup complete!")
-    print("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
-    print("  codeboarding full --local /path/to/repo")
+    logger.info("Setup complete!")
+    logger.info("Configure your LLM provider key in ~/.codeboarding/config.toml, then run:")
+    logger.info("  codeboarding full --local /path/to/repo")
 
 
 def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportCheck]:
