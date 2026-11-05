@@ -550,15 +550,18 @@ class StaticAnalyzer:
     def _stop_engine_clients(self) -> None:
         """Shut the servers down, then end the adapters' sessions.
 
-        Why in that order: a live server would rebuild its project from the files a session puts back.
+        Why in that order: a live server would rebuild its project from the files a session puts back. A shutdown
+        that is interrupted still ends them, with servers possibly up, so the repository is not left edited.
         """
-        for engine_config, client in self._engine_clients:
-            try:
-                client.shutdown()
-            except Exception as e:
-                logger.error(f"Error shutting down engine LSP client for {engine_config.adapter.language}: {e}")
-        self._engine_clients = []
-        self._adapter_sessions.close()
+        try:
+            for engine_config, client in self._engine_clients:
+                try:
+                    client.shutdown()
+                except Exception as e:
+                    logger.error(f"Error shutting down engine LSP client for {engine_config.adapter.language}: {e}")
+        finally:
+            self._engine_clients = []
+            self._adapter_sessions.close()
 
     def _live_clients(self, operation: str) -> list[tuple[EngineConfig, LSPClient]]:
         """The started engine clients, refusing callers when each server lives only for its own analysis.

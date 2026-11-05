@@ -24,7 +24,10 @@ from infra.utils import CODEBOARDING_DIR_NAME, get_config
 
 logger = logging.getLogger(__name__)
 
-_CLASSPATH_ENTRY = re.compile(rb"<classpathentry\b[^>]*>")
+# An entry with a body, as its opening tag and the rest up to its own closing tag. Self-closing entries never match.
+_CLASSPATH_ENTRY = re.compile(
+    rb"(<classpathentry\b[^>]*[^/]>)((?:(?!<classpathentry\b).)*?</classpathentry>)", re.DOTALL
+)
 _INCLUSION_FILTER = re.compile(rb'\s+including="[^"]*"')
 
 # The languages a JVM source root can be named for, in ``src/<source set>/<language>``.
@@ -248,6 +251,7 @@ class JavaAdapter(LanguageAdapter):
         Why: m2e applies the ``<includes>`` of a project's last ``compile`` execution to the whole
         source folder, so one narrow recompile step leaves every other file outside the project and
         calls into it unresolved. Why a restart: m2e rewrites ``.classpath`` on any change it sees.
+        Why only entries m2e marks ``maven.pomderived``: a hand-written filter is the project's own source set.
         """
         lifted = False
         for classpath in project_root.rglob(".classpath"):
@@ -268,13 +272,6 @@ class JavaAdapter(LanguageAdapter):
             yield
         finally:
             self._restore_import_filters()
-
-    def _restore_import_filters(self) -> None:
-        for classpath, (imported, lifted) in self._filtered_classpaths.items():
-            # Anything else is an edit made since, which outranks what the import wrote.
-            if classpath.is_file() and classpath.read_bytes() == lifted:
-                classpath.write_bytes(imported)
-        self._filtered_classpaths.clear()
 
     def get_workspace_settings(self) -> dict | None:
         # JDTLS defaults these to "ignore"; raising to "warning" is required
@@ -322,7 +319,19 @@ class JavaAdapter(LanguageAdapter):
             packages.add(self.get_package_for_file(f, project_root))
         return packages
 
+    def _restore_import_filters(self) -> None:
+        for classpath, (imported, lifted) in self._filtered_classpaths.items():
+            try:
+                # Anything else is an edit made since, which outranks what the import wrote.
+                if classpath.is_file() and classpath.read_bytes() == lifted:
+                    classpath.write_bytes(imported)
+            except OSError:
+                logger.exception(f"Could not put back {classpath}; it keeps its source folder filters lifted")
+        self._filtered_classpaths.clear()
+
     @staticmethod
     def _without_inclusion_filter(entry: re.Match[bytes]) -> bytes:
-        tag = entry.group()
-        return _INCLUSION_FILTER.sub(b"", tag) if b'kind="src"' in tag else tag
+        tag, body = entry.group(1), entry.group(2)
+        if b'kind="src"' not in tag or b'name="maven.pomderived"' not in body:
+            return entry.group()
+        return _INCLUSION_FILTER.sub(b"", tag) + body

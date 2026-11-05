@@ -1,6 +1,7 @@
 """The Java adapter: symbol names, packages, what the build import hid, and which server errors end a run."""
 
 from pathlib import Path
+from unittest.mock import patch
 
 from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
@@ -138,7 +139,7 @@ FILTERED_CLASSPATH = b"""<classpath>
 
 
 class TestImportFilters:
-    def test_a_source_folder_filter_is_dropped_in_every_module(self, tmp_path: Path):
+    def test_a_source_folder_filter_is_dropped_in_every_module(self, tmp_path: Path) -> None:
         modules = [tmp_path / "core", tmp_path / "group" / "utils"]
         for module in modules:
             module.mkdir(parents=True)
@@ -150,7 +151,7 @@ class TestImportFilters:
             lifted = (module / ".classpath").read_bytes()
             assert b'<classpathentry kind="src" output="target/classes" path="src/main/java">' in lifted
 
-    def test_only_the_inclusion_filter_on_a_source_folder_goes(self, tmp_path: Path):
+    def test_only_the_inclusion_filter_on_a_source_folder_goes(self, tmp_path: Path) -> None:
         """A resource folder's ``excluding="**"`` and a library's own filter mean something else."""
         (tmp_path / ".classpath").write_bytes(FILTERED_CLASSPATH)
 
@@ -160,7 +161,7 @@ class TestImportFilters:
         assert b'excluding="**" kind="src"' in lifted
         assert b'including="**/*.jar" kind="lib"' in lifted
 
-    def test_a_project_without_filters_is_left_alone(self, tmp_path: Path):
+    def test_a_project_without_filters_is_left_alone(self, tmp_path: Path) -> None:
         """False is what spares every other repository a server restart."""
         unfiltered = b'<classpath><classpathentry kind="src" path="src/main/java"/></classpath>'
         (tmp_path / ".classpath").write_bytes(unfiltered)
@@ -168,7 +169,15 @@ class TestImportFilters:
         assert JavaAdapter().lift_import_filters(tmp_path) is False
         assert (tmp_path / ".classpath").read_bytes() == unfiltered
 
-    def test_the_session_puts_back_the_imported_file(self, tmp_path: Path):
+    def test_a_hand_written_filter_is_left_alone(self, tmp_path: Path) -> None:
+        """Without ``maven.pomderived`` the filter is the project's own source set, not an m2e artifact."""
+        hand_written = FILTERED_CLASSPATH.replace(b'"maven.pomderived"', b'"optional"')
+        (tmp_path / ".classpath").write_bytes(hand_written)
+
+        assert JavaAdapter().lift_import_filters(tmp_path) is False
+        assert (tmp_path / ".classpath").read_bytes() == hand_written
+
+    def test_the_session_puts_back_the_imported_file(self, tmp_path: Path) -> None:
         """A repository that commits its ``.classpath`` must not be left modified by an analysis."""
         (tmp_path / ".classpath").write_bytes(FILTERED_CLASSPATH)
         adapter = JavaAdapter()
@@ -178,7 +187,7 @@ class TestImportFilters:
 
         assert (tmp_path / ".classpath").read_bytes() == FILTERED_CLASSPATH
 
-    def test_an_edit_made_during_the_analysis_is_not_overwritten(self, tmp_path: Path):
+    def test_an_edit_made_during_the_analysis_is_not_overwritten(self, tmp_path: Path) -> None:
         classpath = tmp_path / ".classpath"
         classpath.write_bytes(FILTERED_CLASSPATH)
         adapter = JavaAdapter()
@@ -189,7 +198,29 @@ class TestImportFilters:
 
         assert classpath.read_bytes() == b"<classpath>edited since</classpath>"
 
-    def test_a_second_import_does_not_replace_what_is_restored(self, tmp_path: Path):
+    def test_one_file_that_cannot_be_put_back_does_not_stop_the_others(self, tmp_path: Path, caplog) -> None:
+        classpaths = [tmp_path / module / ".classpath" for module in ("core", "utils")]
+        for classpath in classpaths:
+            classpath.parent.mkdir()
+            classpath.write_bytes(FILTERED_CLASSPATH)
+        adapter = JavaAdapter()
+        write_bytes = Path.write_bytes
+        refused: list[Path] = []
+
+        def refuse_the_first_put_back(path: Path, data: bytes) -> int:
+            if data == FILTERED_CLASSPATH and not refused:
+                refused.append(path)
+                raise OSError("Read-only file system")
+            return write_bytes(path, data)
+
+        with patch.object(Path, "write_bytes", refuse_the_first_put_back), adapter.session():
+            adapter.lift_import_filters(tmp_path)
+
+        [other] = [classpath for classpath in classpaths if classpath not in refused]
+        assert other.read_bytes() == FILTERED_CLASSPATH
+        assert "Could not put back" in caplog.text
+
+    def test_a_second_import_does_not_replace_what_is_restored(self, tmp_path: Path) -> None:
         """Engines over nested projects import the same module in turn."""
         classpath = tmp_path / ".classpath"
         classpath.write_bytes(FILTERED_CLASSPATH)

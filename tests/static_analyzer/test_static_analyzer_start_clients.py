@@ -317,6 +317,22 @@ class TestStartClientsImportFilters:
 
         assert [call[0] for call in order.mock_calls] == ["stopped", "restored"]
 
+    def test_an_interrupted_stop_still_ends_the_sessions(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        """A second Ctrl-C lands in ``shutdown``, which only catches ``Exception``."""
+        adapter = _make_adapter("Java")
+        adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
+        adapter.session.return_value.__exit__.return_value = False  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
+        client = MagicMock(name="client")
+        client.shutdown.side_effect = KeyboardInterrupt
+
+        with patch("static_analyzer.LSPClient", side_effect=[client]):
+            analyzer.start_clients()
+        with pytest.raises(KeyboardInterrupt):
+            analyzer.stop_clients()
+
+        adapter.session.return_value.__exit__.assert_called_once()  # type: ignore[attr-defined]
+
     def test_a_failed_start_ends_the_sessions_after_its_servers_are_down(
         self, analyzer: StaticAnalyzer, tmp_path: Path
     ) -> None:
@@ -339,7 +355,9 @@ class TestStartClientsImportFilters:
 
 
 FILTERED_CLASSPATH = (
-    b'<classpath><classpathentry including="**/*Rules.java" kind="src" path="src/main/java"/></classpath>'
+    b'<classpath><classpathentry including="**/*Rules.java" kind="src" path="src/main/java">'
+    b'<attributes><attribute name="maven.pomderived" value="true"/></attributes>'
+    b"</classpathentry></classpath>"
 )
 
 
