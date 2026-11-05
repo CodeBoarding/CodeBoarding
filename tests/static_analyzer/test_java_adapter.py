@@ -168,13 +168,13 @@ class TestImportFilters:
         assert JavaAdapter().lift_import_filters(tmp_path) is False
         assert (tmp_path / ".classpath").read_bytes() == unfiltered
 
-    def test_restoring_puts_back_the_imported_file(self, tmp_path: Path):
+    def test_the_session_puts_back_the_imported_file(self, tmp_path: Path):
         """A repository that commits its ``.classpath`` must not be left modified by an analysis."""
         (tmp_path / ".classpath").write_bytes(FILTERED_CLASSPATH)
         adapter = JavaAdapter()
-        adapter.lift_import_filters(tmp_path)
 
-        adapter.restore_import_filters()
+        with adapter.session():
+            adapter.lift_import_filters(tmp_path)
 
         assert (tmp_path / ".classpath").read_bytes() == FILTERED_CLASSPATH
 
@@ -182,10 +182,10 @@ class TestImportFilters:
         classpath = tmp_path / ".classpath"
         classpath.write_bytes(FILTERED_CLASSPATH)
         adapter = JavaAdapter()
-        adapter.lift_import_filters(tmp_path)
-        classpath.write_bytes(b"<classpath>edited since</classpath>")
 
-        adapter.restore_import_filters()
+        with adapter.session():
+            adapter.lift_import_filters(tmp_path)
+            classpath.write_bytes(b"<classpath>edited since</classpath>")
 
         assert classpath.read_bytes() == b"<classpath>edited since</classpath>"
 
@@ -194,10 +194,10 @@ class TestImportFilters:
         classpath = tmp_path / ".classpath"
         classpath.write_bytes(FILTERED_CLASSPATH)
         adapter = JavaAdapter()
-        adapter.lift_import_filters(tmp_path)
-        classpath.write_bytes(FILTERED_CLASSPATH.replace(b"Rules", b"Other"))
-        adapter.lift_import_filters(tmp_path)
 
-        adapter.restore_import_filters()
+        with adapter.session():
+            adapter.lift_import_filters(tmp_path)
+            classpath.write_bytes(FILTERED_CLASSPATH.replace(b"Rules", b"Other"))
+            adapter.lift_import_filters(tmp_path)
 
         assert classpath.read_bytes() == FILTERED_CLASSPATH

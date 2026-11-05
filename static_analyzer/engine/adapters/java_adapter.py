@@ -7,6 +7,8 @@ import os
 import platform
 import re
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
@@ -260,7 +262,14 @@ class JavaAdapter(LanguageAdapter):
                 lifted = True
         return lifted
 
-    def restore_import_filters(self) -> None:
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        try:
+            yield
+        finally:
+            self._restore_import_filters()
+
+    def _restore_import_filters(self) -> None:
         for classpath, (imported, lifted) in self._filtered_classpaths.items():
             # Anything else is an edit made since, which outranks what the import wrote.
             if classpath.is_file() and classpath.read_bytes() == lifted:

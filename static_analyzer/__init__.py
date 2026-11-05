@@ -3,6 +3,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -299,6 +300,8 @@ class StaticAnalyzer:
         ensure_language_servers({language.lsp_server_key for language in self.programming_langs})
         self._engine_configs = _create_engine_configs(self.programming_langs, self.repository_path, self.ignore_manager)
         self._engine_clients: list[tuple[EngineConfig, LSPClient]] = []
+        # Each adapter's session, from start_clients until its servers are down.
+        self._adapter_sessions = ExitStack()
         # (language, project) -> the failure preparation raised, or None.
         self._prepared_projects: dict[tuple[str, Path], Exception | None] = {}
         self._prepared_lock = threading.Lock()
@@ -329,19 +332,28 @@ class StaticAnalyzer:
         Idempotent — safe to call even if clients are already running.
 
         A failing client is skipped and logged; ``RuntimeError`` is raised
-        only when every configured client fails.
+        only when every configured client fails. A start that raises stops the
+        servers it started and ends the adapters' sessions itself, because
+        ``__exit__`` does not run when ``__enter__`` raises.
         """
         if self._clients_started:
             logger.info(f"Clients already started for {self.repository_path}, skipping start.")
             return
+        for adapter in {id(config.adapter): config.adapter for config in self._engine_configs}.values():
+            self._adapter_sessions.enter_context(adapter.session())
+        try:
+            self._start_engine_clients()
+        except BaseException:
+            self._stop_engine_clients()
+            raise
+        self._clients_started = True
 
+    def _start_engine_clients(self) -> None:
+        self._engine_clients = []
         if not self._engine_configs:
             logger.info(f"No supported languages detected in {self.repository_path}; no LSP clients to start.")
-            self._engine_clients = []
-            self._clients_started = True
             return
 
-        started: list[tuple[EngineConfig, LSPClient]] = []
         attempted: list[str] = []
         failed_languages: list[str] = []
         failed_details: list[str] = []
@@ -364,10 +376,8 @@ class StaticAnalyzer:
                 # Each analysis starts the server it needs and stops it when done.
                 continue
             try:
-                started.append((engine_config, self._spawn_engine_client(engine_config)))
+                self._engine_clients.append((engine_config, self._spawn_engine_client(engine_config)))
             except StaticAnalysisFatalError:
-                for _, client in started:  # never handed to ``stop_clients``
-                    client.shutdown()
                 raise
             except Exception as exc:
                 logger.exception(
@@ -379,8 +389,6 @@ class StaticAnalyzer:
 
         if not attempted:
             logger.info(f"No source files for any detected language in {self.repository_path}; no LSP clients started.")
-            self._engine_clients = []
-            self._clients_started = True
             return
 
         if self._server_slots:
@@ -398,12 +406,9 @@ class StaticAnalyzer:
                     self._prepare_project_once(engine_config)
                 except Exception:
                     logger.exception(f"Failed to prepare {engine_config.project_path}; the full pass will report it")
-            self._engine_clients = []
-            self._clients_started = True
             return
 
-        if not started:
-            self._clients_started = False
+        if not self._engine_clients:
             details = f"; failures: {'; '.join(failed_details)}" if failed_details else ""
             raise RuntimeError(f"Failed to start any engine LSP client (attempted: {', '.join(attempted)}){details}")
 
@@ -412,12 +417,9 @@ class StaticAnalyzer:
             logger.warning(
                 f"Proceeding with partial LSP coverage. "
                 f"Failed: {', '.join(failed_languages)}. "
-                f"Started: {', '.join(s.adapter.language for s, _ in started)}."
+                f"Started: {', '.join(s.adapter.language for s, _ in self._engine_clients)}."
                 f"{details}"
             )
-
-        self._engine_clients = started
-        self._clients_started = True
 
     def _prepare_project_once(self, engine_config: EngineConfig) -> None:
         """Let the adapter prepare a project exactly once (e.g. ``dotnet restore``).
@@ -461,8 +463,10 @@ class StaticAnalyzer:
         logger.info(f"Starting engine LSP client for {adapter.language} at {project_path}")
         self._prepare_project_once(engine_config)
         initial = adapter.workspace_folders(project_path, engine_config.source_files)
+        # One command for every start: JDTLS's command names its workspace, so a restart reopens the projects it
+        # imported instead of importing them, and their filters, again.
         command = adapter.get_lsp_command(project_path)
-        engine_client = self._start_engine_client(engine_config, initial or None, command)
+        engine_client = self._start_engine_client(engine_config, command, initial or None)
         try:
             fallback = adapter.fallback_workspace_folders(engine_client, project_path, engine_config.source_files)
             lifted = adapter.lift_import_filters(project_path)
@@ -472,17 +476,12 @@ class StaticAnalyzer:
         if lifted:
             logger.info(f"{adapter.language} import hid sources in {project_path}; restarting without its filters")
             engine_client.shutdown()
-            try:
-                # The same command, so the server reopens the projects it imported instead of importing them again.
-                return self._start_engine_client(engine_config, initial or None, command)
-            except Exception:
-                adapter.restore_import_filters()
-                raise
+            return self._start_engine_client(engine_config, command, initial or None)
         if not fallback or fallback == initial:
             return engine_client
         logger.warning(f"{adapter.language} server could not load {project_path}; restarting on {fallback}")
         engine_client.shutdown()
-        return self._start_engine_client(engine_config, fallback)
+        return self._start_engine_client(engine_config, command, fallback)
 
     def _replace_client(self, engine_config: EngineConfig, engine_client: LSPClient) -> LSPClient:
         """Shut one engine's server down and swap a freshly spawned one into its place."""
@@ -493,15 +492,11 @@ class StaticAnalyzer:
         return fresh
 
     def _start_engine_client(
-        self,
-        engine_config: EngineConfig,
-        workspace_folders: list[Path] | None = None,
-        command: list[str] | None = None,
+        self, engine_config: EngineConfig, command: list[str], workspace_folders: list[Path] | None = None
     ) -> LSPClient:
         """Launch the server, initialize it, and wait for its workspace where the adapter asks to."""
         adapter, project_path = engine_config.adapter, engine_config.project_path
         t_start = time.monotonic()
-        command = command or adapter.get_lsp_command(project_path)
         # Servers run N at a time share the memory budget; one at a time, or resident, each may use all of it.
         heap = per_engine_memory_budget(self._server_slots) - SERVER_NON_HEAP_BYTES
         init_options = {**adapter.get_lsp_init_options(self.ignore_manager), **adapter.get_lsp_heap_options(heap)}
@@ -548,16 +543,22 @@ class StaticAnalyzer:
         """Gracefully shut down all engine LSP server processes. Idempotent."""
         if not self._clients_started:
             return
+        self._stop_engine_clients()
+        self._clients_started = False
+        self._cached_results = None
+
+    def _stop_engine_clients(self) -> None:
+        """Shut the servers down, then end the adapters' sessions.
+
+        Why in that order: a live server would rebuild its project from the files a session puts back.
+        """
         for engine_config, client in self._engine_clients:
             try:
                 client.shutdown()
             except Exception as e:
                 logger.error(f"Error shutting down engine LSP client for {engine_config.adapter.language}: {e}")
-        for engine_config in self._engine_configs:
-            engine_config.adapter.restore_import_filters()
         self._engine_clients = []
-        self._clients_started = False
-        self._cached_results = None
+        self._adapter_sessions.close()
 
     def _live_clients(self, operation: str) -> list[tuple[EngineConfig, LSPClient]]:
         """The started engine clients, refusing callers when each server lives only for its own analysis.

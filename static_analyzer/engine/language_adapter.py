@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 from infra.repo_utils.ignore import RepoIgnoreManager
@@ -303,13 +304,17 @@ class LanguageAdapter(ABC):
         """
         return None
 
-    def lift_import_filters(self, project_root: Path) -> bool:
-        """Remove what the server's import did to hide repository sources; True if it needs restarting."""
-        return False
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        """Span an analysis's servers; on exit, once they are down, put back what the adapter changed in the repo."""
+        yield
 
-    def restore_import_filters(self) -> None:
-        """Put back what ``lift_import_filters`` changed in the repository, once its servers are stopped."""
-        return None
+    def lift_import_filters(self, project_root: Path) -> bool:
+        """Remove what the server's import did to hide repository sources; True if it needs restarting.
+
+        Only inside ``session``, which puts the files back.
+        """
+        return False
 
     def discover_source_files(
         self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()

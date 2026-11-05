@@ -15,6 +15,7 @@ import pytest
 from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
+from static_analyzer.engine.adapters.java_adapter import JavaAdapter
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.exceptions import WorkspaceSetupError
 
@@ -289,19 +290,6 @@ class TestStartClientsImportFilters:
         assert commands == [["java-lsp"], ["java-lsp"]]
         assert [client for _, client in analyzer._engine_clients] == [second]
 
-    def test_a_failed_restart_restores_what_was_lifted(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
-        """``stop_clients`` never runs for a language that failed to start."""
-        adapter = _make_adapter("Java")
-        adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
-        adapter.lift_import_filters.return_value = True  # type: ignore[attr-defined]
-        analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
-
-        with patch("static_analyzer.LSPClient", side_effect=[MagicMock(name="first"), RuntimeError("no restart")]):
-            with pytest.raises(RuntimeError):
-                analyzer.start_clients()
-
-        adapter.restore_import_filters.assert_called_once()  # type: ignore[attr-defined]
-
     def test_a_server_with_nothing_hidden_is_not_restarted(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         adapter = _make_adapter("Java")
         adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
@@ -315,10 +303,10 @@ class TestStartClientsImportFilters:
 
     def test_stopping_restores_after_the_servers_are_down(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         """A live server would see the restored file and rebuild its project with the filters back."""
-        order = MagicMock()
+        order = MagicMock(**{"restored.return_value": False})  # a true __exit__ would swallow the error
         adapter = _make_adapter("Java")
         adapter.discover_source_files.return_value = [tmp_path / "A.java"]  # type: ignore[attr-defined]
-        adapter.restore_import_filters.side_effect = lambda: order.restored()  # type: ignore[attr-defined]
+        adapter.session.return_value.__exit__.side_effect = lambda *_: order.restored()  # type: ignore[attr-defined]
         analyzer._engine_configs = [EngineConfig(adapter, tmp_path)]
         client = MagicMock(name="client")
         client.shutdown.side_effect = lambda: order.stopped()
@@ -328,3 +316,74 @@ class TestStartClientsImportFilters:
         analyzer.stop_clients()
 
         assert [call[0] for call in order.mock_calls] == ["stopped", "restored"]
+
+    def test_a_failed_start_ends_the_sessions_after_its_servers_are_down(
+        self, analyzer: StaticAnalyzer, tmp_path: Path
+    ) -> None:
+        order = MagicMock(**{"restored.return_value": False})  # a true __exit__ would swallow the error
+        python, java = _make_adapter("Python"), _make_adapter("Java")
+        for adapter in (python, java):
+            adapter.discover_source_files.return_value = [tmp_path / "a"]  # type: ignore[attr-defined]
+        java.session.return_value.__exit__.side_effect = lambda *_: order.restored()  # type: ignore[attr-defined]
+        analyzer._engine_configs = [EngineConfig(python, tmp_path), EngineConfig(java, tmp_path)]
+        started = MagicMock(name="python")
+        started.shutdown.side_effect = lambda: order.stopped()
+        failing = MagicMock(name="java")
+        failing.start.side_effect = StaticAnalysisFatalError("cannot analyse")
+
+        with patch("static_analyzer.LSPClient", side_effect=[started, failing]):
+            with pytest.raises(StaticAnalysisFatalError):
+                analyzer.start_clients()
+
+        assert [call[0] for call in order.mock_calls] == ["stopped", "restored"]
+
+
+FILTERED_CLASSPATH = (
+    b'<classpath><classpathentry including="**/*Rules.java" kind="src" path="src/main/java"/></classpath>'
+)
+
+
+class TestStartClientsLeavesTheRepositoryAsItWas:
+    """``__exit__`` does not run when ``__enter__`` raises, so a start that fails must undo its own edits."""
+
+    @pytest.fixture
+    def modules(self, analyzer: StaticAnalyzer, tmp_path: Path) -> list[Path]:
+        modules = [tmp_path / "core", tmp_path / "utils"]
+        for module in modules:
+            module.mkdir()
+            (module / ".classpath").write_bytes(FILTERED_CLASSPATH)
+        analyzer._engine_configs = [EngineConfig(JavaAdapter(), tmp_path, source_files=[tmp_path / "A.java"])]
+        return modules
+
+    def test_after_a_lift_that_fails_on_the_second_file(self, analyzer: StaticAnalyzer, modules: list[Path]) -> None:
+        write_bytes = Path.write_bytes
+        writes: list[Path] = []
+
+        def fail_the_second_write(path: Path, data: bytes) -> int:
+            writes.append(path)
+            if len(writes) == 2:
+                raise OSError("No space left on device")
+            return write_bytes(path, data)
+
+        with (
+            patch.object(JavaAdapter, "get_lsp_command", return_value=["jdtls"]),
+            patch.object(Path, "write_bytes", fail_the_second_write),
+            patch("static_analyzer.LSPClient"),
+            pytest.raises(RuntimeError),
+            analyzer,
+        ):
+            pass
+
+        assert len(writes) == 3  # one file lifted, one failed, the first put back
+        assert [(module / ".classpath").read_bytes() for module in modules] == [FILTERED_CLASSPATH] * 2
+
+    def test_after_a_restart_that_fails(self, analyzer: StaticAnalyzer, modules: list[Path]) -> None:
+        with (
+            patch.object(JavaAdapter, "get_lsp_command", return_value=["jdtls"]),
+            patch("static_analyzer.LSPClient", side_effect=[MagicMock(name="first"), RuntimeError("no restart")]),
+            pytest.raises(RuntimeError),
+            analyzer,
+        ):
+            pass
+
+        assert [(module / ".classpath").read_bytes() for module in modules] == [FILTERED_CLASSPATH] * 2
