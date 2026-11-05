@@ -27,6 +27,7 @@ from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from infra.utils import CODEBOARDING_DIR_NAME
 
 
@@ -389,15 +390,16 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         call = CallSite.from_lsp_position(str(app), 1, 4)
         elsewhere = ExternalCallSite("app.main", str(tmp_path / "vendor.py"), 3, 0, call)
         logger_node = Node("app.logger", NodeType.CONSTANT, str(app), line_start=1, line_end=1, col_start=0)
+        warning = LSPDiagnostic(message="Supplementary analysis incomplete", source="codeboarding", severity=2)
         partial = {
             **_result(partial_graph, source_files=[str(app)]),
-            "diagnostics": {},
+            "diagnostics": {str(app): [warning]},
             "external_call_sites": [elsewhere],
             "external_callers": [logger_node],
         }
 
         client = MagicMock()
-        client.get_collected_diagnostics.return_value = {}
+        client.get_collected_diagnostics.return_value = {str(app): []}
         ignore_manager = MagicMock()
         ignore_manager.should_ignore.return_value = False
 
@@ -416,6 +418,7 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         ]
         assert updated["external_call_sites"] == [elsewhere]
         assert updated["external_callers"] == [logger_node]
+        assert updated["diagnostics"] == {str(app): [warning]}
         client.send_implementation_batch.assert_not_called()
 
 

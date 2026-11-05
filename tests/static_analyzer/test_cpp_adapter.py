@@ -6,7 +6,7 @@ import pytest
 
 from infra.repo_utils.ignore import RepoIgnoreManager
 from infra.vscode_constants import VSCODE_CONFIG
-from static_analyzer import _create_engine_configs
+from static_analyzer import StaticAnalyzer, _create_engine_configs
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
@@ -17,7 +17,6 @@ from static_analyzer.engine.models import CallSite, LanguageAnalysisResult
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.exceptions import WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from static_analyzer.programming_language import ProgrammingLanguageBuilder
 from static_analyzer.scanner import ProjectScanner
@@ -104,6 +103,46 @@ def test_cpp_preserves_explicit_configuration(tmp_path: Path, name: str) -> None
     assert path.read_text() == contents
 
 
+@pytest.mark.parametrize("asts", [[None, None], [None, {}], [{}, None], [{}, {}]])
+def test_ast_limitations_survive_both_analysis_phases(tmp_path: Path, asts: list) -> None:
+    source = tmp_path / "main.cpp"
+    text = "int run() { auto work = [] { return 7; }; return work(); }"
+    source.write_text(text)
+    client = MagicMock(spec=LSPClient)
+    client.document_symbol.return_value = [
+        {
+            "name": "run",
+            "kind": NodeType.FUNCTION,
+            "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": len(text)}},
+            "selectionRange": {"start": {"line": 0, "character": 4}},
+        }
+    ]
+    client.document_ast.side_effect = asts
+    client.outgoing_calls.return_value = []
+    client.symbol_info_batch.return_value = []
+    client.send_definition_batch.side_effect = lambda queries, **_: [[] for _ in queries]
+    client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
+    client.get_collected_diagnostics.return_value = {str(source): []}
+    builder = CallGraphBuilder(client, CppAdapter(), tmp_path, tmp_path)
+    result = builder.build([source])
+    assert result.references
+    if None in asts:
+        warnings = result.diagnostics[str(source)]
+        assert len(warnings) == 1
+        assert warnings[0].code == "cpp-ast-unavailable"
+        assert warnings[0].severity == 2
+        assert "may be missing" in warnings[0].message
+    else:
+        assert result.diagnostics == {}
+
+    expected = result.diagnostics.get(str(source), [])
+    analysis = {"diagnostics": {str(source): [*expected, LSPDiagnostic(message="stale compiler warning")]}}
+    analyzer = object.__new__(StaticAnalyzer)
+    analyzer.collected_diagnostics = {}
+    analyzer._collect_diagnostics_for(CppAdapter(), client, analysis)
+    assert analyzer.collected_diagnostics[Language.CPP][str(source)] == expected
+
+
 def test_cpp_overloads_and_same_stem_header_survive_registration(tmp_path: Path) -> None:
     table = SymbolTable(CppAdapter())
     symbols = [
@@ -126,10 +165,8 @@ def test_cpp_overloads_and_same_stem_header_survive_registration(tmp_path: Path)
     }
 
 
-@pytest.mark.parametrize("database", ["compile_flags.txt", "compile_commands.json", "shared"])
-def test_template_dependencies_follow_each_instantiation(
-    tmp_path: Path, database: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.parametrize("database", ["compile_flags.txt", "compile_commands.json", "build/compile_commands.json"])
+def test_template_dependencies_follow_each_instantiation(tmp_path: Path, database: str) -> None:
     root = tmp_path / "project with spaces"
     root.mkdir()
     header = root / "api.hpp"
@@ -148,6 +185,7 @@ def test_template_dependencies_follow_each_instantiation(
         encoding="utf-8",
     )
     flags = ["-std=c++20", "-I."]
+    (root / database).parent.mkdir(exist_ok=True)
     (root / database).write_text(
         (
             "\n".join(flags)
@@ -158,15 +196,6 @@ def test_template_dependencies_follow_each_instantiation(
         ),
         encoding="utf-8",
     )
-    if database == "shared":
-        shared = tmp_path / "analysis commands"
-        shared.mkdir()
-        (root / database).rename(shared / "compile_commands.json")
-        (root / ".clangd").write_text("CompileFlags:\n  Add: [-include, unavailable.hpp]\n")
-        monkeypatch.setenv("CODEBOARDING_CPP_COMPILATION_DATABASE", str(shared))
-        command = CppAdapter().get_lsp_command(root)
-        assert f"--compile-commands-dir={shared}" in command
-        assert "--enable-config=false" in command
     table = SymbolTable(CppAdapter())
     for path, declarations in (
         (
@@ -198,12 +227,6 @@ def test_template_dependencies_follow_each_instantiation(
     complete_template_dependencies(ctx, [header, source], root, {(str(source), 1, column)}, edges)
     assert set(edges) == {("main.cpp.forward", "api.hpp.left"), ("main.cpp.forward", "api.hpp.right")}
     assert all(sites == [CallSite.from_lsp_position(str(source), 1, column)] for sites in edges.values())
-
-
-def test_cpp_rejects_missing_shared_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("CODEBOARDING_CPP_COMPILATION_DATABASE", str(tmp_path / "absent"))
-    with pytest.raises(WorkspaceSetupError, match="must name a directory"):
-        CppAdapter().prepare_project(tmp_path)
 
 
 @pytest.mark.parametrize("context", ["missing", "clangd", "bad-header"])

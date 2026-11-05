@@ -30,19 +30,6 @@ from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 logger = logging.getLogger(__name__)
 
 
-def compilation_database_override() -> Path | None:
-    """Return the explicitly shared analysis database, if configured."""
-    configured = os.environ.get("CODEBOARDING_CPP_COMPILATION_DATABASE", "").strip()
-    if not configured:
-        return None
-    folder = Path(configured).expanduser().resolve()
-    if not (folder / "compile_commands.json").is_file():
-        raise WorkspaceSetupError(
-            f"CODEBOARDING_CPP_COMPILATION_DATABASE must name a directory containing compile_commands.json: {folder}"
-        )
-    return folder
-
-
 def complete_template_dependencies(
     ctx: EdgeBuildContext,
     source_files: list[Path],
@@ -143,31 +130,28 @@ def _parse_units(
 
 
 def _commands(file_path: Path, project_root: Path, databases: dict[Path, CompilationDatabase]) -> list[CompileCommand]:
-    folder = compilation_database_override()
-    if folder is None:
-        for parent in file_path.parents:
-            config = parent / ".clangd"
-            if config.is_file():
-                for fragment in yaml.safe_load_all(config.read_text(encoding="utf-8")):
-                    if fragment is not None and not isinstance(fragment, dict):
-                        raise WorkspaceSetupError(f"Expected a mapping in {config}")
-                    if fragment and fragment.get("CompileFlags"):
-                        raise WorkspaceSetupError(
-                            f"C++ template resolution cannot reproduce CompileFlags in {config}. "
-                            "Export those flags into a shared analysis database and set "
-                            "CODEBOARDING_CPP_COMPILATION_DATABASE to its directory."
-                        )
-            if parent == project_root:
-                break
-        folders = [folder for parent in file_path.parents for folder in (parent, parent / "build")]
-        folder = next(
-            (
-                folder
-                for folder in folders
-                if any((folder / name).is_file() for name in ("compile_commands.json", "compile_flags.txt"))
-            ),
-            None,
-        )
+    for parent in file_path.parents:
+        config = parent / ".clangd"
+        if config.is_file():
+            for fragment in yaml.safe_load_all(config.read_text(encoding="utf-8")):
+                if fragment is not None and not isinstance(fragment, dict):
+                    raise WorkspaceSetupError(f"Expected a mapping in {config}")
+                if fragment and fragment.get("CompileFlags"):
+                    raise WorkspaceSetupError(
+                        f"C++ template resolution cannot reproduce CompileFlags in {config}. "
+                        "Clangd still uses the project configuration; template supplementation is incomplete."
+                    )
+        if parent == project_root:
+            break
+    folders = [folder for parent in file_path.parents for folder in (parent, parent / "build")]
+    folder = next(
+        (
+            folder
+            for folder in folders
+            if any((folder / name).is_file() for name in ("compile_commands.json", "compile_flags.txt"))
+        ),
+        None,
+    )
     if folder is None:
         raise WorkspaceSetupError(f"C++ template resolution needs a compilation database for {file_path}")
     if folder not in databases:

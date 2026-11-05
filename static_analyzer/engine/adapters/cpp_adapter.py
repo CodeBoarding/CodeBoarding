@@ -8,14 +8,14 @@ from clang.cindex import LibclangError
 
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.cpp_templates import compilation_database_override, complete_template_dependencies
+from static_analyzer.engine.cpp_templates import complete_template_dependencies
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import SymbolIndex
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.exceptions import WorkspaceSetupError
-from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
@@ -47,23 +47,21 @@ class CppAdapter(LanguageAdapter):
         """clangd's type-hierarchy preparation can crash on dependent C++ bases."""
         return True
 
-    def get_lsp_command(self, project_root: Path) -> list[str]:
-        command = super().get_lsp_command(project_root)
-        database = compilation_database_override()
-        if database is not None:
-            command.extend([f"--compile-commands-dir={database}", "--enable-config=false"])
-        return command
-
     def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
         return self.is_callable(a.kind) and self.is_callable(b.kind) and a.definition_location != b.definition_location
 
     def refine_document_symbols(
-        self, file_path: Path, symbols: list[dict], inspector: SourceInspector, client: LSPClient
+        self,
+        file_path: Path,
+        symbols: list[dict],
+        inspector: SourceInspector,
+        client: LSPClient,
+        diagnostics: FileDiagnosticsMap,
     ) -> list[dict]:
         candidates = inspector.cpp_local_callables(file_path)
         active = {
             (node["range"]["end"]["line"], node["range"]["end"]["character"])
-            for node in (_walk(client.document_ast(file_path)) if candidates else [])
+            for node in (_walk(self._document_ast(file_path, client, diagnostics)) if candidates else [])
             if node.get("kind") in {"Function", "Lambda"} and "range" in node
         }
         existing = list(_walk({"children": symbols}))[1:]
@@ -138,7 +136,7 @@ class CppAdapter(LanguageAdapter):
                             site = CallSite.from_lsp_position(str(file_path), line, column)
                             edges.setdefault((caller.qualified_name, target.qualified_name), []).append(site)
 
-            ast = ctx.lsp.document_ast(file_path)
+            ast = self._document_ast(file_path, ctx.lsp, ctx.diagnostics)
             # CUDA calls through device functors/lambdas remain partial: clangd exposes
             # a parameter reference, not the instantiated operator(), at these call sites.
             dependent_nodes = [
@@ -230,10 +228,6 @@ class CppAdapter(LanguageAdapter):
 
     def prepare_project(self, project_root: Path) -> None:
         """Prefer explicit compiler context without requiring a project build."""
-        database = compilation_database_override()
-        if database is not None:
-            logger.info("C++ analysis uses shared compilation database %s; .clangd configuration is disabled", database)
-            return
         candidates = (
             project_root / ".clangd",
             project_root / "compile_flags.txt",
@@ -282,6 +276,22 @@ class CppAdapter(LanguageAdapter):
         if self.is_callable(symbol_kind) and "(" in detail:
             symbol_name += detail[detail.index("(") :]
         return ".".join([module, *parents, symbol_name])
+
+    def _document_ast(self, file_path: Path, client: LSPClient, diagnostics: FileDiagnosticsMap) -> dict:
+        ast = client.document_ast(file_path)
+        if ast is not None:
+            return ast
+        warnings = diagnostics.setdefault(str(file_path.resolve()), [])
+        if not any(warning.code == "cpp-ast-unavailable" for warning in warnings):
+            message = (
+                f"clangd returned no AST for {file_path}; retaining resolved symbols and relationships. "
+                "AST-dependent declarations and calls may be missing."
+            )
+            logger.warning(message)
+            warnings.append(
+                LSPDiagnostic(code="cpp-ast-unavailable", message=message, severity=2, source="codeboarding")
+            )
+        return {}
 
 
 def _position(position: dict) -> tuple[int, int]:

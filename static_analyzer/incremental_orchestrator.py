@@ -100,8 +100,8 @@ def update_cfg_for_changed_files(
         }
 
     fresh_diagnostics = engine_client.get_collected_diagnostics()
-    if fresh_diagnostics:
-        new_analysis["diagnostics"] = fresh_diagnostics
+    for path, diagnostics in fresh_diagnostics.items():
+        new_analysis["diagnostics"].setdefault(path, []).extend(diagnostics)
 
     merged_analysis = merge_results(updated_cache.analysis, new_analysis)
     source_inspector = SourceInspector()

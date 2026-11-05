@@ -13,7 +13,7 @@ import queue
 import subprocess
 import threading
 import time
-from collections import deque
+from collections import OrderedDict, deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -30,6 +30,8 @@ logger = logging.getLogger(__name__)
 
 LSP_MEMORY_SAMPLE_INTERVAL_SECONDS = 30
 LSP_STDERR_TAIL_LINES = 32
+# JSON AST nodes retain more Python objects than tree-sitter's native nodes.
+LSP_AST_NODE_BUDGET = 50_000
 LSP_METHOD_NOT_FOUND = -32601
 # Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
 # any other code is the server declining for itself, as gopls does for a free function.
@@ -150,10 +152,10 @@ class LSPClient:
         # Track opened documents and their version counters.
         self._opened_uris: set[str] = set()
         self._doc_versions: dict[str, int] = {}
+        self._ast_cache: OrderedDict[str, tuple[dict, int]] = OrderedDict()
 
         # Diagnostics collection
         self._diagnostics: FileDiagnosticsMap = {}
-        self._ast_limitations: dict[str, LSPDiagnostic] = {}
         self._diagnostics_lock = threading.Lock()
         self._diagnostics_generation: int = 0
 
@@ -329,6 +331,7 @@ class LSPClient:
             self._stdout_fd = None
         self._opened_uris.clear()
         self._doc_versions.clear()
+        self._ast_cache.clear()
 
     def restart(self) -> None:
         """Replace the server process with a fresh one, same configuration.
@@ -415,6 +418,8 @@ class LSPClient:
 
     def did_change(self, file_path: Path, content: str) -> None:
         """Notify the server that a document's content has changed."""
+        # A changed header can alter ASTs of other open translation units.
+        self._ast_cache.clear()
         uri = file_path.resolve().as_uri()
         version = self._doc_versions.get(uri, 1) + 1
         self._doc_versions[uri] = version
@@ -428,6 +433,7 @@ class LSPClient:
 
     def did_close(self, file_path: Path) -> None:
         """Notify the server that a document was closed."""
+        self._ast_cache.clear()
         uri = file_path.resolve().as_uri()
         self._send_notification(
             "textDocument/didClose",
@@ -442,23 +448,32 @@ class LSPClient:
         """Read clangd's compiler identities and declaration/definition locations."""
         return self._send_batch("textDocument/symbolInfo", queries, self._position_params, self._default_timeout)
 
-    def document_ast(self, file_path: Path) -> dict:
+    def document_ast(self, file_path: Path) -> dict | None:
         """Read clangd's compiler AST, including active declarations omitted from its outline."""
-        result = self._send_request(
-            "textDocument/ast", {"textDocument": {"uri": file_path.resolve().as_uri()}}, self._default_timeout
-        )
+        uri = file_path.resolve().as_uri()
+        cached = self._ast_cache.get(uri)
+        if cached is not None:
+            self.check_alive()
+            self._ast_cache.move_to_end(uri)
+            return cached[0]
+        result = self._send_request("textDocument/ast", {"textDocument": {"uri": uri}}, self._default_timeout)
         if not isinstance(result, dict):
             self.check_alive()
-            message = (
-                f"clangd returned no AST for {file_path}; retaining resolved symbols and relationships. "
-                "AST-dependent declarations and calls may be missing."
-            )
-            logger.warning(message)
-            with self._diagnostics_lock:
-                self._ast_limitations[str(file_path.resolve())] = LSPDiagnostic(
-                    code="cpp-ast-unavailable", message=message, severity=2
-                )
-            return {}
+            return None
+
+        nodes = 0
+        pending = [result]
+        while pending:
+            node = pending.pop()
+            nodes += 1
+            if nodes > LSP_AST_NODE_BUDGET:
+                return result
+            pending.extend(node.get("children", []))
+        self._ast_cache[uri] = (result, nodes)
+        retained = sum(size for _, size in self._ast_cache.values())
+        while retained > LSP_AST_NODE_BUDGET:
+            _, (_, size) = self._ast_cache.popitem(last=False)
+            retained -= size
         return result
 
     def outgoing_calls(self, file_path: Path, line: int, character: int) -> list[dict]:
@@ -587,10 +602,7 @@ class LSPClient:
     def get_collected_diagnostics(self) -> FileDiagnosticsMap:
         """Return diagnostics collected during analysis."""
         with self._diagnostics_lock:
-            diagnostics = {path: list(items) for path, items in self._diagnostics.items()}
-            for path, limitation in self._ast_limitations.items():
-                diagnostics.setdefault(path, []).append(limitation)
-            return diagnostics
+            return {path: list(items) for path, items in self._diagnostics.items()}
 
     def get_diagnostics_generation(self) -> int:
         """Return a counter bumped on each ``publishDiagnostics`` notification."""

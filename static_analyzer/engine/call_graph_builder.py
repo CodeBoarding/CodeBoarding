@@ -18,6 +18,7 @@ from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class CallGraphBuilder:
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
+        self._diagnostics: FileDiagnosticsMap = {}
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -73,7 +75,7 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector, diagnostics=self._diagnostics)
         self._adapter.prepare_edges(ctx)
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
@@ -202,7 +204,9 @@ class CallGraphBuilder:
                     opened_early.append(file_path)
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
-            symbols = self._adapter.refine_document_symbols(file_path, symbols, self._source_inspector, self._lsp)
+            symbols = self._adapter.refine_document_symbols(
+                file_path, symbols, self._source_inspector, self._lsp, self._diagnostics
+            )
             self._adapter.record_document_symbols(file_path, symbols, self._repository)
             self._symbol_table.register_symbols(
                 file_path,

@@ -1103,7 +1103,8 @@ class StaticAnalyzer:
         live_diags = engine_client.get_collected_diagnostics()
         merged_diags: dict = dict(cache_diags)
         for fp, diags in live_diags.items():
-            merged_diags[fp] = diags
+            enrichment = [d for d in cache_diags.get(fp, []) if d.source == "codeboarding"]
+            merged_diags[fp] = enrichment + diags
         if merged_diags:
             total = sum(len(d) for d in merged_diags.values())
             logger.info(

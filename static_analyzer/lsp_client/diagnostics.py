@@ -32,6 +32,7 @@ class LSPDiagnostic:
     severity: int = 1  # LSP severity: 1=Error, 2=Warning, 3=Info, 4=Hint
     tags: list[int] = field(default_factory=list)
     range: DiagnosticRange = field(default_factory=DiagnosticRange)
+    source: str = ""
 
     @classmethod
     def from_lsp_dict(cls, data: dict) -> "LSPDiagnostic":
@@ -43,6 +44,7 @@ class LSPDiagnostic:
             message=data.get("message", ""),
             severity=data.get("severity", 1),
             tags=data.get("tags", []),
+            source=data.get("source", ""),
             range=DiagnosticRange(
                 start=DiagnosticPosition(line=start.get("line", 0), character=start.get("character", 0)),
                 end=DiagnosticPosition(line=end.get("line", 0), character=end.get("character", 0)),

@@ -14,6 +14,7 @@ from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -453,7 +454,12 @@ class LanguageAdapter(ABC):
         return False
 
     def refine_document_symbols(
-        self, file_path: Path, symbols: list[dict], inspector: SourceInspector, client: LSPClient
+        self,
+        file_path: Path,
+        symbols: list[dict],
+        inspector: SourceInspector,
+        client: LSPClient,
+        diagnostics: FileDiagnosticsMap,
     ) -> list[dict]:
         """The server's symbols for a file, completed from source where they cannot tell declarations apart.
 

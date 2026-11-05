@@ -51,21 +51,6 @@ class TestLSPClientInit:
         finally:
             client.shutdown()
 
-    def test_missing_ast_retains_limitation_after_compiler_diagnostics_refresh(self, tmp_path):
-        client = LSPClient(["clangd"], tmp_path)
-        source = tmp_path / "header.hpp"
-        client._process = MagicMock()
-        client._process.poll.return_value = None
-        with patch.object(client, "_send_request", return_value=None):
-            assert client.document_ast(source) == {}
-            assert client.document_ast(source) == {}
-        client._handle_notification("textDocument/publishDiagnostics", {"uri": source.as_uri(), "diagnostics": []})
-        diagnostics = client.get_collected_diagnostics()[str(source)]
-        assert len(diagnostics) == 1
-        assert diagnostics[0].code == "cpp-ast-unavailable"
-        assert diagnostics[0].severity == 2
-        assert "may be missing" in diagnostics[0].message
-
     def test_missing_ast_does_not_hide_dead_server(self, tmp_path):
         client = LSPClient(["clangd"], tmp_path)
         with patch.object(client, "_send_request", return_value=None):
@@ -77,6 +62,67 @@ class TestLSPClientInit:
         with patch.object(client, "_send_request", side_effect=TimeoutError("AST timed out")):
             with pytest.raises(TimeoutError, match="AST timed out"):
                 client.document_ast(tmp_path / "header.hpp")
+
+    @pytest.mark.parametrize("invalidate", ["change", "close", "restart"])
+    def test_ast_reuse_expires_with_document_or_server_state(self, tmp_path, invalidate):
+        client = LSPClient(["clangd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        source = tmp_path / "source.cpp"
+        original = {"kind": "TranslationUnit", "children": [{"kind": "Function", "detail": "before"}]}
+        updated = {"kind": "TranslationUnit", "children": [{"kind": "Function", "detail": "after"}]}
+        with (
+            patch.object(client, "_send_request", return_value=original) as request,
+            patch.object(client, "_send_notification"),
+            patch.object(client, "start"),
+        ):
+            assert client.document_ast(source) == original
+            assert client.document_ast(source) == original
+            assert request.call_count == 1
+            request.return_value = updated
+            # Invalidating a header must also invalidate its including translation unit.
+            if invalidate == "change":
+                client.did_change(tmp_path / "header.hpp", "struct Changed {};")
+            elif invalidate == "close":
+                client.did_close(tmp_path / "header.hpp")
+            else:
+                client.restart()
+            assert client.document_ast(source) == updated
+            client._process.poll.return_value = 1
+            with pytest.raises(StaticAnalysisFatalError, match="process exited"):
+                client.document_ast(source)
+
+    def test_ast_reuse_has_a_node_budget_and_refreshes_recency(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("static_analyzer.engine.lsp_client.LSP_AST_NODE_BUDGET", 6)
+        client = LSPClient(["clangd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        trees = {
+            name: {"kind": name, "children": [{}] * size} for name, size in [("a", 1), ("b", 2), ("c", 1), ("big", 6)]
+        }
+        with patch.object(
+            client,
+            "_send_request",
+            side_effect=lambda _, params, timeout: trees[Path(params["textDocument"]["uri"]).name],
+        ) as request:
+            for name in ("a", "b", "a", "c", "a", "c"):
+                assert client.document_ast(tmp_path / name) == trees[name]
+            assert request.call_count == 3
+            assert client.document_ast(tmp_path / "b") == trees["b"]
+            assert request.call_count == 4
+            for _ in range(2):
+                assert client.document_ast(tmp_path / "big") == trees["big"]
+            assert request.call_count == 6
+
+    def test_unavailable_ast_is_not_cached(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        tree = {"kind": "TranslationUnit", "children": [{"kind": "Function"}]}
+        with patch.object(client, "_send_request", side_effect=[None, tree]):
+            assert client.document_ast(tmp_path / "source.cpp") is None
+            assert client.document_ast(tmp_path / "source.cpp") == tree
+        assert client.get_collected_diagnostics() == {}
 
     def test_custom_timeout(self):
         client = LSPClient(["cmd"], Path("/root"), default_timeout=120)
