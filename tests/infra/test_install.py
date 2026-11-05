@@ -80,7 +80,9 @@ class TestMain(unittest.TestCase):
             install.main()
 
         mock_setup_logging.assert_called_once_with()
-        mock_run_install.assert_called_once_with(auto_install_npm=True, auto_install_vcpp=False)
+        mock_run_install.assert_called_once_with(
+            auto_install_npm=True, auto_install_vcpp=False, deps=install.required_tools()
+        )
         self.assertEqual(events.mock_calls[:2], [call.setup_logging(), call.info("CodeBoarding Setup")])
         self.assertIn("Setup complete!", "\n".join(logs.output))
 
