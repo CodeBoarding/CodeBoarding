@@ -7,6 +7,8 @@ import os
 import platform
 import re
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
@@ -22,10 +24,21 @@ from infra.utils import CODEBOARDING_DIR_NAME, get_config
 
 logger = logging.getLogger(__name__)
 
+# An entry with a body, as its opening tag and the rest up to its own closing tag. Self-closing entries never match.
+_CLASSPATH_ENTRY = re.compile(
+    rb"(<classpathentry\b[^>]*[^/]>)((?:(?!<classpathentry\b).)*?</classpathentry>)", re.DOTALL
+)
+_INCLUSION_FILTER = re.compile(rb'\s+including="[^"]*"')
+
 # The languages a JVM source root can be named for, in ``src/<source set>/<language>``.
 
 
 class JavaAdapter(LanguageAdapter):
+
+    def __init__(self) -> None:
+        super().__init__()
+        # What the import wrote, and what ``lift_import_filters`` left in its place.
+        self._filtered_classpaths: dict[Path, tuple[bytes, bytes]] = {}
 
     @property
     def wait_for_workspace_ready(self) -> bool:
@@ -232,6 +245,34 @@ class JavaAdapter(LanguageAdapter):
             params.append("".join(current))
         return params
 
+    def lift_import_filters(self, project_root: Path) -> bool:
+        """Drop the inclusion filters the build import put on source folders.
+
+        Why: m2e applies the ``<includes>`` of a project's last ``compile`` execution to the whole
+        source folder, so one narrow recompile step leaves every other file outside the project and
+        calls into it unresolved. Why a restart: m2e rewrites ``.classpath`` on any change it sees.
+        Why only entries m2e marks ``maven.pomderived``: a hand-written filter is the project's own source set.
+        """
+        lifted = False
+        for classpath in project_root.rglob(".classpath"):
+            if not classpath.is_file():
+                continue
+            original = classpath.read_bytes()
+            unfiltered = _CLASSPATH_ENTRY.sub(self._without_inclusion_filter, original)
+            if unfiltered != original:
+                imported, _ = self._filtered_classpaths.get(classpath, (original, b""))
+                self._filtered_classpaths[classpath] = (imported, unfiltered)
+                classpath.write_bytes(unfiltered)
+                lifted = True
+        return lifted
+
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        try:
+            yield
+        finally:
+            self._restore_import_filters()
+
     def get_workspace_settings(self) -> dict | None:
         # JDTLS defaults these to "ignore"; raising to "warning" is required
         # for unused-code diagnostics.
@@ -277,3 +318,20 @@ class JavaAdapter(LanguageAdapter):
         for f in source_files:
             packages.add(self.get_package_for_file(f, project_root))
         return packages
+
+    def _restore_import_filters(self) -> None:
+        for classpath, (imported, lifted) in self._filtered_classpaths.items():
+            try:
+                # Anything else is an edit made since, which outranks what the import wrote.
+                if classpath.is_file() and classpath.read_bytes() == lifted:
+                    classpath.write_bytes(imported)
+            except OSError:
+                logger.exception(f"Could not put back {classpath}; it keeps its source folder filters lifted")
+        self._filtered_classpaths.clear()
+
+    @staticmethod
+    def _without_inclusion_filter(entry: re.Match[bytes]) -> bytes:
+        tag, body = entry.group(1), entry.group(2)
+        if b'kind="src"' not in tag or b'name="maven.pomderived"' not in body:
+            return entry.group()
+        return _INCLUSION_FILTER.sub(b"", tag) + body

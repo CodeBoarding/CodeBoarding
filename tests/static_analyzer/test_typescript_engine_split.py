@@ -123,7 +123,7 @@ def test_tsserver_heap_is_its_share_of_the_budget_less_what_node_holds_outside_i
             patch("static_analyzer.engine.lsp_recycler.default_memory_budget", return_value=8 * GB),
             patch("static_analyzer.LSPClient") as client,
         ):
-            analyzer._start_engine_client(EngineConfig(adapter, Path("/repo")))
+            analyzer._start_engine_client(EngineConfig(adapter, Path("/repo")), ["server"])
         options[adapter.language] = client.call_args.kwargs["init_options"]
 
     assert options["TypeScript"]["maxTsServerMemory"] == share // 1024**2 - 512
