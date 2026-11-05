@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-11-05T13:07:09.981335+00:00",
+    "generated_at": "2026-11-05T13:57:30.348944+00:00",
     "source_tree_hash": "36826e0bf06b943534ec56d1ab16777558b1a851aa91a8f6ef808e5630eb8a1a",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
@@ -35995,21 +35995,6 @@
       "key_edges": [
         {
           "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
-          "call_sites": [
-            {
-              "line": 116,
-              "column": 58
-            },
-            {
-              "line": 119,
-              "column": 23
-            }
-          ],
-          "description": "Filters repository files using ignore patterns before hashing"
-        },
-        {
-          "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
             {
@@ -36026,6 +36011,21 @@
             }
           ],
           "description": "Applies ignore filters when hashing repository source files for agent prompts."
+        },
+        {
+          "source": "agents/content_hash.py|agents.content_hash.hash_repo_source_files",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
+          "call_sites": [
+            {
+              "line": 116,
+              "column": 58
+            },
+            {
+              "line": 119,
+              "column": 23
+            }
+          ],
+          "description": "Filters repository files using ignore patterns before hashing"
         }
       ],
       "src_id": "3.1",
@@ -37432,17 +37432,6 @@
         },
         {
           "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
-          "target": "infra/user_config.py|infra.user_config.UserConfig.apply_to_env",
-          "call_sites": [
-            {
-              "line": 33,
-              "column": 14
-            }
-          ],
-          "description": "Applies user-specified configuration values to environment variables"
-        },
-        {
-          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
           "target": "infra/user_config.py|infra.user_config.UserConfig",
           "call_sites": [
             {
@@ -37451,6 +37440,17 @@
             }
           ],
           "description": "Applies user configuration parameters during environment startup."
+        },
+        {
+          "source": "codeboarding_cli/bootstrap.py|codeboarding_cli.bootstrap.bootstrap_environment",
+          "target": "infra/user_config.py|infra.user_config.UserConfig.apply_to_env",
+          "call_sites": [
+            {
+              "line": 33,
+              "column": 14
+            }
+          ],
+          "description": "Applies user-specified configuration values to environment variables"
         }
       ],
       "src_id": "4.1",
@@ -40347,21 +40347,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
-          "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
-          "call_sites": [
-            {
-              "line": 177,
-              "column": 21
-            },
-            {
-              "line": 178,
-              "column": 21
-            }
-          ],
-          "description": "Checks hierarchical relationships between component cluster IDs"
-        },
-        {
           "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations._ancestor_relation",
           "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
           "call_sites": [
@@ -40375,6 +40360,21 @@
             }
           ],
           "description": "Determines clustering hierarchy relationships across component IDs."
+        },
+        {
+          "source": "diagram_analysis/cluster_relations.py|diagram_analysis.cluster_relations.build_global_relations",
+          "target": "infra/clustering_ids.py|infra.clustering_ids.is_self_or_descendant",
+          "call_sites": [
+            {
+              "line": 177,
+              "column": 21
+            },
+            {
+              "line": 178,
+              "column": 21
+            }
+          ],
+          "description": "Checks hierarchical relationships between component cluster IDs"
         }
       ],
       "src_id": "5.1",
@@ -44588,6 +44588,17 @@
       "key_edges": [
         {
           "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
+          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
+          "call_sites": [
+            {
+              "line": 45,
+              "column": 27
+            }
+          ],
+          "description": "Ignores excluded files during health check evaluations."
+        },
+        {
+          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager.should_ignore",
           "call_sites": [
             {
@@ -44607,17 +44618,6 @@
             }
           ],
           "description": "Resolves directory path for diagnostic check artifacts"
-        },
-        {
-          "source": "health/checks/function_size.py|health.checks.function_size.check_function_size",
-          "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
-          "call_sites": [
-            {
-              "line": 45,
-              "column": 27
-            }
-          ],
-          "description": "Ignores excluded files during health check evaluations."
         }
       ],
       "src_id": "6.1",
