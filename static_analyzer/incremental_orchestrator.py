@@ -19,6 +19,7 @@ from static_analyzer.analysis_cache import (
     merge_results,
 )
 from static_analyzer.cfg import CallGraph
+from static_analyzer.config import Language
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -27,6 +28,7 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.graph_definitions import GraphIndex, implemented_by, potential_calls, targets_for
+from static_analyzer.internal_references import parent_qualified_name, simple_name
 
 logger = logging.getLogger(__name__)
 
@@ -166,12 +168,22 @@ def _restore_inbound_edges_via_definitions(
     }
     by_request: dict[str, list[tuple[tuple[str, str], dict[str, str | int], CallSite, str]]] = {}
     for edge, sites in pending.items():
+        destination = call_graph.nodes[edge[1]]
         for site in sites:
             call_site = CallSite(str(site["file"]), int(site["line"]), int(site["column"]))
             for method, kind in potential_by_file[call_site.file].requests_at(
                 (call_site.lsp_line, call_site.lsp_column)
             ):
                 by_request.setdefault(method, []).append((edge, site, call_site, kind))
+            # Scope-exit sites name the local variable; its type proves the destructor's owner.
+            if (
+                adapter.language_enum == Language.CPP
+                and simple_name(destination.symbol_name or destination.fully_qualified_name).startswith("~")
+                and source_inspector.cpp_has_automatic_storage(
+                    Path(call_site.file), call_site.lsp_line, call_site.lsp_column
+                )
+            ):
+                by_request.setdefault("type_definition", []).append((edge, site, call_site, "destruction"))
 
     confirmed: dict[tuple[str, str], list[dict[str, str | int]]] = {}
     unproven: dict[tuple[str, int, int], list[tuple[tuple[str, str], dict[str, str | int]]]] = {}
@@ -194,6 +206,13 @@ def _restore_inbound_edges_via_definitions(
             for definition in definitions:
                 location = definition_location(definition)
                 if location is None:
+                    continue
+                if kind == "destruction":
+                    owner = index.declaration_at(source_inspector, str(location[0]), location[1], location[2])
+                    destination = call_graph.nodes[edge[1]]
+                    owner_name = destination.owner_qualified_name or parent_qualified_name(edge[1])
+                    if owner is not None and owner.is_class() and owner.fully_qualified_name == owner_name:
+                        reachable.add(edge[1])
                     continue
                 targets = targets_for(
                     index, source_inspector, str(location[0]), location[1], location[2], kind, adapter, call_site

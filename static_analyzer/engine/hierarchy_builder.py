@@ -151,11 +151,10 @@ class HierarchyBuilder:
         """
         st = self._symbol_table
         by_position = {sym.definition_location: sym for sym in class_symbols}
-        # Primary symbols only: an alias at the same location names no owner.
+        # Cached and primary declarations only: an alias at the same location names no owner.
         declarations = {
             sym.definition_location: sym
-            for syms in st.primary_file_symbols.values()
-            for sym in syms
+            for sym in [*st.known, *(sym for syms in st.primary_file_symbols.values() for sym in syms)]
             if self._adapter.is_class_like(sym.kind) or sym.kind == NodeType.CONSTRUCTOR
         }
         for file_path in sorted({sym.file_path for sym in class_symbols}):
@@ -190,18 +189,15 @@ class HierarchyBuilder:
                             if found is not None:
                                 candidates.append(found)
                     for base in candidates:
-                        if (
-                            sub is not None
-                            and base.qualified_name in hierarchy
-                            and base.qualified_name != sub.qualified_name
-                        ):
+                        if sub is not None and base.qualified_name != sub.qualified_name:
                             self._link(sub.qualified_name, base.qualified_name, hierarchy)
 
     @staticmethod
     def _link(child_qname: str, parent_qname: str, hierarchy: dict[str, dict]) -> None:
         if parent_qname not in hierarchy[child_qname]["superclasses"]:
             hierarchy[child_qname]["superclasses"].append(parent_qname)
-        if child_qname not in hierarchy[parent_qname]["subclasses"]:
+        # Lookup-only bases retain their cached hierarchy entry when the partial result is merged.
+        if parent_qname in hierarchy and child_qname not in hierarchy[parent_qname]["subclasses"]:
             hierarchy[parent_qname]["subclasses"].append(child_qname)
 
     def _infer_hierarchy_from_source(

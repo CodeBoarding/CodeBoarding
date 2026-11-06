@@ -7,6 +7,8 @@ import pytest
 from infra.repo_utils.ignore import RepoIgnoreManager
 from infra.vscode_constants import VSCODE_CONFIG
 from static_analyzer import StaticAnalyzer, _create_engine_configs
+from static_analyzer.analysis_cache import invalidate_files, merge_results
+from static_analyzer.cfg import EdgeKind
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
@@ -18,6 +20,7 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.incremental_orchestrator import _declarations, update_cfg_for_changed_files
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from static_analyzer.programming_language import ProgrammingLanguageBuilder
 from static_analyzer.scanner import ProjectScanner
@@ -350,3 +353,138 @@ def test_cpp_resolves_concrete_bases_without_guessing_dependent_bases(tmp_path: 
     assert result.hierarchy[f"main.{suffix}.Child"]["superclasses"] == [f"main.{suffix}.Base"]
     assert result.hierarchy[f"main.{suffix}.Base"]["subclasses"] == [f"main.{suffix}.Child"]
     assert result.diagnostics == {}
+
+
+@pytest.mark.parametrize("base", ["Base", "Root", ""])
+def test_cpp_incremental_inheritance_preserves_cached_bases(tmp_path: Path, base: str) -> None:
+    header = tmp_path / "base.hpp"
+    source = tmp_path / "child.cpp"
+    header.write_text("struct Root {};\nstruct Base : Root {};\n")
+    source.write_text('#include "base.hpp"\nstruct Child : Base {};\n')
+    adapter = CppAdapter()
+    client = MagicMock(spec=LSPClient)
+
+    def document_symbols(path: Path) -> list[dict]:
+        return [
+            {
+                "name": line.split()[1],
+                "qualified_name": line.split()[1],
+                "kind": NodeType.CLASS,
+                "range": {
+                    "start": {"line": row, "character": 0},
+                    "end": {"line": row, "character": len(line)},
+                },
+                "selectionRange": {"start": {"line": row, "character": 7}},
+            }
+            for row, line in enumerate(path.read_text().splitlines())
+            if line.startswith("struct ")
+        ]
+
+    def type_definitions(queries: list[tuple[Path, int, int]]) -> list[list[dict]]:
+        return [
+            [
+                {
+                    "uri": header.as_uri(),
+                    "range": {
+                        "start": {
+                            "line": 1 if path.read_text().splitlines()[row][col:].startswith("Base") else 0,
+                            "character": 7,
+                        }
+                    },
+                }
+            ]
+            for path, row, col in queries
+        ]
+
+    client.document_symbol.side_effect = lambda path, **_: document_symbols(path)
+    client.document_ast.return_value = {}
+    client.outgoing_calls_batch.return_value = []
+    client.send_definition_batch.side_effect = lambda queries, **_: [[] for _ in queries]
+    client.send_type_definition_batch.side_effect = type_definitions
+    builder = CallGraphBuilder(client, adapter, tmp_path, tmp_path)
+    baseline = convert_to_codeboarding_format(builder.symbol_table, builder.build([header, source]), adapter)
+    assert baseline["class_hierarchies"]["Child"]["superclasses"] == ["Base"]
+
+    source.write_text(f'#include "base.hpp"\nstruct Child{f" : {base}" if base else ""} {{ int added; }};\n')
+    cached = invalidate_files(baseline, {source}).analysis
+    builder = CallGraphBuilder(client, adapter, tmp_path, tmp_path)
+    partial = builder.build([source], known_declarations=_declarations(cached.call_graph))
+    assert partial.hierarchy["Child"]["superclasses"] == ([base] if base else [])
+    assert "Base" not in partial.hierarchy, "lookup-only bases must not overwrite cached hierarchy entries"
+
+    merged = merge_results(cached, convert_to_codeboarding_format(builder.symbol_table, partial, adapter))
+    assert merged.class_hierarchies["Base"]["superclasses"] == ["Root"]
+    expected = {("Base", "Root")} | ({("Child", base)} if base else set())
+    assert {
+        (edge.src, edge.dst) for edge in merged.call_graph.reference_edges if edge.kind is EdgeKind.INHERITS
+    } == expected
+
+
+@pytest.mark.parametrize("resolved_type", ["Guard", "Other", ""])
+def test_cpp_incremental_header_edit_revalidates_implicit_destruction(tmp_path: Path, resolved_type: str) -> None:
+    header = tmp_path / "guard.hpp"
+    source = tmp_path / "main.cpp"
+    header.write_text("struct Guard { ~Guard() {} };\nstruct Other {};\n")
+    source.write_text('#include "guard.hpp"\nvoid run() { Guard guard; }\n')
+    adapter = CppAdapter()
+    client = MagicMock(spec=LSPClient)
+
+    def symbol(name: str, kind: int, row: int, col: int, end: int) -> dict:
+        position = {"line": row, "character": col}
+        return {
+            "name": name,
+            "qualified_name": name,
+            "kind": kind,
+            "range": {"start": position, "end": {"line": row, "character": end}},
+            "selectionRange": {"start": position},
+        }
+
+    def document_symbols(path: Path) -> list[dict]:
+        if path == source:
+            return [symbol("run", NodeType.FUNCTION, 1, 5, 26)]
+        offset = int(path.read_text().startswith("\n"))
+        guard = symbol("Guard", NodeType.CLASS, offset, 7, 28)
+        guard["children"] = [symbol("~Guard", NodeType.METHOD, offset, 15, 25)]
+        return [guard, symbol("Other", NodeType.CLASS, offset + 1, 7, 16)]
+
+    client.document_symbol.side_effect = lambda path, **_: document_symbols(path)
+    client.document_ast.side_effect = lambda path: (
+        {"kind": "Var", "children": [{"kind": "CXXConstruct", "range": {"start": {"line": 1, "character": 19}}}]}
+        if path == source
+        else {}
+    )
+    client.outgoing_calls_batch.return_value = []
+    client.send_definition_batch.side_effect = lambda queries, **_: [
+        [{"uri": source.as_uri(), "range": {"start": {"line": 1, "character": 19}}}] for _ in queries
+    ]
+    client.send_type_definition_batch.side_effect = lambda queries, **_: [
+        [{"uri": header.as_uri(), "range": {"start": {"line": 0, "character": 7}}}] for _ in queries
+    ]
+    client.get_collected_diagnostics.return_value = {}
+    builder = CallGraphBuilder(client, adapter, tmp_path, tmp_path)
+    baseline = convert_to_codeboarding_format(builder.symbol_table, builder.build([header, source]), adapter)
+    assert {(edge.get_source(), edge.get_destination()) for edge in baseline["call_graph"].edges} == {("run", "~Guard")}
+
+    header.write_text("\nstruct Guard { ~Guard() {} };\nstruct Other {};\n")
+    client.send_type_definition_batch.side_effect = lambda queries, **_: [
+        (
+            [
+                {
+                    "uri": header.as_uri(),
+                    "range": {"start": {"line": 1 if resolved_type == "Guard" else 2, "character": 7}},
+                }
+            ]
+            if resolved_type
+            else []
+        )
+        for _ in queries
+    ]
+    updated = update_cfg_for_changed_files(
+        baseline, {header}, adapter, tmp_path, tmp_path, client, RepoIgnoreManager(tmp_path)
+    )
+    edges = updated["call_graph"].edges
+    assert {(edge.get_source(), edge.get_destination()) for edge in edges} == (
+        {("run", "~Guard")} if resolved_type == "Guard" else set()
+    )
+    if resolved_type == "Guard":
+        assert edges[0].call_sites == [{"file": str(source), "line": 2, "column": 20}]
