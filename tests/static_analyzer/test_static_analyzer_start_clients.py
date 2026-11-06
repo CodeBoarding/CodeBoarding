@@ -185,7 +185,7 @@ class TestStartClientsGracefulDegradation:
         analyzer._validate_analysis_results(results)
 
     @pytest.mark.parametrize("language", [Language.CPP, Language.CSHARP])
-    @pytest.mark.parametrize("failure_type", [FileNotFoundError, TimeoutError])
+    @pytest.mark.parametrize("failure_type", [FileNotFoundError, TimeoutError, RuntimeError])
     def test_analysis_skips_failed_language_and_preserves_other_results(
         self,
         analyzer: StaticAnalyzer,

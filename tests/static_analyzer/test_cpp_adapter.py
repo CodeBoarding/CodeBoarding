@@ -170,8 +170,9 @@ def test_unsupported_call_hierarchy_reports_clangd_upgrade(tmp_path: Path, unsup
         client._msg_queue.put(response)
 
     with patch.object(client, "_write_message", side_effect=respond):
-        with pytest.raises(StaticAnalysisFatalError, match="clangd 20 or newer") as failure:
+        with pytest.raises(RuntimeError, match="clangd 20 or newer") as failure:
             adapter.complete_edges(EdgeBuildContext(client, table, SourceInspector()), [source], {}, tmp_path)
+    assert not isinstance(failure.value, StaticAnalysisFatalError)
     assert isinstance(failure.value.__cause__, MethodNotFoundError)
     assert "Upgrade" in str(failure.value)
 

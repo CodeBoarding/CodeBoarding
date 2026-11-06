@@ -14,7 +14,7 @@ from static_analyzer.engine.edge_builder import SymbolIndex
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
-from static_analyzer.exceptions import StaticAnalysisFatalError, WorkspaceSetupError
+from static_analyzer.exceptions import WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ class CppAdapter(LanguageAdapter):
             try:
                 outgoing = ctx.lsp.outgoing_calls_batch(callables)
             except MethodNotFoundError as error:
-                raise StaticAnalysisFatalError(
+                raise RuntimeError(
                     "C++ analysis requires clangd 20 or newer for outgoing call hierarchy support. "
                     "Upgrade the configured clangd executable or use CodeBoarding's bundled clangd."
                 ) from error
