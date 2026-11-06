@@ -20,6 +20,7 @@ from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import KotlinDeclarations, SourceInspector
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.internal_references import parent_qualified_name, simple_name
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from infra.tool_registry import user_data_dir
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,14 @@ class KotlinAdapter(LanguageAdapter):
             return []
         return [self._sources_folder(project_root, source_files)]
 
-    def refine_document_symbols(self, file_path: Path, symbols: list[dict], inspector: SourceInspector) -> list[dict]:
+    def refine_document_symbols(
+        self,
+        file_path: Path,
+        symbols: list[dict],
+        inspector: SourceInspector,
+        client: LSPClient,
+        diagnostics: FileDiagnosticsMap,
+    ) -> list[dict]:
         """Give objects, interfaces, enums and enum entries their kinds, and every callable its parameter types."""
         declarations = inspector.kotlin_declarations(file_path)
         return [self._refine(symbol, declarations, parent_kind=None) for symbol in symbols]

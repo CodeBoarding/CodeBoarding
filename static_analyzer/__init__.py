@@ -277,7 +277,11 @@ def _lang_to_adapter_name(language: str) -> str | None:
         Language.KOTLIN: AdapterName.KOTLIN,
         Language.PHP: AdapterName.PHP,
         Language.RUST: AdapterName.RUST,
+        Language.CPP: AdapterName.CPP,
         # Scanner spellings with no ``Language`` member of their own.
+        "c++": AdapterName.CPP,
+        "c++ header": AdapterName.CPP,
+        "cuda": AdapterName.CPP,
         "tsx": AdapterName.TYPESCRIPT,
         "jsx": AdapterName.JAVASCRIPT,
         "c#": AdapterName.CSHARP,
@@ -1099,7 +1103,8 @@ class StaticAnalyzer:
         live_diags = engine_client.get_collected_diagnostics()
         merged_diags: dict = dict(cache_diags)
         for fp, diags in live_diags.items():
-            merged_diags[fp] = diags
+            enrichment = [d for d in cache_diags.get(fp, []) if d.source == "codeboarding"]
+            merged_diags[fp] = enrichment + diags
         if merged_diags:
             total = sum(len(d) for d in merged_diags.values())
             logger.info(
@@ -1177,7 +1182,7 @@ class StaticAnalyzer:
         return result
 
     def _validate_analysis_results(self, results: StaticAnalysisResults) -> None:
-        """Reject a result with no language, or a non-empty language bucket with zero symbols, before it is cached."""
+        """Reject empty results and empty required-language graphs before caching."""
         # Why: a language that fails is left out, so every one failing (a server that would not start) reads as empty.
         attempted = sorted({config.adapter.language for config in self._engine_configs if config.source_files})
         if attempted and not results.get_languages():

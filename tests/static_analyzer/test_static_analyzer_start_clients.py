@@ -184,6 +184,48 @@ class TestStartClientsGracefulDegradation:
 
         analyzer._validate_analysis_results(results)
 
+    @pytest.mark.parametrize("language", [Language.CPP, Language.CSHARP])
+    @pytest.mark.parametrize("failure_type", [FileNotFoundError, TimeoutError, RuntimeError])
+    def test_analysis_skips_failed_language_and_preserves_other_results(
+        self,
+        analyzer: StaticAnalyzer,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+        language: Language,
+        failure_type: type[Exception],
+    ) -> None:
+        adapter = _make_adapter(language.value, language_enum=language, fail_on_empty_symbols=True)
+        py_adapter = _make_adapter("Python", language_enum=Language.PYTHON)
+        analyzer._engine_configs = [
+            EngineConfig(adapter, tmp_path, source_files=[tmp_path / "source"]),
+            EngineConfig(py_adapter, tmp_path, source_files=[tmp_path / "helper.py"]),
+        ]
+        analyzer._server_slots = 1
+        analyzer._clients_started = True
+        with patch.object(
+            analyzer,
+            "_analyse_config",
+            side_effect=[
+                failure_type("engine unavailable"),
+                [(py_adapter, {"source_files": [tmp_path / "helper.py"]})],
+            ],
+        ):
+            result = analyzer.analyze(cache_dir=tmp_path, skip_cache=True)
+        assert result.get_languages() == [Language.PYTHON]
+        assert result.get_source_files(Language.PYTHON) == [str(tmp_path / "helper.py")]
+        assert "engine unavailable" in caplog.text
+
+    def test_explicit_fatal_error_preserves_failure(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
+        adapter = _make_adapter("CPP", language_enum=Language.CPP, fail_on_empty_symbols=True)
+        analyzer._engine_configs = [EngineConfig(adapter, tmp_path, source_files=[tmp_path / "main.cpp"])]
+        analyzer._server_slots = 1
+        analyzer._clients_started = True
+        failure = StaticAnalysisFatalError("server process exited")
+        with patch.object(analyzer, "_analyse_config", side_effect=failure):
+            with pytest.raises(StaticAnalysisFatalError, match="server process exited") as error:
+                analyzer.analyze(cache_dir=tmp_path, skip_cache=True)
+        assert error.value is failure
+
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")
         ts_adapter = _make_adapter("TypeScript")

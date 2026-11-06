@@ -77,9 +77,11 @@ class SymbolTable:
         references and hierarchies are still built from the files read.
         """
         for sym in declarations:
-            if sym.qualified_name in self._symbols:
+            existing = self._symbols.get(sym.qualified_name)
+            if existing is not None and existing.is_definition:
                 continue
             self._symbols[sym.qualified_name] = sym
+            self._ref_key_to_symbol[self._naming.build_reference_key(sym.qualified_name)] = sym
             self._file_symbols.setdefault(str(sym.file_path), []).append(sym)
             self._known.append(sym)
 
@@ -146,7 +148,7 @@ class SymbolTable:
 
             file_key = str(file_path)
 
-            qualified_name = self._naming.build_qualified_name(
+            qualified_name = sym.get("qualified_name") or self._naming.build_qualified_name(
                 file_path, name, kind, parent_chain, project_root, detail
             )
 
@@ -163,16 +165,19 @@ class SymbolTable:
             )
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
+            info.explicit_identity = bool(sym.get("qualified_name"))
+            info.is_definition = sym.get("is_definition", True)
 
-            self._symbols[qualified_name] = info
-            ref_key = self._naming.build_reference_key(qualified_name)
-            self._ref_key_to_symbol[ref_key] = info
+            if info.is_definition or qualified_name not in self._symbols:
+                self._symbols[qualified_name] = info
+                ref_key = self._naming.build_reference_key(qualified_name)
+                self._ref_key_to_symbol[ref_key] = info
             self._file_symbols.setdefault(file_key, []).append(info)
             self._primary_file_symbols.setdefault(file_key, []).append(info)
 
             # Dual registration: the unqualified form, then each partial parent chain.
             # Aliases go into _file_symbols but NOT _primary_file_symbols
-            if parent_chain:
+            if parent_chain and not sym.get("qualified_name"):
                 chains: list[list[tuple[str, int]]] = [[]] + [
                     parent_chain[skip:] for skip in range(1, len(parent_chain))
                 ]
@@ -200,6 +205,10 @@ class SymbolTable:
         # Why not a slice at the first "(": that names the class only where the scheme
         # doubles it, and it cannot tell a primary symbol from an alias.
         for sym in [*(s for syms in self._primary_file_symbols.values() for s in syms), *self._known]:
+            owner = self._symbols.get(sym.owner_qualified_name)
+            if owner is not None and self._naming.is_class_like(owner.kind):
+                # Out-of-line definitions inherit the owning class from their declarations.
+                self._symbols[sym.qualified_name].owner_qualified_name = owner.qualified_name
             if sym.kind == NodeType.CONSTRUCTOR and sym.owner_qualified_name:
                 self._class_to_ctors.setdefault(sym.owner_qualified_name, []).append(sym.qualified_name)
 

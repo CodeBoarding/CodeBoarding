@@ -191,7 +191,11 @@ class GraphIndex:
     @cached_property
     def callable_names(self) -> set[str]:
         """The names the graph declares callables under."""
-        return {simple_name(node.fully_qualified_name) for node in self.call_graph.nodes.values() if node.is_callable()}
+        return {
+            simple_name(getattr(node, "symbol_name", "") or node.fully_qualified_name)
+            for node in self.call_graph.nodes.values()
+            if node.is_callable()
+        }
 
     @cached_property
     def derived(self) -> dict[str, list[Node]]:
@@ -232,7 +236,7 @@ class GraphIndex:
         for node in self.nodes_in(file_path):
             if not (node.is_callable() or node.is_class()):
                 continue
-            at = by_name.setdefault(simple_name(node.fully_qualified_name), {})
+            at = by_name.setdefault(simple_name(getattr(node, "symbol_name", "") or node.fully_qualified_name), {})
             position = (node.line_start, node.col_start)
             held = at.get(position)
             if held is None or len(node.fully_qualified_name) > len(held.fully_qualified_name):
@@ -259,7 +263,9 @@ def _with_owning_class(index: GraphIndex, target: Node, include_owner: bool) -> 
         or target.type.name == "CONSTRUCTOR"
     ):
         return [target]
-    owner = index.call_graph.nodes.get(parent_qualified_name(target.fully_qualified_name))
+    owner = index.call_graph.nodes.get(
+        getattr(target, "owner_qualified_name", "") or parent_qualified_name(target.fully_qualified_name)
+    )
     return [target, owner] if owner is not None and owner.is_class() else [target]
 
 

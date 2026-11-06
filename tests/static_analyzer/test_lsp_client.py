@@ -6,6 +6,7 @@ without starting a real LSP server.
 
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -30,6 +31,98 @@ class TestLSPClientInit:
         assert client._default_timeout == 60
         assert client._collect_diagnostics is False
         assert client._process is None
+
+    def test_server_exit_reports_bounded_stderr_without_blocking(self, tmp_path):
+        code = (
+            "import sys; sys.stdin.buffer.readline(); "
+            "sys.stderr.write('old message\\n' + ('x' * 4096 + '\\n') * 80 + 'fatal compiler failure\\n'); "
+            "sys.stderr.flush(); sys.exit(7)"
+        )
+        client = LSPClient([sys.executable, "-c", code], tmp_path, startup_timeout=10)
+        try:
+            with pytest.raises(StaticAnalysisFatalError) as failure:
+                client.start()
+            assert "code 7" in str(failure.value)
+            assert "fatal compiler failure" in str(failure.value)
+            assert "old message" not in str(failure.value)
+            assert len(str(failure.value)) < 32 * 8192 + 1024
+            with pytest.raises(StaticAnalysisFatalError, match="code 7"):
+                client.check_alive()
+        finally:
+            client.shutdown()
+
+    def test_missing_ast_does_not_hide_dead_server(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        with patch.object(client, "_send_request", return_value=None):
+            with pytest.raises(StaticAnalysisFatalError, match="process exited"):
+                client.document_ast(tmp_path / "header.hpp")
+
+    def test_ast_timeout_still_fails(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        with patch.object(client, "_send_request", side_effect=TimeoutError("AST timed out")):
+            with pytest.raises(TimeoutError, match="AST timed out"):
+                client.document_ast(tmp_path / "header.hpp")
+
+    @pytest.mark.parametrize("invalidate", ["change", "close", "restart"])
+    def test_ast_reuse_expires_with_document_or_server_state(self, tmp_path, invalidate):
+        client = LSPClient(["clangd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        source = tmp_path / "source.cpp"
+        original = {"kind": "TranslationUnit", "children": [{"kind": "Function", "detail": "before"}]}
+        updated = {"kind": "TranslationUnit", "children": [{"kind": "Function", "detail": "after"}]}
+        with (
+            patch.object(client, "_send_request", return_value=original) as request,
+            patch.object(client, "_send_notification"),
+            patch.object(client, "start"),
+        ):
+            assert client.document_ast(source) == original
+            assert client.document_ast(source) == original
+            assert request.call_count == 1
+            request.return_value = updated
+            # Invalidating a header must also invalidate its including translation unit.
+            if invalidate == "change":
+                client.did_change(tmp_path / "header.hpp", "struct Changed {};")
+            elif invalidate == "close":
+                client.did_close(tmp_path / "header.hpp")
+            else:
+                client.restart()
+            assert client.document_ast(source) == updated
+            client._process.poll.return_value = 1
+            with pytest.raises(StaticAnalysisFatalError, match="process exited"):
+                client.document_ast(source)
+
+    def test_ast_reuse_has_a_node_budget_and_refreshes_recency(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("static_analyzer.engine.lsp_client.LSP_AST_NODE_BUDGET", 6)
+        client = LSPClient(["clangd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        trees = {
+            name: {"kind": name, "children": [{}] * size} for name, size in [("a", 1), ("b", 2), ("c", 1), ("big", 6)]
+        }
+        with patch.object(
+            client,
+            "_send_request",
+            side_effect=lambda _, params, timeout: trees[Path(params["textDocument"]["uri"]).name],
+        ) as request:
+            for name in ("a", "b", "a", "c", "a", "c"):
+                assert client.document_ast(tmp_path / name) == trees[name]
+            assert request.call_count == 3
+            assert client.document_ast(tmp_path / "b") == trees["b"]
+            assert request.call_count == 4
+            for _ in range(2):
+                assert client.document_ast(tmp_path / "big") == trees["big"]
+            assert request.call_count == 6
+
+    def test_unavailable_ast_is_not_cached(self, tmp_path):
+        client = LSPClient(["clangd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        tree = {"kind": "TranslationUnit", "children": [{"kind": "Function"}]}
+        with patch.object(client, "_send_request", side_effect=[None, tree]):
+            assert client.document_ast(tmp_path / "source.cpp") is None
+            assert client.document_ast(tmp_path / "source.cpp") == tree
+        assert client.get_collected_diagnostics() == {}
 
     def test_custom_timeout(self):
         client = LSPClient(["cmd"], Path("/root"), default_timeout=120)
@@ -298,6 +391,48 @@ class TestNextResponse:
 
         with pytest.raises(RuntimeError, match="LSP server process exited"):
             client._next_response(time.monotonic() + 5)
+
+
+class TestOutgoingCallsBatch:
+    def test_outgoing_batches_keep_multiple_items_and_empty_queries_in_order(self, monkeypatch):
+        monkeypatch.setattr("static_analyzer.engine.lsp_client.REQUEST_BATCH_SIZE", 2)
+        client = LSPClient(["clangd"], Path("/root"))
+        pending: list[dict] = []
+        rounds = []
+        retried = False
+        collect = client._collect_batch_responses
+
+        def answer(method, ids, timeout):
+            nonlocal retried
+            rounds.append(len(pending))
+            for message in reversed(pending):
+                response = {"id": message["id"]}
+                if method == "textDocument/prepareCallHierarchy":
+                    line = message["params"]["position"]["line"]
+                    response["result"] = [{"data": name} for name in {0: ["a", "b"], 1: [], 2: ["c"]}[line]]
+                else:
+                    name = message["params"]["item"]["data"]
+                    if name == "a" and not retried:
+                        response["error"] = {"code": -32801, "message": "Content modified"}
+                        retried = True
+                    else:
+                        response["result"] = [{"to": {"name": name}}]
+                client._msg_queue.put(response)
+            pending.clear()
+            return collect(method, ids, timeout)
+
+        with (
+            patch.object(client, "_write_message", side_effect=pending.append),
+            patch.object(client, "_collect_batch_responses", side_effect=answer),
+        ):
+            assert client.outgoing_calls_batch([(Path("/root/a.cpp"), line, 0) for line in range(3)]) == [
+                [{"to": {"name": "a"}}, {"to": {"name": "b"}}],
+                [],
+                [{"to": {"name": "c"}}],
+            ]
+            assert client.outgoing_calls_batch([]) == []
+        assert retried
+        assert max(rounds) == 2
 
 
 class TestDocumentSymbol:

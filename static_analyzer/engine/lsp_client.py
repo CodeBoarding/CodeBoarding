@@ -13,6 +13,7 @@ import queue
 import subprocess
 import threading
 import time
+from collections import OrderedDict, deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
@@ -20,12 +21,17 @@ from pathlib import Path
 
 from static_analyzer.config import LANGUAGE_ID_BY_SUFFIX
 from static_analyzer.engine.lsp_constants import REQUEST_BATCH_SIZE
+from static_analyzer.engine.process_memory import format_bytes, process_tree_rss
 from static_analyzer.engine.utils import uri_to_path
 from static_analyzer.exceptions import LanguageServerStalledError, StaticAnalysisFatalError, WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
 
+LSP_MEMORY_SAMPLE_INTERVAL_SECONDS = 30
+LSP_STDERR_TAIL_LINES = 32
+# JSON AST nodes retain more Python objects than tree-sitter's native nodes.
+LSP_AST_NODE_BUDGET = 50_000
 LSP_METHOD_NOT_FOUND = -32601
 # Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
 # any other code is the server declining for itself, as gopls does for a free function.
@@ -136,12 +142,17 @@ class LSPClient:
         self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
+        self._stderr_tail: deque[str] = deque(maxlen=LSP_STDERR_TAIL_LINES)
+        self._peak_rss = 0
+        self._last_memory_sample = 0.0
         self._shutdown_event = threading.Event()
         self._write_lock = threading.Lock()
 
         # Track opened documents and their version counters.
         self._opened_uris: set[str] = set()
         self._doc_versions: dict[str, int] = {}
+        self._ast_cache: OrderedDict[str, tuple[dict, int]] = OrderedDict()
 
         # Diagnostics collection
         self._diagnostics: FileDiagnosticsMap = {}
@@ -187,7 +198,7 @@ class LSPClient:
                 self._command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 env=env,
                 cwd=str(self._project_root),
             )
@@ -206,6 +217,11 @@ class LSPClient:
         # Start background reader
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
+        self._stderr_tail.clear()
+        self._peak_rss = 0
+        self._last_memory_sample = 0.0
+        self._stderr_thread = threading.Thread(target=self._read_stderr, daemon=True)
+        self._stderr_thread.start()
 
         root_uri = self._project_root.as_uri()
 
@@ -303,6 +319,10 @@ class LSPClient:
                     pass
         if self._reader_thread and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=2)
+        if self._stderr_thread and self._stderr_thread.is_alive():
+            self._stderr_thread.join(timeout=2)
+        if self._process and self._process.stderr and not (self._stderr_thread and self._stderr_thread.is_alive()):
+            self._process.stderr.close()
         if self._stdout_fd is not None:
             try:
                 os.close(self._stdout_fd)
@@ -311,6 +331,7 @@ class LSPClient:
             self._stdout_fd = None
         self._opened_uris.clear()
         self._doc_versions.clear()
+        self._ast_cache.clear()
 
     def restart(self) -> None:
         """Replace the server process with a fresh one, same configuration.
@@ -356,7 +377,7 @@ class LSPClient:
                 "memory; every later answer would read as empty, so the analysis stops here."
             )
         if self.pid is None:
-            raise StaticAnalysisFatalError("The language server process exited during analysis.")
+            self._raise_process_exited()
 
     # ---- Document management ----
 
@@ -397,6 +418,8 @@ class LSPClient:
 
     def did_change(self, file_path: Path, content: str) -> None:
         """Notify the server that a document's content has changed."""
+        # A changed header can alter ASTs of other open translation units.
+        self._ast_cache.clear()
         uri = file_path.resolve().as_uri()
         version = self._doc_versions.get(uri, 1) + 1
         self._doc_versions[uri] = version
@@ -410,6 +433,7 @@ class LSPClient:
 
     def did_close(self, file_path: Path) -> None:
         """Notify the server that a document was closed."""
+        self._ast_cache.clear()
         uri = file_path.resolve().as_uri()
         self._send_notification(
             "textDocument/didClose",
@@ -419,6 +443,54 @@ class LSPClient:
         self._doc_versions.pop(uri, None)
 
     # ---- LSP queries ----
+
+    def symbol_info_batch(self, queries: list[tuple[Path, int, int]]) -> list[list[dict]]:
+        """Read clangd's compiler identities and declaration/definition locations."""
+        return self._send_batch(
+            "textDocument/symbolInfo", queries, lambda q: self._position_params(*q), self._default_timeout
+        )
+
+    def document_ast(self, file_path: Path) -> dict | None:
+        """Read clangd's compiler AST, including active declarations omitted from its outline."""
+        uri = file_path.resolve().as_uri()
+        cached = self._ast_cache.get(uri)
+        if cached is not None:
+            self.check_alive()
+            self._ast_cache.move_to_end(uri)
+            return cached[0]
+        result = self._send_request("textDocument/ast", {"textDocument": {"uri": uri}}, self._default_timeout)
+        if not isinstance(result, dict):
+            self.check_alive()
+            return None
+
+        nodes = 0
+        pending = [result]
+        while pending:
+            node = pending.pop()
+            nodes += 1
+            if nodes > LSP_AST_NODE_BUDGET:
+                return result
+            pending.extend(node.get("children", []))
+        self._ast_cache[uri] = (result, nodes)
+        retained = sum(size for _, size in self._ast_cache.values())
+        while retained > LSP_AST_NODE_BUDGET:
+            _, (_, size) = self._ast_cache.popitem(last=False)
+            retained -= size
+        return result
+
+    def outgoing_calls_batch(self, queries: list[tuple[Path, int, int]]) -> list[list[dict]]:
+        """Resolve compiler-selected callees in two batched stages, preserving query order."""
+        prepared = self._send_batch(
+            "textDocument/prepareCallHierarchy", queries, lambda q: self._position_params(*q), self._default_timeout
+        )
+        items = [(index, item) for index, group in enumerate(prepared) for item in group]
+        outgoing = self._send_batch(
+            "callHierarchy/outgoingCalls", items, lambda entry: {"item": entry[1]}, self._default_timeout
+        )
+        calls: list[list[dict]] = [[] for _ in queries]
+        for (index, _), result in zip(items, outgoing):
+            calls[index].extend(result)
+        return calls
 
     def document_symbol(self, file_path: Path, timeout: int | None = None) -> list[dict]:
         """Request document symbols for a file."""
@@ -438,7 +510,7 @@ class LSPClient:
         return self._send_batch(
             "textDocument/definition",
             queries,
-            self._position_params,
+            lambda q: self._position_params(*q),
             self._default_timeout if timeout is None else timeout,
         )
 
@@ -453,7 +525,7 @@ class LSPClient:
         return self._send_batch(
             "textDocument/typeDefinition",
             queries,
-            self._position_params,
+            lambda q: self._position_params(*q),
             self._default_timeout if timeout is None else timeout,
         )
 
@@ -486,7 +558,7 @@ class LSPClient:
         return self._send_batch(
             "textDocument/implementation",
             queries,
-            self._position_params,
+            lambda q: self._position_params(*q),
             self._default_timeout if timeout is None else timeout,
         )
 
@@ -532,7 +604,7 @@ class LSPClient:
     def get_collected_diagnostics(self) -> FileDiagnosticsMap:
         """Return diagnostics collected during analysis."""
         with self._diagnostics_lock:
-            return dict(self._diagnostics)
+            return {path: list(items) for path, items in self._diagnostics.items()}
 
     def get_diagnostics_generation(self) -> int:
         """Return a counter bumped on each ``publishDiagnostics`` notification."""
@@ -639,12 +711,8 @@ class LSPClient:
             "position": {"line": line, "character": character},
         }
 
-    def _send_batch(
-        self,
-        method: str,
-        queries: list[tuple[Path, int, int]],
-        build_params: Callable[[Path, int, int], dict],
-        timeout: int,
+    def _send_batch[T](
+        self, method: str, queries: list[T], build_params: Callable[[T], dict], timeout: int
     ) -> list[list[dict]]:
         """Send LSP requests ``REQUEST_BATCH_SIZE`` at a time and collect their results in query order.
 
@@ -669,23 +737,19 @@ class LSPClient:
             if unserved:
                 first = chunk[unserved[0]]
                 raise StaticAnalysisFatalError(
-                    f"{len(unserved)} of {len(chunk)} {method} requests went unserved, first at "
-                    f"{first[0]}:{first[1] + 1}:{first[2] + 1}. The server timed out or failed the request "
+                    f"{len(unserved)} of {len(chunk)} {method} requests went unserved, first query: "
+                    f"{first!r}. The server timed out or failed the request "
                     "rather than declining it; reading those as empty would silently drop call-graph edges."
                 )
             results.extend(answer.results for answer in by_query)
         return results
 
-    def _send_round(
-        self,
-        method: str,
-        queries: list[tuple[Path, int, int]],
-        build_params: Callable[[Path, int, int], dict],
-        timeout: int,
+    def _send_round[T](
+        self, method: str, queries: list[T], build_params: Callable[[T], dict], timeout: int
     ) -> list[BatchAnswer]:
         """Send one request per query and collect the answers in query order."""
         req_ids: list[int] = []
-        for file_path, line, character in queries:
+        for query in queries:
             self._request_id += 1
             req_id = self._request_id
             req_ids.append(req_id)
@@ -693,7 +757,7 @@ class LSPClient:
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "method": method,
-                "params": build_params(file_path, line, character),
+                "params": build_params(query),
             }
             self._write_message(message)
 
@@ -789,13 +853,23 @@ class LSPClient:
         if remaining <= 0:
             return None
 
+        now = time.monotonic()
+        if self._process and now - self._last_memory_sample >= LSP_MEMORY_SAMPLE_INTERVAL_SECONDS:
+            self._last_memory_sample = now
+            rss = process_tree_rss(self._process.pid)
+            self._peak_rss = max(self._peak_rss, rss)
+            logger.debug(
+                "LSP process pid=%s: RSS=%s, sampled peak=%s, open documents=%d",
+                self._process.pid,
+                format_bytes(rss),
+                format_bytes(self._peak_rss),
+                len(self._opened_uris),
+            )
         try:
             message = self._msg_queue.get(timeout=min(remaining, 1.0))
         except queue.Empty:
             if self._process and self._process.poll() is not None:
-                raise StaticAnalysisFatalError(
-                    f"LSP server process exited with code {self._process.returncode}"
-                ) from None
+                self._raise_process_exited()
             return None
 
         # Skip notifications that leaked past the reader loop
@@ -803,6 +877,26 @@ class LSPClient:
             return None
 
         return message
+
+    def _read_stderr(self) -> None:
+        """Drain server stderr while retaining a bounded failure transcript."""
+        assert self._process is not None and self._process.stderr is not None
+        stream = self._process.stderr
+        for raw in iter(lambda: stream.readline(8192), b""):
+            line = raw.decode("utf-8", errors="replace").rstrip()
+            self._stderr_tail.append(line)
+            logger.debug("LSP stderr: %s", line)
+
+    def _raise_process_exited(self) -> None:
+        """Include exit status and server evidence rather than guessing the cause."""
+        if self._stderr_thread:
+            self._stderr_thread.join(timeout=2)
+        code = self._process.poll() if self._process else None
+        detail = f"code {code}" if code is None or code >= 0 else f"signal {-code} (code {code})"
+        raise StaticAnalysisFatalError(
+            f"LSP server process exited with {detail}; sampled peak RSS={format_bytes(self._peak_rss)}, "
+            f"open documents={len(self._opened_uris)}. Recent stderr:\n" + "\n".join(self._stderr_tail)
+        )
 
     def _collect_batch_responses(
         self, method: str, request_ids: list[int], timeout: int
@@ -834,6 +928,12 @@ class LSPClient:
                 err = msg["error"]
                 results[msg_id] = []  # type: ignore[index]
                 err_msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+                if (
+                    isinstance(err, dict)
+                    and err.get("code") == LSP_METHOD_NOT_FOUND
+                    and method in {"textDocument/prepareCallHierarchy", "callHierarchy/outgoingCalls"}
+                ):
+                    raise MethodNotFoundError(f"{method}: {err_msg}")
                 if isinstance(err, dict) and err.get("code") == LSP_METHOD_NOT_FOUND and method in LSP_REQUIRED_METHODS:
                     raise StaticAnalysisFatalError(
                         f"The language server does not implement {method}: {err_msg}. "
@@ -1036,7 +1136,7 @@ class LSPClient:
                     self._server_ready.set()
                     # Passes after an import are kotlin-lsp's continual re-indexing, every few seconds.
                     logger.log(
-                        logging.DEBUG if self.import_finished.is_set() else logging.INFO,
+                        (logging.DEBUG if self.import_finished.is_set() else logging.INFO),
                         "LSP server: workspace indexing ended (%s)",
                         " ".join(filter(None, [title, message_text])),
                     )

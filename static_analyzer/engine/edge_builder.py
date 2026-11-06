@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -135,7 +136,11 @@ class CallEdgeSink:
         if (self._adapter.is_callable(target.kind) or target.kind == NodeType.ENUM_MEMBER) and target.parent_chain:
             _, parent_kind = target.parent_chain[-1]
             if self._adapter.is_class_like(parent_kind):
-                parent = self._st.symbols.get(parent_qualified_name(target.qualified_name))
+                parent = self._st.symbols.get(
+                    target.owner_qualified_name
+                    if target.explicit_identity
+                    else parent_qualified_name(target.qualified_name)
+                )
                 if parent is not None:
                     extra.append(parent)
         for other in extra:
@@ -164,15 +169,17 @@ class SymbolIndex:
         self._by_name: dict[tuple[str, str], dict[tuple[str, int, int], SymbolInfo]] = {}
         self.callable_names: set[str] = set()
         """The names the table declares callables under."""
-        for sym in st.symbols.values():
+        redeclarations = (sym for symbols in st.file_symbols.values() for sym in symbols if sym.explicit_identity)
+        for sym in chain(st.symbols.values(), redeclarations):
             position = sym.definition_location
+            name = simple_name(sym.name if sym.explicit_identity else sym.qualified_name)
             self._keep_most_specific(self._by_position, position, sym)
             if sym.kind in CALLABLE_KINDS or sym.kind in CLASS_LIKE_KINDS:
-                at = self._by_name.setdefault((str(sym.file_path), simple_name(sym.qualified_name)), {})
+                at = self._by_name.setdefault((str(sym.file_path), name), {})
                 self._keep_most_specific(at, position, sym)
             if sym.kind in CALLABLE_KINDS:
-                self.callable_names.add(simple_name(sym.qualified_name))
-        self._files = {str(sym.file_path) for sym in st.symbols.values()}
+                self.callable_names.add(name)
+        self._files = {file for file, _, _ in self._by_position}
 
     def resolve(self, def_result: dict) -> SymbolInfo | None:
         """The symbol a definition result names, by ``resolve_declaration``."""
