@@ -136,6 +136,8 @@ class LSPClient:
         self._request_id = 0
         self._msg_queue: queue.Queue[dict] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
+        self._server_responses: queue.Queue[dict] = queue.Queue()
+        self._responder_thread: threading.Thread | None = None
         self._shutdown_event = threading.Event()
         self._write_lock = threading.Lock()
 
@@ -203,6 +205,9 @@ class LSPClient:
         self._process.stdout.close()  # type: ignore[union-attr]
         self._process.stdout = None  # type: ignore[assignment]
 
+        self._server_responses = queue.Queue()
+        self._responder_thread = threading.Thread(target=self._server_response_loop, daemon=True)
+        self._responder_thread.start()
         # Start background reader
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
@@ -303,6 +308,8 @@ class LSPClient:
                     pass
         if self._reader_thread and self._reader_thread.is_alive():
             self._reader_thread.join(timeout=2)
+        if self._responder_thread and self._responder_thread.is_alive():
+            self._responder_thread.join(timeout=2)
         if self._stdout_fd is not None:
             try:
                 os.close(self._stdout_fd)
@@ -869,14 +876,7 @@ class LSPClient:
     # ---- Background message reader ----
 
     def _reader_loop(self) -> None:
-        """Background thread: continuously read messages and enqueue them.
-
-        Notifications and server-initiated requests are handled inline
-        and NOT enqueued — only responses go on the queue.  Server
-        requests (e.g. client/registerCapability) must be answered
-        immediately because some servers (csharp-ls) block on the
-        response before continuing workspace initialization.
-        """
+        """Drain stdout without waiting for stdin writes or their lock."""
         while not self._shutdown_event.is_set():
             if not self._process or self._stdout_fd is None:
                 break
@@ -893,17 +893,31 @@ class LSPClient:
                     self._handle_notification(method, msg.get("params", {}))
                     continue
 
-                # Server-initiated request — respond immediately so the
-                # server isn't blocked waiting for our reply.
                 if "id" in msg and method:
                     result = self._handle_server_request(msg)
-                    self._write_message({"jsonrpc": "2.0", "id": msg["id"], "result": result})
+                    # Waiting for the write lock here can deadlock when both pipes fill.
+                    self._server_responses.put({"jsonrpc": "2.0", "id": msg["id"], "result": result})
                     continue
 
                 self._msg_queue.put(msg)
             except Exception as e:
                 if not self._shutdown_event.is_set():
                     logger.debug("Reader loop error: %s", e)
+                break
+
+    def _server_response_loop(self) -> None:
+        """Answer server requests independently of the stdout reader."""
+        while not self._shutdown_event.is_set():
+            try:
+                response = self._server_responses.get(timeout=0.1)
+            except queue.Empty:
+                continue
+            try:
+                self._write_message(response)
+            except Exception:
+                if not self._shutdown_event.is_set():
+                    self.server_failure = "Failed to answer a language-server request"
+                    logger.exception(self.server_failure)
                 break
 
     def _handle_server_request(self, message: dict) -> object:
