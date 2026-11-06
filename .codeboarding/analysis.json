@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-11-05T15:10:53.547380+00:00",
-    "source_tree_hash": "4193834c6c99e270285013deccba636204c91433eeec9414422e1bc312b978d5",
+    "generated_at": "2026-11-06T11:43:24.329752+00:00",
+    "source_tree_hash": "b99796011849b5b67a01c9c43c48b3bf0bc0f91b6a484761b712cfc3d985a347",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -33210,17 +33210,6 @@
       "evidence": "",
       "key_edges": [
         {
-          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
-          "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
-          "call_sites": [
-            {
-              "line": 1022,
-              "column": 24
-            }
-          ],
-          "description": "Queries changed files in git history to determine incremental analysis scope."
-        },
-        {
           "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer.__init__",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -33230,6 +33219,17 @@
             }
           ],
           "description": "Initializes repository ignore filters to exclude unwanted files during code scanning."
+        },
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+          "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
+          "call_sites": [
+            {
+              "line": 1022,
+              "column": 24
+            }
+          ],
+          "description": "Queries changed files in git history to determine incremental analysis scope."
         }
       ],
       "src_id": "1.1",
