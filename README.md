@@ -248,9 +248,10 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#, C++ and CUDA.
+- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#, C++ and CUDA (preview).
   - Java needs a JDK (21 recommended).
   - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. JetBrains' builds expire after about 30 days, so a run that needs Kotlin reads the current build number and checksums from this repository, and keeps the build it has when it cannot. Kotlin calls into Java are not drawn yet.
+  - C++ and CUDA are in preview. Full analysis is reliable; incremental updates, which PR reviews use, can still miss or keep stale relations for out-of-line class members and header templates. Run a full analysis when exact relations matter.
   - C++ and CUDA share [clangd](https://clangd.llvm.org/), with separate C++ and CUDA parsers for call sites, including `kernel<<<...>>>(...)` launches. Setup downloads clangd 23.1.0 with its resource headers on Linux x86-64, macOS and Windows x64. Other architectures need a native clangd 20 or newer on `PATH` for outgoing call hierarchy support. During a full analysis, a server missing that support is logged with an upgrade message and its C++/CUDA engine is skipped; other languages continue. If no language can be analyzed, the run fails. Incremental updates propagate the error, like other engine errors, rather than reporting a successful partial update.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
 
