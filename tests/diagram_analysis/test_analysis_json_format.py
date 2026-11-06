@@ -1,10 +1,17 @@
-"""Tests for the lean (v2) analysis.json shape and its expansion back to v1."""
+"""Tests for the on-disk analysis.json shape and its expansion back to v1."""
 
 import json
 import unittest
 from pathlib import Path
 
-from agents.agent_responses import AnalysisInsights, Component
+from agents.agent_responses import (
+    AnalysisInsights,
+    Component,
+    Relation,
+    RelationCallSite,
+    RelationEdge,
+    SourceCodeReference,
+)
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import (
     ANALYSIS_FORMAT_VERSION,
@@ -78,12 +85,72 @@ class TestLeanDocumentOmitsDerivableFields(unittest.TestCase):
         doc = build(root, {"1": (sub, [])})
 
         self.assertEqual(doc["components"][0]["file_methods"], [])
-        self.assertEqual(doc["components"][0]["components"][0]["file_methods"][0]["file_path"], "b.py")
+        self.assertEqual(
+            doc["components"][0]["components"][0]["file_methods"], [doc["methods_index"]["b.py|b.one"]["id"]]
+        )
 
     def test_metadata_declares_the_format_version(self):
         doc = build(analysis(component("1", {"a.py": ["a.one"]}), files={"a.py": ["a.one"]}))
 
         self.assertEqual(doc["metadata"]["format_version"], ANALYSIS_FORMAT_VERSION)
+
+
+class TestInternedIdentity(unittest.TestCase):
+    def _doc_with_edge(self, source: str, target: str) -> dict:
+        root = analysis(component("1", {"a.py": ["a.one", "a.two"]}), files={"a.py": ["a.one", "a.two"]})
+        root.components_relations = [
+            Relation(
+                relation="calls",
+                src_name="c1",
+                dst_name="c1",
+                src_id="1",
+                dst_id="1",
+                all_edges=[
+                    RelationEdge(
+                        source=SourceCodeReference(qualified_name=source, reference_file="a.py"),
+                        target=SourceCodeReference(qualified_name=target, reference_file="a.py"),
+                        call_sites=[RelationCallSite(line=12, column=8)],
+                    )
+                ],
+            )
+        ]
+        return build(root)
+
+    def test_edge_endpoints_become_ids_and_call_sites_become_pairs(self):
+        doc = self._doc_with_edge("a.one", "a.two")
+
+        edge = doc["components_relations"][0]["all_edges"][0]
+        self.assertEqual(edge["source"], doc["methods_index"]["a.py|a.one"]["id"])
+        self.assertEqual(edge["target"], doc["methods_index"]["a.py|a.two"]["id"])
+        self.assertEqual(edge["call_sites"], [[12, 8]])
+
+    def test_an_endpoint_with_no_indexed_method_keeps_its_raw_key(self):
+        """External and unresolved references have no symbol to point at; dropping them would lose the edge."""
+        doc = self._doc_with_edge("a.one", "vendor.absent")
+
+        edge = doc["components_relations"][0]["all_edges"][0]
+        self.assertEqual(edge["target"], "a.py|vendor.absent")
+        self.assertEqual(
+            expand_analysis_document(doc)["components_relations"][0]["all_edges"][0]["target"], "a.py|vendor.absent"
+        )
+
+    def test_ids_are_a_pure_function_of_the_method_key(self):
+        first = build(analysis(component("1", {"a.py": ["a.one"]}), files={"a.py": ["a.one"]}))
+        # A second file ahead of it in path order must not renumber anything.
+        second = build(
+            analysis(
+                component("1", {"a.py": ["a.one"], "0.py": ["z.one"]}), files={"0.py": ["z.one"], "a.py": ["a.one"]}
+            )
+        )
+
+        self.assertEqual(first["methods_index"]["a.py|a.one"]["id"], second["methods_index"]["a.py|a.one"]["id"])
+
+    def test_ids_are_distinct_for_overloads_sharing_a_name(self):
+        qnames = ["ns.Tag.Tag()", "ns.Tag.Tag(Guid id)"]
+        doc = build(analysis(component("1", {"a.cs": qnames}), files={"a.cs": qnames}))
+
+        ids = {entry["id"] for entry in doc["methods_index"].values()}
+        self.assertEqual(len(ids), 2)
 
 
 class TestExpandRestoresEverything(unittest.TestCase):
