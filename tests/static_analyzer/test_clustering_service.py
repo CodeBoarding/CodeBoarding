@@ -173,9 +173,8 @@ class TestFullHierarchy(unittest.TestCase):
 
     def test_a_rule_whose_units_own_no_callable_or_class_is_not_drawn(self):
         layout = eshop() | {f"src/Assets/Asset{i}.cs": [f"Assets.asset{i}_var"] for i in range(6)}
-        hierarchy = ClusteringService(repo_dir=Path("/repo")).build_full_hierarchy(
-            analysis_for(graph("csharp", layout)), max_depth=2
-        )
+        service = ClusteringService(repo_dir=Path("/repo"))
+        hierarchy = service.build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=2)
 
         def visit(scope: ClusterScopeResult) -> None:
             for group in scope.groups:
@@ -184,7 +183,8 @@ class TestFullHierarchy(unittest.TestCase):
                     visit(group.children)
 
         visit(hierarchy)
-        self.assertNotIn("Assets", {group.name for group in hierarchy.groups})
+        assets = [rule.component_id for rule in scope_of(service.spec, ROOT_SCOPE_ID).rules if rule.name == "Assets"]
+        self.assertFalse(set(assets) & {group.group_id for group in hierarchy.groups})
 
     def test_connections_come_from_the_graph(self):
         edges = [("Catalog.API.Model.CatalogType0.Run()", "Ordering.API.Apis.OrderingType0.Run()")]
