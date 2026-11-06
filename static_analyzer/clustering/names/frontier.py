@@ -60,6 +60,8 @@ class Frontier:
     candidates: list[Candidate] = field(default_factory=list)
     axis: str = "flat"
     notes: list[str] = field(default_factory=list)
+    opened: set[Prefix] = field(default_factory=set)
+    """Directories entered by the walk, as opposed to children left as boundaries."""
 
 
 def walk(trie: Trie, role_words: frozenset[str], *, transpose: bool = True, layers: bool = False) -> Frontier:
@@ -87,6 +89,7 @@ def _visit(
     *,
     top: bool = False,
 ) -> None:
+    out.opened.add(node.path)
     children = sorted(node.children.items())
     if len(children) == 1 and not node.units:
         _visit(children[0][1], role_words, out, transpose, layers, top=top)
