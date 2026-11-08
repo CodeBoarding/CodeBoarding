@@ -294,6 +294,24 @@ class TestFindCallSites:
         assert (1, 1) in _positions(si.find_call_sites(f))
 
 
+class TestFindDerivedTypeNames:
+    def test_java_names_bases_anonymous_bodies_and_enum_constant_bodies(self, tmp_path: Path):
+        """Each is a type an implementation of the base's members can be declared in."""
+        f = tmp_path / "Shapes.java"
+        f.write_text(
+            "class Square extends Shape<Integer> implements java.io.Serializable {}\n"
+            "class Use { Runnable r = new Task() { public void run() {} }; Object plain = new Plain(); }\n"
+            "enum Op { PLUS { int apply() { return 1; } }, MINUS; int apply() { return 0; } }\n"
+        )
+        assert SourceInspector().find_derived_type_names(f) == {"Shape", "Serializable", "Task", "Op"}
+
+    def test_a_qualified_generic_base_reduces_to_its_simple_name(self, tmp_path: Path):
+        """How guice names a nested base; read whole, it hid the base's subclasses and their call edges."""
+        f = tmp_path / "Entry.java"
+        f.write_text("class Entry extends Outer.Factory<Map.Entry<K, V>> {}\n")
+        assert SourceInspector().find_derived_type_names(f) == {"Factory"}
+
+
 class TestFindTypeBases:
     def test_csharp_base_class(self, tmp_path: Path):
         f = tmp_path / "Animal.cs"

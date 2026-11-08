@@ -53,6 +53,12 @@ class JavaAdapter(LanguageAdapter):
         """
         return True
 
+    @property
+    def source_names_every_subtype(self) -> bool:
+        """A subclass, an anonymous class body or an enum constant body names its base; a lambda implements only
+        an interface, which is always asked about."""
+        return True
+
     def warm_up(self, client: LSPClient) -> None:
         """Have JDTLS build its search index now, before any query waits on it, on the server the analysis keeps.
 
