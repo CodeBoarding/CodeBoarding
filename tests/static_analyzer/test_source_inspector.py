@@ -305,6 +305,12 @@ class TestFindDerivedTypeNames:
         )
         assert SourceInspector().find_derived_type_names(f) == {"Shape", "Serializable", "Task", "Op"}
 
+    def test_a_qualified_generic_base_reduces_to_its_simple_name(self, tmp_path: Path):
+        """How guice names a nested base; read whole, it hid the base's subclasses and their call edges."""
+        f = tmp_path / "Entry.java"
+        f.write_text("class Entry extends Outer.Factory<Map.Entry<K, V>> {}\n")
+        assert SourceInspector().find_derived_type_names(f) == {"Factory"}
+
 
 class TestFindTypeBases:
     def test_csharp_base_class(self, tmp_path: Path):

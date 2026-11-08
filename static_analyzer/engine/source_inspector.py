@@ -1357,21 +1357,23 @@ class SourceInspector:
         if parsed is None:
             return set()
 
-        def text(node: TreeSitterNode) -> str:
-            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+        def simple_name(node: TreeSitterNode) -> str:
+            # ``Outer.Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, then the qualifier.
+            written = parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+            return written.split("<")[0].rsplit(".", 1)[-1].strip()
 
-        names = {base for _, bases in self.find_type_bases(file_path) for base in bases}
+        names: set[str] = set()
         for node in self._walk(parsed.tree.root_node):
+            if node.type in _TYPE_DECLARATION_NODE_TYPES:
+                names.update(simple_name(base) for base in self._base_type_nodes(node))
             if not any(child.type == "class_body" for child in node.named_children):
                 continue
-            if node.type == "object_creation_expression":
-                base = self._select_query_node(node.child_by_field_name("type"))
-                if base is not None:
-                    names.add(text(base))
+            if node.type == "object_creation_expression" and (created := node.child_by_field_name("type")):
+                names.add(simple_name(created))
             elif node.type == "enum_constant" and node.parent is not None and node.parent.parent is not None:
                 enum = node.parent.parent.child_by_field_name("name")
                 if enum is not None:
-                    names.add(text(enum))
+                    names.add(simple_name(enum))
         return names
 
     def find_base_type_sites(self, file_path: Path) -> list[tuple[tuple[int, int], list[tuple[int, int]]]]:
