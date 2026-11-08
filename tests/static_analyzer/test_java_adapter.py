@@ -61,7 +61,7 @@ class TestSearchIndexWarmup:
     def test_the_first_search_waits_for_the_index_at_startup_not_mid_analysis(self):
         """JDTLS indexes the JDK on its first search; on JabRef that outlasted the implementation queries' timeout."""
         client = MagicMock()
-        JavaAdapter().validate_workspace_ready(client)
+        JavaAdapter().warm_up(client)
         client.workspace_symbol.assert_called_once()
         assert client.workspace_symbol.call_args.kwargs["timeout"] > JavaAdapter().get_lsp_default_timeout()
 

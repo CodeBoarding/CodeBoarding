@@ -58,8 +58,8 @@ class JavaAdapter(LanguageAdapter):
         an interface, which is always asked about."""
         return True
 
-    def validate_workspace_ready(self, client: LSPClient) -> None:
-        """Have JDTLS build its search index now, before any query waits on it.
+    def warm_up(self, client: LSPClient) -> None:
+        """Have JDTLS build its search index now, before any query waits on it, on the server the analysis keeps.
 
         Why: JDTLS indexes the classpath, the JDK included, on its first search. On JabRef that took 72-105s, longer
         than a request may take, so the first round of implementation queries timed out and ended the run.
