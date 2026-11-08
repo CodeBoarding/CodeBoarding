@@ -808,6 +808,63 @@ class TestOnlyDispatchedCallsExpand:
         assert ("app.Series.describe", "app.Model.describe") in edges
 
 
+class _SubtypesInSourceTestAdapter(_DefinitionsTestAdapter):
+    @property
+    def source_names_every_subtype(self) -> bool:
+        return True
+
+
+class TestImplementationQueriesNeedADerivedOwner:
+    SOURCE = (
+        "class Leaf {\n"
+        "  void run() {}\n"
+        "}\n"
+        "interface Port {\n"
+        "  void run();\n"
+        "}\n"
+        "class Use {\n"
+        "  void go(Leaf l, Port p) { l.run(); p.run(); }\n"
+        "}\n"
+    )
+
+    def _build(self, tmp_path: Path, adapter: _TestAdapter, source: str) -> tuple[set[tuple[int, int]], EdgeMap]:
+        lsp = _make_lsp()
+        ctx = EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
+        src = tmp_path / "App.java"
+        src.write_text(source)
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Leaf", "app.Leaf", NodeType.CLASS, str(src), 0, 6, 2, 1),
+                _sym("run", "app.Leaf.run", NodeType.METHOD, str(src), 1, 7, 1, 15, [("Leaf", NodeType.CLASS)]),
+                _sym("Port", "app.Port", NodeType.INTERFACE, str(src), 3, 10, 5, 1),
+                _sym("run", "app.Port.run", NodeType.METHOD, str(src), 4, 7, 4, 13, [("Port", NodeType.INTERFACE)]),
+                _sym("Use", "app.Use", NodeType.CLASS, str(src), 6, 6, 8, 1),
+                _sym("go", "app.Use.go", NodeType.METHOD, str(src), 7, 7, 7, 48, [("Use", NodeType.CLASS)]),
+            ],
+        )
+        _answer(lsp, {(7, 30): (1, 7), (7, 39): (4, 7)}, src)
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+        asked = {(line, col) for call in lsp.send_implementation_batch.call_args_list for _, line, col in call.args[0]}
+        return asked, edges
+
+    def test_a_class_nothing_derives_from_is_not_asked_but_an_interface_is(self, tmp_path: Path):
+        """On JabRef 9 in 10 targets sat in such a class, and asking JDTLS about each took 2.3h."""
+        asked, edges = self._build(tmp_path, _SubtypesInSourceTestAdapter(), self.SOURCE)
+        assert asked == {(4, 7)}
+        assert ("app.Use.go", "app.Leaf.run") in edges
+
+    def test_an_anonymous_subclass_keeps_its_base_asked(self, tmp_path: Path):
+        source = self.SOURCE + "class Make { Leaf leaf = new Leaf() { void run() {} }; }\n"
+        asked, _ = self._build(tmp_path, _SubtypesInSourceTestAdapter(), source)
+        assert asked == {(1, 7), (4, 7)}
+
+    def test_a_language_whose_source_hides_subtypes_is_always_asked(self, tmp_path: Path):
+        asked, _ = self._build(tmp_path, _DefinitionsTestAdapter(), self.SOURCE)
+        assert asked == {(1, 7), (4, 7)}
+
+
 class TestMemberReads:
     def test_a_property_read_is_a_call_to_its_getter(self, tmp_path: Path):
         lsp = _make_lsp()

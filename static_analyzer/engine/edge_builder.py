@@ -233,7 +233,7 @@ def build_edges_via_definitions(
         )
 
     total_impl_resolved = _resolve_implementations(
-        adapter, ctx, resolution.edge_set, resolution.impl_queries_pending, index
+        adapter, ctx, resolution.edge_set, resolution.impl_queries_pending, index, source_files
     )
 
     total_iterated = 0
@@ -446,6 +446,7 @@ def _resolve_implementations(
     edge_set: EdgeMap,
     impl_queries_pending: list[ImplementationQuery],
     index: SymbolIndex,
+    source_files: list[Path],
 ) -> int:
     """Phase 2b: Resolve implementations for polymorphic call targets.
 
@@ -453,14 +454,40 @@ def _resolve_implementations(
     """
     st = ctx.symbol_table
 
+    # A member is only implemented in a type deriving from its owner, so a class no source derives from has nothing
+    # to find. Why: on JabRef 9 in 10 targets were such, and JDTLS took ~0.8s on each to say so, 2.3h in all.
+    # An interface is always asked: a lambda implements one without naming it. Read like the dispatch index, the
+    # known declarations' files too, so a warm start still sees a subclass in an unchanged file.
+    derived: set[str] = set()
+    if adapter.source_names_every_subtype:
+        files = set(source_files) | {
+            sym.file_path for sym in chain(st.symbols.values(), st.known) if adapter.is_class_like(sym.kind)
+        }
+        derived = set(chain.from_iterable(ctx.source_inspector.find_derived_type_names(f) for f in files))
+
     target_pos_to_callers: dict[tuple[str, int, int], list[tuple[str, CallSite]]] = {}
+    underived = 0
     for query in impl_queries_pending:
+        owner = st.symbols.get(parent_qualified_name(query.target_qname))
+        if (
+            adapter.source_names_every_subtype
+            and owner is not None
+            and adapter.is_class_like(owner.kind)
+            and owner.kind != NodeType.INTERFACE
+            # Source names a base without its type parameters; servers name a generic type with them.
+            and owner.name.split("<")[0].strip() not in derived
+        ):
+            underived += 1
+            continue
         tgt_key = (str(query.target_file), query.target_line, query.target_char)
         target_pos_to_callers.setdefault(tgt_key, []).append((query.caller_qname, query.call_site))
 
     targets = list(target_pos_to_callers)
     logger.info(
-        "Phase 2b (implementations): %d unique targets from %d pending queries", len(targets), len(impl_queries_pending)
+        "Phase 2b (implementations): %d unique targets from %d pending queries (%d on a class nothing derives from)",
+        len(targets),
+        len(impl_queries_pending),
+        underived,
     )
 
     total_impl_resolved = 0

@@ -7,6 +7,7 @@ without starting a real LSP server.
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -603,6 +604,20 @@ class TestCollectBatchResponses:
         assert results[1] == [{"a": 1}]
         assert results[2] == []
         assert timed_out == {2}
+
+    def test_a_round_answered_steadily_may_outlast_the_timeout(self):
+        """JDTLS answers a round one request at a time; on JabRef 50 of them outlasted the timeout while answering."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        for msg_id in (1, 2, 3):
+            threading.Timer(
+                0.6 * msg_id, client._msg_queue.put, [{"jsonrpc": "2.0", "id": msg_id, "result": []}]
+            ).start()
+
+        _, timed_out, _ = client._collect_batch_responses("textDocument/implementation", [1, 2, 3], timeout=1)
+
+        assert timed_out == set()
 
     def test_a_reserved_error_code_means_the_request_was_not_served(self):
         """``ContentModified`` and friends say the server could not answer, not that it did."""
