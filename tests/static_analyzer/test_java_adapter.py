@@ -78,6 +78,12 @@ class TestWorkspaceSettings:
             {"name": "JavaSE-25", "path": "/jdk25"},
         ]
 
+    def test_the_runtimes_are_there_before_the_import(self):
+        """A Maven import with <release>25</release> runs before the first settings change and finds no JDK 25."""
+        with patch("static_analyzer.engine.adapters.java_adapter.java_runtimes", return_value={25: Path("/jdk25")}):
+            init = JavaAdapter().get_lsp_init_options()
+        assert init["settings"]["java"]["configuration"]["runtimes"] == [{"name": "JavaSE-25", "path": "/jdk25"}]
+
 
 class TestBuildQualifiedName:
     def test_a_maven_source_root_is_spelled_as_it_is_on_disk(self):

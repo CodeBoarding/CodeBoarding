@@ -21,6 +21,7 @@ from static_analyzer.engine.lsp_constants import (
 )
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
+from infra.repo_utils.ignore import RepoIgnoreManager
 from infra.tool_registry.java import java_runtimes
 from infra.utils import CODEBOARDING_DIR_NAME, get_config
 
@@ -292,6 +293,11 @@ class JavaAdapter(LanguageAdapter):
             yield
         finally:
             self._restore_import_filters()
+
+    def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
+        """The settings at startup too: a Maven import runs before the first settings change, and with
+        ``<release>25</release>`` and no JDK 25 registered by then it reports the release as not found."""
+        return {"settings": self.get_workspace_settings()}
 
     def get_workspace_settings(self) -> dict | None:
         # JDTLS defaults these to "ignore"; raising to "warning" is required
