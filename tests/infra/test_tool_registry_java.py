@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from infra.tool_registry.java import detect_java_installations, find_java_21_or_later, get_java_version
+from infra.tool_registry.java import detect_java_installations, find_java_21_or_later, get_java_version, java_runtimes
 
 
 class TestGetJavaVersion(unittest.TestCase):
@@ -220,6 +220,35 @@ class TestDetectJavaInstallations(unittest.TestCase):
                                 # Only the valid JDK should be in the list
                                 self.assertEqual(len(valid_jdks), 1)
                                 self.assertIn("java-21", str(valid_jdks[0]))
+
+
+class TestJavaRuntimes(unittest.TestCase):
+    def test_runner_and_gradle_toolchain_jdks_are_found_beside_java_home(self):
+        """GitHub runners name their JDK 25 only in JAVA_HOME_25_X64; Gradle keeps the ones it provisions in jdks/."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            jdks = {
+                21: root / "jdk-21",
+                25: root / "hostedtoolcache/jdk-25/x64",
+                24: root / "gradle/jdks/amazon_com_inc_-24-aarch64-os_x.2/amazon-corretto-24.jdk/Contents/Home",
+            }
+            for home in jdks.values():
+                (home / "bin").mkdir(parents=True)
+                (home / "bin" / "java").touch()
+            versions = {str(home / "bin" / "java"): major for major, home in jdks.items()}
+            env = {
+                "JAVA_HOME": str(jdks[21]),
+                "JAVA_HOME_25_X64": str(jdks[25]),
+                "GRADLE_USER_HOME": str(root / "gradle"),
+            }
+            java_runtimes.cache_clear()
+            with (
+                patch.dict("os.environ", env, clear=True),
+                patch("infra.tool_registry.java.get_java_version", side_effect=lambda cmd: versions.get(cmd, 0)),
+            ):
+                runtimes = java_runtimes()
+            java_runtimes.cache_clear()
+            self.assertEqual({major: runtimes[major] for major in jdks}, jdks)
 
 
 class TestFindJava21OrLater(unittest.TestCase):

@@ -1346,6 +1346,34 @@ class SourceInspector:
                 declarations.append((text(name_node), bases))
         return declarations
 
+    def find_derived_type_names(self, file_path: Path) -> set[str]:
+        """Every type name something in the file derives from.
+
+        That is a declared type's bases, the type an anonymous class body extends, and the enum a Java enum constant
+        with a body subclasses. Why: a member is only ever implemented in a type that derives from its owner, so an
+        owner no file names here has no implementation to ask the server for.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return set()
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        names = {base for _, bases in self.find_type_bases(file_path) for base in bases}
+        for node in self._walk(parsed.tree.root_node):
+            if not any(child.type == "class_body" for child in node.named_children):
+                continue
+            if node.type == "object_creation_expression":
+                base = self._select_query_node(node.child_by_field_name("type"))
+                if base is not None:
+                    names.add(text(base))
+            elif node.type == "enum_constant" and node.parent is not None and node.parent.parent is not None:
+                enum = node.parent.parent.child_by_field_name("name")
+                if enum is not None:
+                    names.add(text(enum))
+        return names
+
     def find_base_type_sites(self, file_path: Path) -> list[tuple[tuple[int, int], list[tuple[int, int]]]]:
         """Each type the file declares, by its name's position, with the positions naming its bases.
 
