@@ -1,7 +1,7 @@
 """The Java adapter: symbol names, packages, what the build import hid, and which server errors end a run."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
@@ -55,6 +55,34 @@ class TestErrorVerdict:
 
     def test_an_error_without_data_still_fails_the_run(self):
         assert JavaAdapter().error_verdict({"code": -32603, "message": "Internal error."}) is ErrorVerdict.FAILURE
+
+
+class TestSearchIndexWarmup:
+    def test_the_first_search_waits_for_the_index_at_startup_not_mid_analysis(self):
+        """JDTLS indexes the JDK on its first search; on JabRef that outlasted the implementation queries' timeout."""
+        client = MagicMock()
+        JavaAdapter().warm_up(client)
+        client.workspace_symbol.assert_called_once()
+        assert client.workspace_symbol.call_args.kwargs["timeout"] > JavaAdapter().get_lsp_default_timeout()
+
+
+class TestWorkspaceSettings:
+    def test_every_installed_jdk_is_offered_as_the_runtime_for_its_release(self):
+        """JabRef targets Java 25; with only the JDK JDTLS ran on, its JDK types never resolved."""
+        homes = {8: Path("/jdk8"), 21: Path("/jdk21"), 25: Path("/jdk25")}
+        with patch("static_analyzer.engine.adapters.java_adapter.java_runtimes", return_value=homes):
+            runtimes = JavaAdapter().get_workspace_settings()["java"]["configuration"]["runtimes"]
+        assert runtimes == [
+            {"name": "JavaSE-1.8", "path": "/jdk8"},
+            {"name": "JavaSE-21", "path": "/jdk21"},
+            {"name": "JavaSE-25", "path": "/jdk25"},
+        ]
+
+    def test_the_runtimes_are_there_before_the_import(self):
+        """A Maven import with <release>25</release> runs before the first settings change and finds no JDK 25."""
+        with patch("static_analyzer.engine.adapters.java_adapter.java_runtimes", return_value={25: Path("/jdk25")}):
+            init = JavaAdapter().get_lsp_init_options()
+        assert init["settings"]["java"]["configuration"]["runtimes"] == [{"name": "JavaSE-25", "path": "/jdk25"}]
 
 
 class TestBuildQualifiedName:

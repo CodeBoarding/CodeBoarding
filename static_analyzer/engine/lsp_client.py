@@ -562,9 +562,11 @@ class LSPClient:
             self._default_timeout if timeout is None else timeout,
         )
 
-    def workspace_symbol(self, query: str) -> list[dict]:
+    def workspace_symbol(self, query: str, timeout: int | None = None) -> list[dict]:
         """Symbols declared anywhere in the loaded workspace whose name matches *query*."""
-        result = self._send_request("workspace/symbol", {"query": query}, self._default_timeout)
+        result = self._send_request(
+            "workspace/symbol", {"query": query}, self._default_timeout if timeout is None else timeout
+        )
         if isinstance(result, list):
             return result
         return []
@@ -943,7 +945,8 @@ class LSPClient:
                 if self._error_verdict is not None and isinstance(err, dict) and _is_protocol_failure(err):
                     verdict = self._error_verdict(err)
                 if _is_protocol_failure(err) and verdict is not ErrorVerdict.DECLINED:
-                    unserved[msg_id] = err_msg  # type: ignore[index]
+                    # The server's own trace is the only record of why; "Internal error." alone can't be diagnosed.
+                    unserved[msg_id] = f"{err_msg} {err['data']}" if err.get("data") else err_msg  # type: ignore[index]
                     if _is_retryable(err) or verdict is ErrorVerdict.TRANSIENT:
                         retryable.add(msg_id)  # type: ignore[arg-type]
                 else:

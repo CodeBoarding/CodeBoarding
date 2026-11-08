@@ -267,6 +267,11 @@ class LanguageAdapter(ABC):
         """Raise if a ready signal represents an unusable workspace state."""
         return None
 
+    def warm_up(self, client: LSPClient) -> None:
+        """Have the server do its one-off work now, before a query waits on it, once the server for the analysis is
+        settled (after any restart)."""
+        return None
+
     def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
         """Return extra environment variables for the LSP server process.
 
