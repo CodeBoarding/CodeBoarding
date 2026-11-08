@@ -71,8 +71,9 @@ class TestWorkspaceSettings:
         """JabRef targets Java 25; with only the JDK JDTLS ran on, its JDK types never resolved."""
         homes = {8: Path("/jdk8"), 21: Path("/jdk21"), 25: Path("/jdk25")}
         with patch("static_analyzer.engine.adapters.java_adapter.java_runtimes", return_value=homes):
-            runtimes = JavaAdapter().get_workspace_settings()["java"]["configuration"]["runtimes"]
-        assert runtimes == [
+            settings = JavaAdapter().get_workspace_settings()
+        assert settings is not None
+        assert settings["java"]["configuration"]["runtimes"] == [
             {"name": "JavaSE-1.8", "path": "/jdk8"},
             {"name": "JavaSE-21", "path": "/jdk21"},
             {"name": "JavaSE-25", "path": "/jdk25"},
