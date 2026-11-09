@@ -317,6 +317,14 @@ class TestFindDerivedTypeNames:
         f.write_text("class Entry extends Outer<String>.Inner<Integer> {}\n")
         assert SourceInspector().find_derived_type_names(f) == {"Inner"}
 
+    def test_a_type_annotation_on_a_base_is_not_part_of_its_name(self, tmp_path: Path):
+        """Read whole, ``@Marker Base`` hid ``Base``'s subclasses, and the calls through it lost their overrides."""
+        f = tmp_path / "Child.java"
+        f.write_text(
+            "class Child extends @Marker Base implements @Tag(name = Names.ID) Shape, Outer.@Marker Inner<@Marker T> {}\n"
+        )
+        assert SourceInspector().find_derived_type_names(f) == {"Base", "Shape", "Inner"}
+
 
 class TestFindTypeBases:
     def test_csharp_base_class(self, tmp_path: Path):

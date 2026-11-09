@@ -1358,12 +1358,12 @@ class SourceInspector:
             return set()
 
         def simple_name(node: TreeSitterNode) -> str:
-            # ``Outer<T>.Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, innermost first, then
-            # the qualifier.
+            # ``Outer<T>.@Nullable Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, innermost
+            # first, then the qualifier, then any annotation written before the name.
             written = parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
             while _TYPE_ARGUMENTS.search(written):
                 written = _TYPE_ARGUMENTS.sub("", written)
-            return written.rsplit(".", 1)[-1].strip()
+            return written.rsplit(".", 1)[-1].split()[-1]
 
         names: set[str] = set()
         for node in self._walk(parsed.tree.root_node):
