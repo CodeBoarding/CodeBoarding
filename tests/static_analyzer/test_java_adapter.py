@@ -32,6 +32,48 @@ class TestErrorVerdict:
         assert "leaving its edge out" in caplog.text
         assert "SelectionEngine.java:1473" in caplog.text
 
+    def test_a_selection_parser_crash_leaves_one_edge_out(self):
+        """crate: `return new Iterator<>() {` inside another anonymous class crashed JDT's parser recovery, every run."""
+        error = {
+            "code": -32603,
+            "message": "Internal error.",
+            "data": (
+                "java.util.concurrent.CompletionException: java.lang.ArrayStoreException: arraycopy: element type "
+                "mismatch\n"
+                "\tat java.base/java.util.concurrent.CompletableFuture.encodeThrowable(CompletableFuture.java:315)\n"
+                "Caused by: java.lang.ArrayStoreException: arraycopy: element type mismatch\n"
+                "\tat java.base/java.lang.System.arraycopy(Native Method)\n"
+                "\tat org.eclipse.jdt.internal.codeassist.select.SelectionParser.buildMoreCompletionContext"
+                "(SelectionParser.java:195)"
+            ),
+        }
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.DECLINED
+
+    def test_a_compiler_crash_during_code_selection_leaves_one_edge_out(self):
+        """crate: resolving a switch expression whose arms are `MutableLong::new`, a lambda and a throw."""
+        error = {
+            "code": -32603,
+            "data": (
+                "Caused by: java.lang.NullPointerException: Cannot invoke "
+                '"org.eclipse.jdt.internal.compiler.lookup.TypeBinding.unboxedType()" because "rxpressionType" is null\n'
+                "\tat org.eclipse.jdt.internal.compiler.ast.SwitchExpression$Results.add(SwitchExpression.java:139)\n"
+                "\tat org.eclipse.jdt.internal.compiler.ast.YieldStatement.resolve(YieldStatement.java:157)\n"
+                "\tat org.eclipse.jdt.internal.codeassist.SelectionEngine.select(SelectionEngine.java:1063)"
+            ),
+        }
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.DECLINED
+
+    def test_a_jvm_error_inside_code_selection_still_fails_the_run(self):
+        """An error, unlike an exception, says the server itself is in trouble, wherever it surfaced."""
+        error = {
+            "code": -32603,
+            "data": (
+                "Caused by: java.lang.OutOfMemoryError: Java heap space\n"
+                "\tat org.eclipse.jdt.internal.codeassist.SelectionEngine.select(SelectionEngine.java:1030)"
+            ),
+        }
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.FAILURE
+
     def test_any_other_internal_error_still_fails_the_run(self):
         """Reading an unknown failure as empty would lose edges silently."""
         error = {"code": -32603, "message": "Internal error.", "data": "java.lang.OutOfMemoryError: Java heap space"}

@@ -340,10 +340,17 @@ class JavaAdapter(LanguageAdapter):
         """A crash in JDT's code selection is final for that call site, and its edge is left out with a warning.
 
         Why: asking again crashes the same way, so one site the compiler cannot walk must not cost the whole run.
-        A timeout or a lost server is not this, and still fails it.
+        The first frame past the JDK's own decides: any java.lang exception raised from JDT's compiler or code
+        assist (the selection engine, its parser recovering from code it misreads, or the resolution it runs) is
+        the compiler's, a function of the source alone. One raised in JDT LS's own code, a JVM error such as running
+        out of memory, a timeout or a lost server is not this, and still fails the run.
         """
         data = str(error.get("data", ""))
-        if re.search(r"Caused by: java\.lang\.NullPointerException.*\n\s*at \S*codeassist\.SelectionEngine", data):
+        if re.search(
+            r"Caused by: java\.lang\.\w+Exception\b.*\n(?:\s*at java\.base/.*\n)*"
+            r"\s*at org\.eclipse\.jdt\.internal\.(?:compiler|codeassist)\.",
+            data,
+        ):
             logger.warning(f"JDTLS crashed resolving a call site, leaving its edge out: {data}")
             return ErrorVerdict.DECLINED
         return ErrorVerdict.FAILURE
