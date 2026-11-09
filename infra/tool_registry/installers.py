@@ -578,8 +578,20 @@ def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
     """
     stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
     return (
-        _archive_tool_is_extracted(target_dir, dep) and dep.source is not None and _read_stamp(stamp) == dep.source.tag
+        _archive_tool_is_extracted(target_dir, dep)
+        and dep.source is not None
+        and _read_stamp(stamp) == archive_stamp(dep.source)
     )
+
+
+def archive_stamp(source: ToolSource) -> str:
+    """What an install of *source* writes into its stamp: the tag, and the build where the pin names one.
+
+    Why the build: JDTLS pins snapshots, and a bump can change only the build.
+    """
+    if isinstance(source, UpstreamToolSource) and source.build:
+        return f"{source.tag}-{source.build}"
+    return source.tag
 
 
 def archive_tool_is_usable(target_dir: Path, dep: ToolDependency) -> bool:
@@ -652,7 +664,7 @@ def install_archive_tool(
         shutil.rmtree(extract_dir, ignore_errors=True)
         os.replace(root, extract_dir)
         shutil.rmtree(staging, ignore_errors=True)
-        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(dep.source.tag)
+        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(archive_stamp(dep.source))
         logger.info("%s installed successfully", dep.key)
     except Exception:
         logger.exception("%s installation failed", dep.key)

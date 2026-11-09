@@ -480,19 +480,12 @@ class StaticAnalyzer:
         if lifted:
             logger.info(f"{adapter.language} import hid sources in {project_path}; restarting without its filters")
             engine_client.shutdown()
-            engine_client = self._start_engine_client(engine_config, command, initial or None)
-        elif fallback and fallback != initial:
-            logger.warning(f"{adapter.language} server could not load {project_path}; restarting on {fallback}")
-            engine_client.shutdown()
-            engine_client = self._start_engine_client(engine_config, command, fallback)
-        # Only on the server kept: one restarted on the same workspace reuses the index the first built, and an index
-        # of what an import filter hid finds no implementation in it.
-        try:
-            adapter.warm_up(engine_client)
-        except Exception:
-            engine_client.shutdown()
-            raise
-        return engine_client
+            return self._start_engine_client(engine_config, command, initial or None)
+        if not fallback or fallback == initial:
+            return engine_client
+        logger.warning(f"{adapter.language} server could not load {project_path}; restarting on {fallback}")
+        engine_client.shutdown()
+        return self._start_engine_client(engine_config, command, fallback)
 
     def _replace_client(self, engine_config: EngineConfig, engine_client: LSPClient) -> LSPClient:
         """Shut one engine's server down and swap a freshly spawned one into its place."""
