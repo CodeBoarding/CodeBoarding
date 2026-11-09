@@ -315,6 +315,19 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
+    "standardcompute": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["STANDARDCOMPUTE_API_KEY"],
+        api_key_env="STANDARDCOMPUTE_API_KEY",
+        agent_model="StandardCompute",
+        base_url_env="STANDARDCOMPUTE_BASE_URL",
+        default_base_url="https://api.stdcmpt.com/v1",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
     "litellm": LLMConfig(
         chat_class=ChatOpenAI,
         # Base URL only: a key alone must not select litellm, since there is no
