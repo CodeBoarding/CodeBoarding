@@ -1,17 +1,17 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-11-08T23:07:45.935211+00:00",
-  "overall_score": 0.9988785046728972,
+  "timestamp": "2026-11-09T22:24:56.413736+00:00",
+  "overall_score": 0.9973993808049535,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1601,
+      "total_entities_checked": 1607,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993753903810119,
+      "score": 0.9993777224642191,
       "finding_groups": [
         {
           "severity": "warning",
@@ -30,34 +30,14 @@
       ]
     },
     {
-      "check_name": "circular_dependencies",
-      "description": "Detects circular dependencies between packages",
-      "languages": [],
-      "check_type": "circular_dependencies",
-      "cycles": [
-        "codeboarding_cli.commands -> codeboarding_cli -> codeboarding_cli.commands",
-        "health.checks -> health -> health.checks",
-        "agents -> agents.llm_renderers -> agents",
-        "static_analyzer.engine -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine",
-        "static_analyzer.engine -> static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine",
-        "static_analyzer.engine.adapters -> static_analyzer -> static_analyzer.engine.adapters",
-        "static_analyzer -> static_analyzer.cfg -> static_analyzer",
-        "infra.tool_registry -> infra -> infra.tool_registry"
-      ],
-      "packages_checked": 25,
-      "packages_in_cycles": 12
-    },
-    {
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 4,
-      "findings_count": 4,
+      "total_entities_checked": 8,
+      "findings_count": 8,
       "warning_count": 0,
-      "score": 0.8,
+      "score": 0.6,
       "finding_groups": [
         {
           "severity": "info",
@@ -91,6 +71,41 @@
               "line_start": 139,
               "line_end": 139,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_i\" is not accessed",
+              "file_path": "infra/install.py",
+              "line_start": 733,
+              "line_end": 733,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 329,
+              "line_end": 329,
+              "metric_value": 0.0
+            }
+          ]
+        },
+        {
+          "severity": "info",
+          "threshold": 0,
+          "description": "Code that cannot be reached during execution",
+          "entities": [
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "infra/tool_registry/manifest.py",
+              "line_start": 17,
+              "line_end": 17,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unreachable_code] Code is unreachable",
+              "file_path": "infra/tool_registry/manifest.py",
+              "line_start": 139,
+              "line_end": 150,
+              "metric_value": 0.0
             }
           ]
         }
@@ -100,6 +115,12 @@
   "file_summaries": [
     {
       "file_path": "agents/llm_config.py",
+      "total_findings": 2,
+      "warning_findings": 0,
+      "composite_risk_score": 20.0
+    },
+    {
+      "file_path": "infra/tool_registry/manifest.py",
       "total_findings": 2,
       "warning_findings": 0,
       "composite_risk_score": 20.0
@@ -118,6 +139,18 @@
     },
     {
       "file_path": "agents/llm_errors.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "infra/install.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "static_analyzer/__init__.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
