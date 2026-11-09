@@ -39,11 +39,17 @@ class _DispatchingTestAdapter(_TestAdapter):
         return True
 
 
+class _IndexingTestAdapter(_TestAdapter):
+    @property
+    def search_index_timeout(self) -> int | None:
+        return 600
+
+
 def _make_lsp() -> MagicMock:
     """One result list per query, the shape ``_send_batch`` guarantees its callers."""
     lsp = MagicMock()
     lsp.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
-    lsp.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+    lsp.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
     return lsp
 
 
@@ -394,7 +400,7 @@ class TestBuildEdgesViaDefinitions:
         ctx, adapter = _make_ctx(lsp)
         src = self._main_calls_helper(ctx, lsp, tmp_path)
         other = tmp_path / "plugins" / "impl.py"
-        lsp.send_implementation_batch.side_effect = lambda queries: [
+        lsp.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": other.as_uri(), "range": {"start": {"line": 2, "character": 4}}}] for _ in queries
         ]
 
@@ -597,13 +603,51 @@ class TestBuildEdgesViaDefinitions:
 
         lsp.send_definition_batch.side_effect = def_batch
         # Implementation for speak resolves to dog_speak
-        lsp.send_implementation_batch.side_effect = lambda queries: [
+        lsp.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}] for _ in queries
         ]
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.speak") in edges
         assert ("app.main", "app.dog_speak") in edges
+
+    def test_a_server_that_indexes_on_its_first_search_gets_it_alone_with_time_to_index(self, tmp_path: Path):
+        """JDTLS builds its search index on the first search; on JabRef that outlasted a round's timeout."""
+        lsp = _make_lsp()
+        ctx, _ = _make_ctx(lsp)
+        adapter = _IndexingTestAdapter()
+        st = ctx.symbol_table
+
+        src = tmp_path / "app.py"
+        src.write_text("def main():\n    speak()\n    bark()\n\ndef speak():\n    pass\n\ndef bark():\n    pass\n")
+
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 2)
+        speak = _sym("speak", "app.speak", NodeType.METHOD, str(src), 4, 4, 5)
+        bark = _sym("bark", "app.bark", NodeType.METHOD, str(src), 7, 4, 8)
+        for sym in (caller, speak, bark):
+            st._symbols[sym.qualified_name] = sym
+        st._file_symbols[str(src)] = [caller, speak, bark]
+        st._primary_file_symbols[str(src)] = [caller, speak, bark]
+        st.build_indices()
+
+        declared_at = {(1, 4): 4, (2, 4): 7}
+
+        def def_batch(queries: list) -> list:
+            return [
+                (
+                    [{"uri": src.as_uri(), "range": {"start": {"line": declared_at[(line, col)], "character": 4}}}]
+                    if (line, col) in declared_at
+                    else []
+                )
+                for _, line, col in queries
+            ]
+
+        lsp.send_definition_batch.side_effect = def_batch
+
+        build_edges_via_definitions(adapter, ctx, [src])
+
+        rounds = [(len(call.args[0]), call.kwargs["timeout"]) for call in lsp.send_implementation_batch.call_args_list]
+        assert rounds == [(1, 600), (1, None)]
 
     def test_a_failed_implementation_batch_fails_the_build(self, tmp_path: Path):
         lsp = _make_lsp()

@@ -467,9 +467,16 @@ def _resolve_implementations(
     # Why a round at a time here: on a large repository this is the longest phase, and progress is only
     # reported between rounds.
     pbar = ProgressLogger("Phase 2b (impl)", len(targets), unit="target")
-    for start in range(0, len(targets), REQUEST_BATCH_SIZE):
-        batch = targets[start : start + REQUEST_BATCH_SIZE]
-        impl_results = ctx.lsp.send_implementation_batch([(Path(file), line, char) for file, line, char in batch])
+    index_timeout = adapter.search_index_timeout
+    start = 0
+    while start < len(targets):
+        # A server that builds its search index on its first search gets that search alone, with the time indexing
+        # takes; the rounds after it are answered from the index.
+        batch = targets[start : start + (1 if start == 0 and index_timeout else REQUEST_BATCH_SIZE)]
+        impl_results = ctx.lsp.send_implementation_batch(
+            [(Path(file), line, char) for file, line, char in batch], timeout=index_timeout if start == 0 else None
+        )
+        start += len(batch)
         for tgt_key, impls in zip(batch, impl_results):
             callers = target_pos_to_callers[tgt_key]
             for impl_result in impls:

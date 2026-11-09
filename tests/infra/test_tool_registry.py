@@ -57,6 +57,7 @@ from infra.tool_registry.installers import (
     _extract_zip,
     ARCHIVE_VERSION_STAMP,
     PACKAGE_MANAGER_TOOL_STAMP,
+    archive_stamp,
     _extract_compressed_binary,
     install_package_manager_tools,
     package_manager_tool_fingerprint,
@@ -1043,7 +1044,7 @@ def _populate_complete_servers_dir(base_dir: Path) -> None:
             else:
                 launcher.parent.mkdir(parents=True, exist_ok=True)
                 launcher.write_text("#!/bin/sh\n")
-                (base_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP).write_text(dep.source.tag)  # type: ignore[union-attr]
+            (base_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP).write_text(archive_stamp(dep.source))  # type: ignore[arg-type]
         elif dep.kind is ToolKind.PACKAGE_MANAGER:
             subdir = dep.archive_subdir or dep.key
             pm_dir = bin_dir / "pm-tools" / subdir
@@ -1125,6 +1126,26 @@ class TestHasRequiredTools(unittest.TestCase):
             base_dir = Path(tmp)
             _populate_complete_servers_dir(base_dir)
             shutil.rmtree(base_dir / "bin" / "jdtls" / "plugins")
+            self.assertFalse(has_required_tools(base_dir))
+
+    def test_jdtls_from_an_older_pin_is_reinstalled_but_still_runs(self):
+        """A JDTLS extracted before a pin bump is not the pinned one, yet a run can start it until the update lands."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            (base_dir / "bin" / "jdtls" / ARCHIVE_VERSION_STAMP).unlink()
+            self.assertFalse(has_required_tools(base_dir))
+            self.assertEqual(
+                resolve_config(base_dir)["lsp_servers"]["java"]["jdtls_root"], str(base_dir / "bin" / "jdtls")
+            )
+
+    def test_a_jdtls_bump_of_the_build_alone_is_reinstalled(self):
+        """JDTLS pins snapshots: a bump can keep the version and change only the build."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            _populate_complete_servers_dir(base_dir)
+            stamp = base_dir / "bin" / "jdtls" / ARCHIVE_VERSION_STAMP
+            stamp.write_text(stamp.read_text().rsplit("-", 1)[0] + "-202001010000")
             self.assertFalse(has_required_tools(base_dir))
 
     def test_needs_install_triggers_on_missing_node_install(self):

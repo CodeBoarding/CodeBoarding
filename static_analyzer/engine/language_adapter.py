@@ -267,6 +267,11 @@ class LanguageAdapter(ABC):
         """Raise if a ready signal represents an unusable workspace state."""
         return None
 
+    @property
+    def search_index_timeout(self) -> int | None:
+        """Seconds the server's first search may take, for a server that builds its search index on it; None if not."""
+        return None
+
     def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
         """Return extra environment variables for the LSP server process.
 

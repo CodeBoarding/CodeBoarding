@@ -57,6 +57,33 @@ class TestErrorVerdict:
         assert JavaAdapter().error_verdict({"code": -32603, "message": "Internal error."}) is ErrorVerdict.FAILURE
 
 
+class TestSearchIndex:
+    def test_the_first_search_may_take_longer_than_a_request(self):
+        """JDTLS indexes the JDK on its first search; on JabRef that outlasted the implementation queries' timeout."""
+        timeout = JavaAdapter().search_index_timeout
+        assert timeout is not None and timeout > JavaAdapter().get_lsp_default_timeout()
+
+
+class TestWorkspaceSettings:
+    def test_every_installed_jdk_is_offered_as_the_runtime_for_its_release(self):
+        """JabRef targets Java 25; with only the JDK JDTLS ran on, its JDK types never resolved."""
+        homes = {8: Path("/jdk8"), 21: Path("/jdk21"), 25: Path("/jdk25")}
+        with patch("static_analyzer.engine.adapters.java_adapter.java_runtimes", return_value=homes):
+            settings = JavaAdapter().get_workspace_settings()
+        assert settings is not None
+        assert settings["java"]["configuration"]["runtimes"] == [
+            {"name": "JavaSE-1.8", "path": "/jdk8"},
+            {"name": "JavaSE-21", "path": "/jdk21"},
+            {"name": "JavaSE-25", "path": "/jdk25"},
+        ]
+
+    def test_the_runtimes_are_there_before_the_import(self):
+        """A Maven import with <release>25</release> runs before the first settings change and finds no JDK 25."""
+        with patch("static_analyzer.engine.adapters.java_adapter.java_runtimes", return_value={25: Path("/jdk25")}):
+            init = JavaAdapter().get_lsp_init_options()
+        assert init["settings"]["java"]["configuration"]["runtimes"] == [{"name": "JavaSE-25", "path": "/jdk25"}]
+
+
 class TestBuildQualifiedName:
     def test_a_maven_source_root_is_spelled_as_it_is_on_disk(self):
         """Every adapter spells the path from the repository root; the walk over the tree steps through ``src``."""

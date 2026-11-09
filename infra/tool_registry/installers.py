@@ -562,23 +562,48 @@ def current_tool(dep: ToolDependency, target_dir: Path | None = None) -> ToolDep
     return replace(dep, source=replace(dep.source, tag=installed)) if installed else dep
 
 
-def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
-    """Whether an archive tool is extracted in full: its launcher at the pinned version, or JDTLS's ``plugins/``."""
+def _archive_tool_is_extracted(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether an archive tool is extracted in full, at any version: its launcher, or JDTLS's ``plugins/``."""
     launcher = archive_launcher_path(target_dir, dep)
     if launcher is not None:
-        stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
-        return launcher.is_file() and dep.source is not None and _read_stamp(stamp) == dep.source.tag
+        return launcher.is_file()
     return (target_dir / "bin" / dep.archive_subdir / "plugins").is_dir()
+
+
+def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether an archive tool is extracted in full at the pinned version.
+
+    Why the stamp for JDTLS too: with ``plugins/`` alone, an install from before a pin bump counted as current
+    forever, and kept analysing with a server too old to know the project's Java version.
+    """
+    stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
+    return (
+        _archive_tool_is_extracted(target_dir, dep)
+        and dep.source is not None
+        and _read_stamp(stamp) == archive_stamp(dep.source)
+    )
+
+
+def archive_stamp(source: ToolSource) -> str:
+    """What an install of *source* writes into its stamp: the tag, and the build where the pin names one.
+
+    Why the build: JDTLS pins snapshots, and a bump can change only the build.
+    """
+    if isinstance(source, UpstreamToolSource) and source.build:
+        return f"{source.tag}-{source.build}"
+    return source.tag
 
 
 def archive_tool_is_usable(target_dir: Path, dep: ToolDependency) -> bool:
     """Whether a run can start an archive tool as it is on disk.
 
-    kotlin-lsp does not have to be at the latest pin for that, which also keeps a build that a failed update left in
-    place. This asks on every run, whatever its languages, so it must not read main's pin.
+    kotlin-lsp and JDTLS do not have to be at the latest pin for that, which also keeps a build that a failed update
+    left in place. This asks on every run, whatever its languages, so it must not read main's pin.
     """
     if dep.key == "kotlin":
         return _usable_kotlin_lsp_build(target_dir, dep) is not None
+    if archive_launcher_path(target_dir, dep) is None:
+        return _archive_tool_is_extracted(target_dir, dep)
     return archive_tool_is_installed(target_dir, dep)
 
 
@@ -639,7 +664,7 @@ def install_archive_tool(
         shutil.rmtree(extract_dir, ignore_errors=True)
         os.replace(root, extract_dir)
         shutil.rmtree(staging, ignore_errors=True)
-        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(dep.source.tag)
+        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(archive_stamp(dep.source))
         logger.info("%s installed successfully", dep.key)
     except Exception:
         logger.exception("%s installation failed", dep.key)
