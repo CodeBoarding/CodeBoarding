@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-11-09T22:45:19.832939+00:00",
-    "source_tree_hash": "ad9fbfb24f8b02dc0da6e7e947f6b72d9ba86f0fd5d473056506d171800660b6",
+    "generated_at": "2026-11-09T22:53:18.922711+00:00",
+    "source_tree_hash": "7f636bc93f8387959e92761c033df610f5560b14ed220302fd286904fafc3986",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -37540,17 +37540,6 @@
       "key_edges": [
         {
           "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
-          "target": "static_analyzer/node.py|static_analyzer.node.Node.entity_label",
-          "call_sites": [
-            {
-              "line": 67,
-              "column": 30
-            }
-          ],
-          "description": "Call graph renderer extracts entity labels from node definitions"
-        },
-        {
-          "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
           "target": "static_analyzer/node.py|static_analyzer.node.Node",
           "call_sites": [
             {
@@ -37559,6 +37548,17 @@
             }
           ],
           "description": "Call graph renderer inspects entity labels on AST nodes"
+        },
+        {
+          "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
+          "target": "static_analyzer/node.py|static_analyzer.node.Node.entity_label",
+          "call_sites": [
+            {
+              "line": 67,
+              "column": 30
+            }
+          ],
+          "description": "Call graph renderer extracts entity labels from node definitions"
         }
       ],
       "src_id": "3.2",
