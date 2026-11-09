@@ -301,7 +301,7 @@ _KOTLIN_PARAMETER_LIST_NODE_TYPES = frozenset({"function_value_parameters"})
 _KOTLIN_PARAMETER_PART_NODE_TYPES = frozenset({"simple_identifier", "modifiers", "binding_pattern_kind"})
 _ARGUMENT_HOLDER_NODE_TYPES = frozenset({"call_expression", "constructor_invocation", "constructor_delegation_call"})
 _KOTLIN_DOC_COMMENT_NODE_TYPES = frozenset({"multiline_comment"})
-_KOTLIN_TYPE_ARGUMENTS = re.compile(r"<[^<>]*>")
+_TYPE_ARGUMENTS = re.compile(r"<[^<>]*>")
 # A package segment is lower case; an outer type's name before a nested one is kept, so
 # ``PublicKeyCredentialEntry.Builder`` and ``PasswordCredentialEntry.Builder`` stay apart.
 _KOTLIN_PACKAGE_QUALIFIER = re.compile(r"\b[a-z_][\w`]*\.(?=[\w`])")
@@ -1358,9 +1358,12 @@ class SourceInspector:
             return set()
 
         def simple_name(node: TreeSitterNode) -> str:
-            # ``Outer.Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, then the qualifier.
+            # ``Outer<T>.Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, innermost first, then
+            # the qualifier.
             written = parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
-            return written.split("<")[0].rsplit(".", 1)[-1].strip()
+            while _TYPE_ARGUMENTS.search(written):
+                written = _TYPE_ARGUMENTS.sub("", written)
+            return written.rsplit(".", 1)[-1].strip()
 
         names: set[str] = set()
         for node in self._walk(parsed.tree.root_node):
@@ -1518,8 +1521,8 @@ class SourceInspector:
         def render_type(node: TreeSitterNode) -> str:
             # A function type's arrow is set aside first: its ``>`` would otherwise close a type argument.
             rendered = " ".join(text(node).split()).replace("->", "\0")
-            while _KOTLIN_TYPE_ARGUMENTS.search(rendered):
-                rendered = _KOTLIN_TYPE_ARGUMENTS.sub("", rendered)
+            while _TYPE_ARGUMENTS.search(rendered):
+                rendered = _TYPE_ARGUMENTS.sub("", rendered)
             return _KOTLIN_PACKAGE_QUALIFIER.sub("", rendered).replace("\0", "->")
 
         def parameter_types(node: TreeSitterNode, receiver: TreeSitterNode | None) -> str:

@@ -311,6 +311,12 @@ class TestFindDerivedTypeNames:
         f.write_text("class Entry extends Outer.Factory<Map.Entry<K, V>> {}\n")
         assert SourceInspector().find_derived_type_names(f) == {"Factory"}
 
+    def test_a_base_nested_in_a_generic_type_reduces_to_its_own_name(self, tmp_path: Path):
+        """Reading up to the first ``<`` gave ``Outer``, and ``Inner``'s subclasses went unasked."""
+        f = tmp_path / "Entry.java"
+        f.write_text("class Entry extends Outer<String>.Inner<Integer> {}\n")
+        assert SourceInspector().find_derived_type_names(f) == {"Inner"}
+
 
 class TestFindTypeBases:
     def test_csharp_base_class(self, tmp_path: Path):
