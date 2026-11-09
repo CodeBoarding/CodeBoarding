@@ -13,7 +13,7 @@ from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import ErrorVerdict
+from static_analyzer.engine.lsp_client import LSP_INTERNAL_ERROR, ErrorVerdict
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -335,13 +335,17 @@ class JavaAdapter(LanguageAdapter):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     def error_verdict(self, error: dict) -> ErrorVerdict:
-        """A crash in JDT's code selection is final for that call site, and its edge is left out with a warning.
+        """An internal error thrown from JDT's compiler or code assist leaves that one call site's edge out.
 
-        Why: asking again crashes the same way, so one site the compiler cannot walk must not cost the whole run.
-        A timeout or a lost server is not this, and still fails it.
+        Why: it is a function of the source alone, so asking again crashes the same way. The first frame past the
+        JDK's own decides. A cancellation or interruption, a JVM error, or a crash in JDT LS's own code still fails.
         """
         data = str(error.get("data", ""))
-        if re.search(r"Caused by: java\.lang\.NullPointerException.*\n\s*at \S*codeassist\.SelectionEngine", data):
+        if error.get("code") == LSP_INTERNAL_ERROR and re.search(
+            r"Caused by: java\.lang\.(?!InterruptedException)\w+Exception\b.*\n(?:\s*at java\.base/.*\n)*"
+            r"\s*at org\.eclipse\.jdt\.internal\.(?:compiler|codeassist)\.",
+            data,
+        ):
             logger.warning(f"JDTLS crashed resolving a call site, leaving its edge out: {data}")
             return ErrorVerdict.DECLINED
         return ErrorVerdict.FAILURE

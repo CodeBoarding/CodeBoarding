@@ -33,6 +33,7 @@ LSP_STDERR_TAIL_LINES = 32
 # JSON AST nodes retain more Python objects than tree-sitter's native nodes.
 LSP_AST_NODE_BUDGET = 50_000
 LSP_METHOD_NOT_FOUND = -32601
+LSP_INTERNAL_ERROR = -32603
 # Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
 # any other code is the server declining for itself, as gopls does for a free function.
 LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
