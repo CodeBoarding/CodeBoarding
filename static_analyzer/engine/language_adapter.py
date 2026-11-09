@@ -407,6 +407,14 @@ class LanguageAdapter(ABC):
         return False
 
     @property
+    def source_names_every_subtype(self) -> bool:
+        """Whether every type deriving from another names it in source, as
+        ``SourceInspector.find_derived_type_names`` reads it. Then a member of a
+        class nothing derives from is owed no ``textDocument/implementation``
+        query. Not so where inheritance is implicit (Go) or not yet read (TS)."""
+        return False
+
+    @property
     def drain_probe_round_seconds(self) -> int | None:
         """Seconds after which the didOpen drain probe is asked again, or None to wait the whole budget
         on one request. Why: a server that drops a request arriving during a large didOpen burst still

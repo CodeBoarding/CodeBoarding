@@ -53,6 +53,12 @@ class JavaAdapter(LanguageAdapter):
         return True
 
     @property
+    def source_names_every_subtype(self) -> bool:
+        """A subclass, an anonymous class body or an enum constant body names its base; a lambda implements only
+        an interface, which is always asked about."""
+        return True
+
+    @property
     def search_index_timeout(self) -> int | None:
         """JDTLS indexes the classpath, the JDK included, on its first search.
 

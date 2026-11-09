@@ -301,7 +301,7 @@ _KOTLIN_PARAMETER_LIST_NODE_TYPES = frozenset({"function_value_parameters"})
 _KOTLIN_PARAMETER_PART_NODE_TYPES = frozenset({"simple_identifier", "modifiers", "binding_pattern_kind"})
 _ARGUMENT_HOLDER_NODE_TYPES = frozenset({"call_expression", "constructor_invocation", "constructor_delegation_call"})
 _KOTLIN_DOC_COMMENT_NODE_TYPES = frozenset({"multiline_comment"})
-_KOTLIN_TYPE_ARGUMENTS = re.compile(r"<[^<>]*>")
+_TYPE_ARGUMENTS = re.compile(r"<[^<>]*>")
 # A package segment is lower case; an outer type's name before a nested one is kept, so
 # ``PublicKeyCredentialEntry.Builder`` and ``PasswordCredentialEntry.Builder`` stay apart.
 _KOTLIN_PACKAGE_QUALIFIER = re.compile(r"\b[a-z_][\w`]*\.(?=[\w`])")
@@ -1346,6 +1346,39 @@ class SourceInspector:
                 declarations.append((text(name_node), bases))
         return declarations
 
+    def find_derived_type_names(self, file_path: Path) -> set[str]:
+        """Every type name something in the file derives from.
+
+        That is a declared type's bases, the type an anonymous class body extends, and the enum a Java enum constant
+        with a body subclasses. Why: a member is only ever implemented in a type that derives from its owner, so an
+        owner no file names here has no implementation to ask the server for.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return set()
+
+        def simple_name(node: TreeSitterNode) -> str:
+            # ``Outer<T>.@Nullable Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, innermost
+            # first, then the qualifier, then any annotation written before the name.
+            written = parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+            while _TYPE_ARGUMENTS.search(written):
+                written = _TYPE_ARGUMENTS.sub("", written)
+            return written.rsplit(".", 1)[-1].split()[-1]
+
+        names: set[str] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type in _TYPE_DECLARATION_NODE_TYPES:
+                names.update(simple_name(base) for base in self._base_type_nodes(node))
+            if not any(child.type == "class_body" for child in node.named_children):
+                continue
+            if node.type == "object_creation_expression" and (created := node.child_by_field_name("type")):
+                names.add(simple_name(created))
+            elif node.type == "enum_constant" and node.parent is not None and node.parent.parent is not None:
+                enum = node.parent.parent.child_by_field_name("name")
+                if enum is not None:
+                    names.add(simple_name(enum))
+        return names
+
     def find_base_type_sites(self, file_path: Path) -> list[tuple[tuple[int, int], list[tuple[int, int]]]]:
         """Each type the file declares, by its name's position, with the positions naming its bases.
 
@@ -1488,8 +1521,8 @@ class SourceInspector:
         def render_type(node: TreeSitterNode) -> str:
             # A function type's arrow is set aside first: its ``>`` would otherwise close a type argument.
             rendered = " ".join(text(node).split()).replace("->", "\0")
-            while _KOTLIN_TYPE_ARGUMENTS.search(rendered):
-                rendered = _KOTLIN_TYPE_ARGUMENTS.sub("", rendered)
+            while _TYPE_ARGUMENTS.search(rendered):
+                rendered = _TYPE_ARGUMENTS.sub("", rendered)
             return _KOTLIN_PACKAGE_QUALIFIER.sub("", rendered).replace("\0", "->")
 
         def parameter_types(node: TreeSitterNode, receiver: TreeSitterNode | None) -> str:

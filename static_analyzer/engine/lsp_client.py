@@ -923,6 +923,9 @@ class LSPClient:
                 continue
 
             pending.discard(msg_id)  # type: ignore[arg-type]
+            # The timeout is for a server gone quiet, not for the whole round: JDTLS answers a round one request
+            # at a time, and on JabRef 50 implementation queries took longer than it while answering throughout.
+            deadline = time.monotonic() + timeout
 
             if "error" in msg:
                 err = msg["error"]
