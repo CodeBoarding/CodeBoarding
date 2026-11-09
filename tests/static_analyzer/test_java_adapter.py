@@ -74,6 +74,22 @@ class TestErrorVerdict:
         }
         assert JavaAdapter().error_verdict(error) is ErrorVerdict.FAILURE
 
+    def test_a_cancelled_request_keeps_its_retry(self):
+        """Declining it would read a cancellation as an empty answer before the protocol's retry could ask again."""
+        cancelled = {**SELECTION_CRASH, "code": -32800, "message": "Request cancelled."}
+        assert JavaAdapter().error_verdict(cancelled) is ErrorVerdict.FAILURE
+
+    def test_an_interrupted_code_selection_still_fails_the_run(self):
+        """Interruption says what happened to the thread, not what the source is."""
+        error = {
+            "code": -32603,
+            "data": (
+                "Caused by: java.lang.InterruptedException\n"
+                "\tat org.eclipse.jdt.internal.codeassist.SelectionEngine.select(SelectionEngine.java:1030)"
+            ),
+        }
+        assert JavaAdapter().error_verdict(error) is ErrorVerdict.FAILURE
+
     def test_any_other_internal_error_still_fails_the_run(self):
         """Reading an unknown failure as empty would lose edges silently."""
         error = {"code": -32603, "message": "Internal error.", "data": "java.lang.OutOfMemoryError: Java heap space"}
