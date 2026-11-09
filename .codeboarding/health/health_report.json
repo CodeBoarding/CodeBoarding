@@ -1,6 +1,6 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-11-09T22:42:14.759321+00:00",
+  "timestamp": "2026-11-09T22:44:34.554556+00:00",
   "overall_score": 0.9775349119611415,
   "check_summaries": [
     {
@@ -84,13 +84,6 @@
               "file_path": "static_analyzer/__init__.py",
               "line_start": 329,
               "line_end": 329,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
-              "file_path": "static_analyzer/engine/lsp_client.py",
-              "line_start": 189,
-              "line_end": 189,
               "metric_value": 0.0
             },
             {
@@ -280,6 +273,13 @@
               "file_path": "static_analyzer/engine/language_adapter.py",
               "line_start": 504,
               "line_end": 504,
+              "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/engine/lsp_client.py",
+              "line_start": 190,
+              "line_end": 190,
               "metric_value": 0.0
             }
           ]

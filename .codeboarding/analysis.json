@@ -1,7 +1,7 @@
 {
   "metadata": {
-    "generated_at": "2026-11-09T22:43:06.536737+00:00",
-    "source_tree_hash": "f5b8e13d06289f4ad33b1895b3c73b8c145fe3837f8a7d3eb41d8c3becde8214",
+    "generated_at": "2026-11-09T22:45:19.832939+00:00",
+    "source_tree_hash": "ad9fbfb24f8b02dc0da6e7e947f6b72d9ba86f0fd5d473056506d171800660b6",
     "repo_name": ".codeboarding-target",
     "depth_level": 2,
     "depth_cap": 2,
@@ -2437,8 +2437,8 @@
         "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._restore_import_filters",
         "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._without_inclusion_filter"
       ],
-      "content_hash": "8485a64875575fdd",
-      "module_hash": "f3d6d9cd4815bac9"
+      "content_hash": "2b0cc7a3393d2565",
+      "module_hash": "bf42db37f0653f88"
     },
     "static_analyzer/engine/adapters/kotlin_adapter.py": {
       "method_keys": [
@@ -2767,8 +2767,8 @@
         "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_notification",
         "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._read_single_message"
       ],
-      "content_hash": "a8b458bf4eb0d133",
-      "module_hash": "71f851e198efbe6b"
+      "content_hash": "11a80e27f1a9dae5",
+      "module_hash": "c285150ae619096f"
     },
     "static_analyzer/engine/lsp_recycler.py": {
       "method_keys": [
@@ -7788,9 +7788,9 @@
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.java_adapter.JavaAdapter",
       "start_line": 40,
-      "end_line": 370,
+      "end_line": 374,
       "type": "CLASS",
-      "content_hash": "e8c01e97dd51eada"
+      "content_hash": "3832a9873974009a"
     },
     "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.__init__": {
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
@@ -7980,31 +7980,31 @@
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.java_adapter.JavaAdapter.error_verdict",
       "start_line": 337,
-      "end_line": 347,
+      "end_line": 351,
       "type": "METHOD",
-      "content_hash": "aff6eef6f94baa34"
+      "content_hash": "474283f1dae4f672"
     },
     "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_all_packages": {
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_all_packages",
-      "start_line": 349,
-      "end_line": 353,
+      "start_line": 353,
+      "end_line": 357,
       "type": "METHOD",
       "content_hash": "6f95112456a54251"
     },
     "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._restore_import_filters": {
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.java_adapter.JavaAdapter._restore_import_filters",
-      "start_line": 355,
-      "end_line": 363,
+      "start_line": 359,
+      "end_line": 367,
       "type": "METHOD",
       "content_hash": "4fbe8f6b72d8c050"
     },
     "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._without_inclusion_filter": {
       "file_path": "static_analyzer/engine/adapters/java_adapter.py",
       "qualified_name": "static_analyzer.engine.adapters.java_adapter.JavaAdapter._without_inclusion_filter",
-      "start_line": 366,
-      "end_line": 370,
+      "start_line": 370,
+      "end_line": 374,
       "type": "METHOD",
       "content_hash": "9e846cc507225be8"
     },
@@ -9635,440 +9635,440 @@
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client._progress_indicates_failure": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client._progress_indicates_failure",
-      "start_line": 47,
-      "end_line": 49,
+      "start_line": 48,
+      "end_line": 50,
       "type": "FUNCTION",
       "content_hash": "997ad2fa882cee62"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client._progress_token": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client._progress_token",
-      "start_line": 52,
-      "end_line": 56,
+      "start_line": 53,
+      "end_line": 57,
       "type": "FUNCTION",
       "content_hash": "0897dae5c8ac69e1"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.ErrorVerdict": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.ErrorVerdict",
-      "start_line": 59,
-      "end_line": 67,
+      "start_line": 60,
+      "end_line": 68,
       "type": "CLASS",
       "content_hash": "45f55bbf3feb66b9"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.MethodNotFoundError": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.MethodNotFoundError",
-      "start_line": 70,
-      "end_line": 71,
+      "start_line": 71,
+      "end_line": 72,
       "type": "CLASS",
       "content_hash": "a4a1218aad2692f0"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.BatchAnswer": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.BatchAnswer",
-      "start_line": 75,
-      "end_line": 80,
+      "start_line": 76,
+      "end_line": 81,
       "type": "CLASS",
       "content_hash": "c5ce6a5f00cefc0a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client._is_protocol_failure": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client._is_protocol_failure",
-      "start_line": 83,
-      "end_line": 90,
+      "start_line": 84,
+      "end_line": 91,
       "type": "FUNCTION",
       "content_hash": "5ec44e8603487919"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client._is_retryable": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client._is_retryable",
-      "start_line": 93,
-      "end_line": 95,
+      "start_line": 94,
+      "end_line": 96,
       "type": "FUNCTION",
       "content_hash": "4ee1e83cc59d30bb"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient",
-      "start_line": 98,
-      "end_line": 1188,
+      "start_line": 99,
+      "end_line": 1189,
       "type": "CLASS",
       "content_hash": "92733f536f2435bf"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.__init__": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.__init__",
-      "start_line": 109,
-      "end_line": 183,
+      "start_line": 110,
+      "end_line": 184,
       "type": "METHOD",
       "content_hash": "28f3ef1cff5cc5d8"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.__enter__": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.__enter__",
-      "start_line": 185,
-      "end_line": 187,
+      "start_line": 186,
+      "end_line": 188,
       "type": "METHOD",
       "content_hash": "d1de335db0e855d3"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.__exit__": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.__exit__",
-      "start_line": 189,
-      "end_line": 190,
+      "start_line": 190,
+      "end_line": 191,
       "type": "METHOD",
       "content_hash": "0d9a6e6db8d05169"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.start": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.start",
-      "start_line": 192,
-      "end_line": 300,
+      "start_line": 193,
+      "end_line": 301,
       "type": "METHOD",
       "content_hash": "ea5e11850f11726e"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.shutdown": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.shutdown",
-      "start_line": 302,
-      "end_line": 334,
+      "start_line": 303,
+      "end_line": 335,
       "type": "METHOD",
       "content_hash": "805b67db81096927"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.restart": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.restart",
-      "start_line": 336,
-      "end_line": 358,
+      "start_line": 337,
+      "end_line": 359,
       "type": "METHOD",
       "content_hash": "1275025480fd7333"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.pid": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.pid",
-      "start_line": 361,
-      "end_line": 365,
+      "start_line": 362,
+      "end_line": 366,
       "type": "METHOD",
       "content_hash": "f0c2744ae02b1955"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.alive": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.alive",
-      "start_line": 368,
-      "end_line": 370,
+      "start_line": 369,
+      "end_line": 371,
       "type": "METHOD",
       "content_hash": "8cbf8bcf307a5a4a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.check_alive": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.check_alive",
-      "start_line": 372,
-      "end_line": 380,
+      "start_line": 373,
+      "end_line": 381,
       "type": "METHOD",
       "content_hash": "d2803c65651d0d30"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_open": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.did_open",
-      "start_line": 384,
-      "end_line": 417,
+      "start_line": 385,
+      "end_line": 418,
       "type": "METHOD",
       "content_hash": "520380ff96d3a48a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_change": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.did_change",
-      "start_line": 419,
-      "end_line": 432,
+      "start_line": 420,
+      "end_line": 433,
       "type": "METHOD",
       "content_hash": "8acfb54c048bf639"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.did_close": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.did_close",
-      "start_line": 434,
-      "end_line": 443,
+      "start_line": 435,
+      "end_line": 444,
       "type": "METHOD",
       "content_hash": "47dd490b10b29f7b"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.symbol_info_batch": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.symbol_info_batch",
-      "start_line": 447,
-      "end_line": 451,
+      "start_line": 448,
+      "end_line": 452,
       "type": "METHOD",
       "content_hash": "276360c9aeed769a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.document_ast": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.document_ast",
-      "start_line": 453,
-      "end_line": 479,
+      "start_line": 454,
+      "end_line": 480,
       "type": "METHOD",
       "content_hash": "3cd31438235ae40f"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.outgoing_calls_batch": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.outgoing_calls_batch",
-      "start_line": 481,
-      "end_line": 493,
+      "start_line": 482,
+      "end_line": 494,
       "type": "METHOD",
       "content_hash": "e8a1ea3ab80ef774"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.document_symbol": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.document_symbol",
-      "start_line": 495,
-      "end_line": 504,
+      "start_line": 496,
+      "end_line": 505,
       "type": "METHOD",
       "content_hash": "86d935bac7e4a43c"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_definition_batch": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.send_definition_batch",
-      "start_line": 506,
-      "end_line": 515,
+      "start_line": 507,
+      "end_line": 516,
       "type": "METHOD",
       "content_hash": "6537bc5f14bc81db"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_type_definition_batch": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.send_type_definition_batch",
-      "start_line": 517,
-      "end_line": 530,
+      "start_line": 518,
+      "end_line": 531,
       "type": "METHOD",
       "content_hash": "07d3685eb7aed2d6"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.implementation": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.implementation",
-      "start_line": 532,
-      "end_line": 546,
+      "start_line": 533,
+      "end_line": 547,
       "type": "METHOD",
       "content_hash": "2eaaecf65005ebfc"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.advertises": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.advertises",
-      "start_line": 548,
-      "end_line": 550,
+      "start_line": 549,
+      "end_line": 551,
       "type": "METHOD",
       "content_hash": "1b0471f042caa82a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
-      "start_line": 552,
-      "end_line": 563,
+      "start_line": 553,
+      "end_line": 564,
       "type": "METHOD",
       "content_hash": "686e2bca1e29f676"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.workspace_symbol": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.workspace_symbol",
-      "start_line": 565,
-      "end_line": 570,
+      "start_line": 566,
+      "end_line": 571,
       "type": "METHOD",
       "content_hash": "92b7cf97ad0e1562"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_prepare": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_prepare",
-      "start_line": 572,
-      "end_line": 586,
+      "start_line": 573,
+      "end_line": 587,
       "type": "METHOD",
       "content_hash": "9fe34bc7079a0abb"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_supertypes": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_supertypes",
-      "start_line": 588,
-      "end_line": 593,
+      "start_line": 589,
+      "end_line": 594,
       "type": "METHOD",
       "content_hash": "fd60368e80945164"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_subtypes": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.type_hierarchy_subtypes",
-      "start_line": 595,
-      "end_line": 600,
+      "start_line": 596,
+      "end_line": 601,
       "type": "METHOD",
       "content_hash": "c269c82ad93e3cd4"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.get_collected_diagnostics": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.get_collected_diagnostics",
-      "start_line": 604,
-      "end_line": 607,
+      "start_line": 605,
+      "end_line": 608,
       "type": "METHOD",
       "content_hash": "f55cd400e469ce59"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.get_diagnostics_generation": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.get_diagnostics_generation",
-      "start_line": 609,
-      "end_line": 612,
+      "start_line": 610,
+      "end_line": 613,
       "type": "METHOD",
       "content_hash": "1da383cfa2ec1390"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.wait_for_diagnostics_quiesce": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.wait_for_diagnostics_quiesce",
-      "start_line": 614,
-      "end_line": 638,
+      "start_line": 615,
+      "end_line": 639,
       "type": "METHOD",
       "content_hash": "782d057c719704cb"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.wait_for_progress_quiet": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.wait_for_progress_quiet",
-      "start_line": 640,
-      "end_line": 657,
+      "start_line": 641,
+      "end_line": 658,
       "type": "METHOD",
       "content_hash": "fd82886a6ac1eee5"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.wait_for_server_ready": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.wait_for_server_ready",
-      "start_line": 661,
-      "end_line": 684,
+      "start_line": 662,
+      "end_line": 685,
       "type": "METHOD",
       "content_hash": "13fbad4aeb063184"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.reset_ready_signal": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.reset_ready_signal",
-      "start_line": 686,
-      "end_line": 695,
+      "start_line": 687,
+      "end_line": 696,
       "type": "METHOD",
       "content_hash": "3dc6445dad583e54"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.server_health": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.server_health",
-      "start_line": 698,
-      "end_line": 699,
+      "start_line": 699,
+      "end_line": 700,
       "type": "METHOD",
       "content_hash": "63035bab69afb67d"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.server_health_message": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient.server_health_message",
-      "start_line": 702,
-      "end_line": 703,
+      "start_line": 703,
+      "end_line": 704,
       "type": "METHOD",
       "content_hash": "28d8059be433eff9"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._position_params": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._position_params",
-      "start_line": 707,
-      "end_line": 712,
+      "start_line": 708,
+      "end_line": 713,
       "type": "METHOD",
       "content_hash": "3ea034dd1f465c05"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_batch": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._send_batch",
-      "start_line": 714,
-      "end_line": 745,
+      "start_line": 715,
+      "end_line": 746,
       "type": "METHOD",
       "content_hash": "877e62711d75ba66"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_round": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._send_round",
-      "start_line": 747,
-      "end_line": 775,
+      "start_line": 748,
+      "end_line": 776,
       "type": "METHOD",
       "content_hash": "cf178ce379d8456d"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_request": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._send_request",
-      "start_line": 777,
-      "end_line": 819,
+      "start_line": 778,
+      "end_line": 820,
       "type": "METHOD",
       "content_hash": "f8fdccbb1e201f70"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._send_notification": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._send_notification",
-      "start_line": 821,
-      "end_line": 828,
+      "start_line": 822,
+      "end_line": 829,
       "type": "METHOD",
       "content_hash": "42880bf9e9b2a996"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._write_message": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._write_message",
-      "start_line": 830,
-      "end_line": 844,
+      "start_line": 831,
+      "end_line": 845,
       "type": "METHOD",
       "content_hash": "28c8c9ba4f89aef7"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._next_response": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._next_response",
-      "start_line": 846,
-      "end_line": 879,
+      "start_line": 847,
+      "end_line": 880,
       "type": "METHOD",
       "content_hash": "59d23493c7fe4e4b"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._read_stderr": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._read_stderr",
-      "start_line": 881,
-      "end_line": 888,
+      "start_line": 882,
+      "end_line": 889,
       "type": "METHOD",
       "content_hash": "1d65a12f68ad6d68"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._raise_process_exited": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._raise_process_exited",
-      "start_line": 890,
-      "end_line": 899,
+      "start_line": 891,
+      "end_line": 900,
       "type": "METHOD",
       "content_hash": "4f38e918b2712451"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._collect_batch_responses": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._collect_batch_responses",
-      "start_line": 901,
-      "end_line": 971,
+      "start_line": 902,
+      "end_line": 972,
       "type": "METHOD",
       "content_hash": "ab1721687eecd638"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._reader_loop": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._reader_loop",
-      "start_line": 975,
-      "end_line": 1011,
+      "start_line": 976,
+      "end_line": 1012,
       "type": "METHOD",
       "content_hash": "fa4f70d94d69b82a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_server_request": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._handle_server_request",
-      "start_line": 1013,
-      "end_line": 1027,
+      "start_line": 1014,
+      "end_line": 1028,
       "type": "METHOD",
       "content_hash": "dc897eae86bf12fd"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._handle_notification": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._handle_notification",
-      "start_line": 1029,
-      "end_line": 1146,
+      "start_line": 1030,
+      "end_line": 1147,
       "type": "METHOD",
       "content_hash": "faa287ddc649139a"
     },
     "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._read_single_message": {
       "file_path": "static_analyzer/engine/lsp_client.py",
       "qualified_name": "static_analyzer.engine.lsp_client.LSPClient._read_single_message",
-      "start_line": 1148,
-      "end_line": 1188,
+      "start_line": 1149,
+      "end_line": 1189,
       "type": "METHOD",
       "content_hash": "b99d6efc6d35c3d4"
     },
@@ -21172,8 +21172,8 @@
             {
               "qualified_name": "static_analyzer.engine.lsp_client.LSPClient",
               "reference_file": "static_analyzer/engine/lsp_client.py",
-              "reference_start_line": 98,
-              "reference_end_line": 1188
+              "reference_start_line": 99,
+              "reference_end_line": 1189
             },
             {
               "qualified_name": "static_analyzer.engine.call_graph_builder.CallGraphBuilder",
@@ -23538,7 +23538,7 @@
                   "column": 34
                 }
               ],
-              "description": "Initializes repository scanning for configured languages"
+              "description": "Initializes project scanner to discover workspace sources and configurations"
             },
             {
               "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._absorb_and_link",
@@ -23549,7 +23549,7 @@
                   "column": 22
                 }
               ],
-              "description": "Resolves and links external cross-file call sites"
+              "description": "Resolves and links cross-boundary call sites into the graph index"
             }
           ],
           "src_id": "1.1",
@@ -24188,17 +24188,6 @@
               "description": ""
             },
             {
-              "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
-              "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.create_jdtls_command",
-              "call_sites": [
-                {
-                  "line": 106,
-                  "column": 16
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.CallEdgeSink.add",
               "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
               "call_sites": [
@@ -24309,11 +24298,22 @@
               "description": ""
             },
             {
+              "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
+              "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.create_jdtls_command",
+              "call_sites": [
+                {
+                  "line": 106,
+                  "column": 16
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._collect_batch_responses",
               "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
               "call_sites": [
                 {
-                  "line": 941,
+                  "line": 942,
                   "column": 27
                 }
               ],
@@ -24324,7 +24324,7 @@
               "target": "static_analyzer/lsp_client/diagnostics.py|static_analyzer.lsp_client.diagnostics.LSPDiagnostic",
               "call_sites": [
                 {
-                  "line": 1038,
+                  "line": 1039,
                   "column": 48
                 }
               ],
@@ -24335,7 +24335,7 @@
               "target": "static_analyzer/lsp_client/diagnostics.py|static_analyzer.lsp_client.diagnostics.LSPDiagnostic.from_lsp_dict",
               "call_sites": [
                 {
-                  "line": 1038,
+                  "line": 1039,
                   "column": 48
                 }
               ],
@@ -24346,7 +24346,7 @@
               "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
               "call_sites": [
                 {
-                  "line": 896,
+                  "line": 897,
                   "column": 15
                 }
               ],
@@ -24357,7 +24357,7 @@
               "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
               "call_sites": [
                 {
-                  "line": 739,
+                  "line": 740,
                   "column": 23
                 }
               ],
@@ -24368,11 +24368,11 @@
               "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.WorkspaceSetupError",
               "call_sites": [
                 {
-                  "line": 805,
+                  "line": 806,
                   "column": 27
                 },
                 {
-                  "line": 818,
+                  "line": 819,
                   "column": 19
                 }
               ],
@@ -24383,7 +24383,7 @@
               "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
               "call_sites": [
                 {
-                  "line": 838,
+                  "line": 839,
                   "column": 19
                 }
               ],
@@ -24394,7 +24394,7 @@
               "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.LanguageServerStalledError",
               "call_sites": [
                 {
-                  "line": 375,
+                  "line": 376,
                   "column": 19
                 }
               ],
@@ -24417,7 +24417,7 @@
                   "column": 16
                 }
               ],
-              "description": "Converts LSP symbol kinds into node type classifications"
+              "description": "Maps LSP symbol kinds to structural graph node types"
             }
           ],
           "src_id": "1.1",
@@ -24472,7 +24472,7 @@
                   "column": 44
                 }
               ],
-              "description": "Persists language call graphs and hierarchies in the results container"
+              "description": "Stores generated control flow graphs and symbol hierarchies into static analysis results"
             }
           ],
           "src_id": "1.1",
@@ -25370,7 +25370,7 @@
                   "column": 41
                 }
               ],
-              "description": "Accesses call site locations for cross-file linkage"
+              "description": "References call site representations when evaluating potential calls"
             },
             {
               "source": "static_analyzer/external_calls.py|static_analyzer.external_calls.link_external_call_sites",
@@ -25381,7 +25381,7 @@
                   "column": 41
                 }
               ],
-              "description": "Inspects language adapter dispatch rules during external call resolution"
+              "description": "Queries language adapters to resolve virtual dispatches during cross-file linking"
             }
           ],
           "src_id": "1.2",
@@ -25813,28 +25813,6 @@
               "description": ""
             },
             {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
-              "call_sites": [
-                {
-                  "line": 277,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
-              "call_sites": [
-                {
-                  "line": 277,
-                  "column": 22
-                }
-              ],
-              "description": ""
-            },
-            {
               "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
               "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter",
               "call_sites": [
@@ -25922,6 +25900,28 @@
                 }
               ],
               "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
+              "call_sites": [
+                {
+                  "line": 277,
+                  "column": 22
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+              "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
+              "call_sites": [
+                {
+                  "line": 277,
+                  "column": 22
+                }
+              ],
+              "description": ""
             }
           ]
         },
@@ -25931,6 +25931,17 @@
           "dst_name": "Language Server Analysis Engine",
           "evidence": "",
           "key_edges": [
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
+              "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
+              "call_sites": [
+                {
+                  "line": 292,
+                  "column": 13
+                }
+              ],
+              "description": "Extracts declaration symbol information during incremental graph updates"
+            },
             {
               "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
               "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
@@ -25948,7 +25959,7 @@
                   "column": 32
                 }
               ],
-              "description": "Notifies LSP client of file changes to restore inbound edges"
+              "description": "Re-opens modified documents and requests definitions via LSP client during incremental updates"
             }
           ],
           "src_id": "1.4",
@@ -26180,6 +26191,43 @@
               "description": ""
             },
             {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
+              "call_sites": [
+                {
+                  "line": 94,
+                  "column": 54
+                },
+                {
+                  "line": 81,
+                  "column": 58
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
+              "call_sites": [
+                {
+                  "line": 81,
+                  "column": 58
+                }
+              ],
+              "description": ""
+            },
+            {
+              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
+              "call_sites": [
+                {
+                  "line": 94,
+                  "column": 54
+                }
+              ],
+              "description": ""
+            },
+            {
               "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
               "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
               "call_sites": [
@@ -26227,43 +26275,6 @@
                 {
                   "line": 192,
                   "column": 27
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
-              "call_sites": [
-                {
-                  "line": 94,
-                  "column": 54
-                },
-                {
-                  "line": 81,
-                  "column": 58
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
-              "call_sites": [
-                {
-                  "line": 81,
-                  "column": 58
-                }
-              ],
-              "description": ""
-            },
-            {
-              "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-              "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
-              "call_sites": [
-                {
-                  "line": 94,
-                  "column": 54
                 }
               ],
               "description": ""
@@ -32665,17 +32676,6 @@
           "description": ""
         },
         {
-          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
-          "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.create_jdtls_command",
-          "call_sites": [
-            {
-              "line": 106,
-              "column": 16
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/engine/edge_builder.py|static_analyzer.engine.edge_builder.CallEdgeSink.add",
           "target": "static_analyzer/internal_references.py|static_analyzer.internal_references.parent_qualified_name",
           "call_sites": [
@@ -32786,11 +32786,22 @@
           "description": ""
         },
         {
+          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter.get_lsp_command",
+          "target": "static_analyzer/java_utils.py|static_analyzer.java_utils.create_jdtls_command",
+          "call_sites": [
+            {
+              "line": 106,
+              "column": 16
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient._collect_batch_responses",
           "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
           "call_sites": [
             {
-              "line": 941,
+              "line": 942,
               "column": 27
             }
           ],
@@ -32801,7 +32812,7 @@
           "target": "static_analyzer/lsp_client/diagnostics.py|static_analyzer.lsp_client.diagnostics.LSPDiagnostic",
           "call_sites": [
             {
-              "line": 1038,
+              "line": 1039,
               "column": 48
             }
           ],
@@ -32812,7 +32823,7 @@
           "target": "static_analyzer/lsp_client/diagnostics.py|static_analyzer.lsp_client.diagnostics.LSPDiagnostic.from_lsp_dict",
           "call_sites": [
             {
-              "line": 1038,
+              "line": 1039,
               "column": 48
             }
           ],
@@ -32823,7 +32834,7 @@
           "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
           "call_sites": [
             {
-              "line": 896,
+              "line": 897,
               "column": 15
             }
           ],
@@ -32834,7 +32845,7 @@
           "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
           "call_sites": [
             {
-              "line": 739,
+              "line": 740,
               "column": 23
             }
           ],
@@ -32845,11 +32856,11 @@
           "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.WorkspaceSetupError",
           "call_sites": [
             {
-              "line": 805,
+              "line": 806,
               "column": 27
             },
             {
-              "line": 818,
+              "line": 819,
               "column": 19
             }
           ],
@@ -32860,7 +32871,7 @@
           "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.StaticAnalysisFatalError",
           "call_sites": [
             {
-              "line": 838,
+              "line": 839,
               "column": 19
             }
           ],
@@ -32871,7 +32882,7 @@
           "target": "static_analyzer/exceptions.py|static_analyzer.exceptions.LanguageServerStalledError",
           "call_sites": [
             {
-              "line": 375,
+              "line": 376,
               "column": 19
             }
           ],
@@ -33890,7 +33901,19 @@
       "src_name": "Language Server Analysis Engine",
       "dst_name": "Repository and Workspace Utilities",
       "evidence": "",
-      "key_edges": [],
+      "key_edges": [
+        {
+          "source": "static_analyzer/__init__.py|static_analyzer.__init__.StaticAnalyzer._changed_files_for_language",
+          "target": "infra/repo_utils/git_ops.py|infra.repo_utils.git_ops.get_changed_files_since",
+          "call_sites": [
+            {
+              "line": 1026,
+              "column": 24
+            }
+          ],
+          "description": "StaticAnalyzer queries git history for changed files across languages"
+        }
+      ],
       "src_id": "1.1",
       "dst_id": "2.2",
       "is_static": true,
@@ -34021,17 +34044,6 @@
           "description": ""
         },
         {
-          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._find_jdtls_root",
-          "target": "infra/utils.py|infra.utils.get_config",
-          "call_sites": [
-            {
-              "line": 112,
-              "column": 23
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter._walk",
           "target": "infra/repo_utils/ignore.py|infra.repo_utils.ignore.RepoIgnoreManager",
           "call_sites": [
@@ -34059,6 +34071,17 @@
           "call_sites": [
             {
               "line": 84,
+              "column": 23
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/engine/adapters/java_adapter.py|static_analyzer.engine.adapters.java_adapter.JavaAdapter._find_jdtls_root",
+          "target": "infra/utils.py|infra.utils.get_config",
+          "call_sites": [
+            {
+              "line": 112,
               "column": 23
             }
           ],
@@ -34681,28 +34704,6 @@
           "description": ""
         },
         {
-          "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
-          "call_sites": [
-            {
-              "line": 277,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
-          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
-          "call_sites": [
-            {
-              "line": 277,
-              "column": 22
-            }
-          ],
-          "description": ""
-        },
-        {
           "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.potential_calls",
           "target": "static_analyzer/engine/protocols.py|static_analyzer.engine.protocols.EdgeBuildAdapter",
           "call_sites": [
@@ -34787,6 +34788,28 @@
             {
               "line": 386,
               "column": 24
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
+          "call_sites": [
+            {
+              "line": 277,
+              "column": 22
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/graph_definitions.py|static_analyzer.graph_definitions.implemented_by",
+          "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient.send_implementation_batch",
+          "call_sites": [
+            {
+              "line": 277,
+              "column": 22
             }
           ],
           "description": ""
@@ -35917,6 +35940,17 @@
       "evidence": "",
       "key_edges": [
         {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._declarations",
+          "target": "static_analyzer/engine/models.py|static_analyzer.engine.models.SymbolInfo",
+          "call_sites": [
+            {
+              "line": 292,
+              "column": 13
+            }
+          ],
+          "description": "Extracts declaration symbol information during incremental graph updates"
+        },
+        {
           "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
           "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
           "call_sites": [
@@ -36165,6 +36199,43 @@
           "description": ""
         },
         {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
+          "call_sites": [
+            {
+              "line": 94,
+              "column": 54
+            },
+            {
+              "line": 81,
+              "column": 58
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
+          "call_sites": [
+            {
+              "line": 81,
+              "column": 58
+            }
+          ],
+          "description": ""
+        },
+        {
+          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
+          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
+          "call_sites": [
+            {
+              "line": 94,
+              "column": 54
+            }
+          ],
+          "description": ""
+        },
+        {
           "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator._restore_inbound_edges_via_definitions",
           "target": "static_analyzer/engine/lsp_client.py|static_analyzer.engine.lsp_client.LSPClient",
           "call_sites": [
@@ -36212,43 +36283,6 @@
             {
               "line": 192,
               "column": 27
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter",
-          "call_sites": [
-            {
-              "line": 94,
-              "column": 54
-            },
-            {
-              "line": 81,
-              "column": 58
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.file_extensions",
-          "call_sites": [
-            {
-              "line": 81,
-              "column": 58
-            }
-          ],
-          "description": ""
-        },
-        {
-          "source": "static_analyzer/incremental_orchestrator.py|static_analyzer.incremental_orchestrator.update_cfg_for_changed_files",
-          "target": "static_analyzer/engine/language_adapter.py|static_analyzer.engine.language_adapter.LanguageAdapter.language",
-          "call_sites": [
-            {
-              "line": 94,
-              "column": 54
             }
           ],
           "description": ""
@@ -37504,6 +37538,17 @@
       "dst_name": "Project Scanner and Linker",
       "evidence": "",
       "key_edges": [
+        {
+          "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
+          "target": "static_analyzer/node.py|static_analyzer.node.Node.entity_label",
+          "call_sites": [
+            {
+              "line": 67,
+              "column": 30
+            }
+          ],
+          "description": "Call graph renderer extracts entity labels from node definitions"
+        },
         {
           "source": "agents/llm_renderers/call_graph.py|agents.llm_renderers.call_graph._render_detailed",
           "target": "static_analyzer/node.py|static_analyzer.node.Node",
