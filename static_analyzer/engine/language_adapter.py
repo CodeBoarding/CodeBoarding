@@ -267,9 +267,9 @@ class LanguageAdapter(ABC):
         """Raise if a ready signal represents an unusable workspace state."""
         return None
 
-    def warm_up(self, client: LSPClient) -> None:
-        """Have the server do its one-off work now, before a query waits on it, once the server for the analysis is
-        settled (after any restart)."""
+    @property
+    def search_index_timeout(self) -> int | None:
+        """Seconds the server's first search may take, for a server that builds its search index on it; None if not."""
         return None
 
     def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:

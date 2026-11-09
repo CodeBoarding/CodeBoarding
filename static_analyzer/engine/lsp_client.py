@@ -562,11 +562,9 @@ class LSPClient:
             self._default_timeout if timeout is None else timeout,
         )
 
-    def workspace_symbol(self, query: str, timeout: int | None = None) -> list[dict]:
+    def workspace_symbol(self, query: str) -> list[dict]:
         """Symbols declared anywhere in the loaded workspace whose name matches *query*."""
-        result = self._send_request(
-            "workspace/symbol", {"query": query}, self._default_timeout if timeout is None else timeout
-        )
+        result = self._send_request("workspace/symbol", {"query": query}, self._default_timeout)
         if isinstance(result, list):
             return result
         return []

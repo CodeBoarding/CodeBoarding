@@ -1,7 +1,7 @@
 """The Java adapter: symbol names, packages, what the build import hid, and which server errors end a run."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from static_analyzer.config import NodeType
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
@@ -57,13 +57,11 @@ class TestErrorVerdict:
         assert JavaAdapter().error_verdict({"code": -32603, "message": "Internal error."}) is ErrorVerdict.FAILURE
 
 
-class TestSearchIndexWarmup:
-    def test_the_first_search_waits_for_the_index_at_startup_not_mid_analysis(self):
+class TestSearchIndex:
+    def test_the_first_search_may_take_longer_than_a_request(self):
         """JDTLS indexes the JDK on its first search; on JabRef that outlasted the implementation queries' timeout."""
-        client = MagicMock()
-        JavaAdapter().warm_up(client)
-        client.workspace_symbol.assert_called_once()
-        assert client.workspace_symbol.call_args.kwargs["timeout"] > JavaAdapter().get_lsp_default_timeout()
+        timeout = JavaAdapter().search_index_timeout
+        assert timeout is not None and timeout > JavaAdapter().get_lsp_default_timeout()
 
 
 class TestWorkspaceSettings:

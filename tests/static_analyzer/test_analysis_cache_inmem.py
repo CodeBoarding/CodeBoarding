@@ -319,7 +319,7 @@ class TestGraphDeclarations(unittest.TestCase):
             )
         )
         client = MagicMock()
-        client.send_implementation_batch.side_effect = lambda queries: [
+        client.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": file_path.as_uri(), "range": {"start": {"line": 1, "character": 5}}}] for _ in queries
         ]
         declaration = ("/repo/pkg/base.php", 0, 0)
@@ -354,7 +354,7 @@ class TestGraphDeclarations(unittest.TestCase):
             )
         )
         client = MagicMock()
-        client.send_implementation_batch.side_effect = lambda queries: [
+        client.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": file_path.as_uri(), "range": {"start": {"line": 9, "character": 4}}}] for _ in queries
         ]
         declaration = ("/repo/pkg/base.py", 0, 0)
@@ -477,7 +477,7 @@ class TestRestoringCachedEdges:
         client.send_type_definition_batch.side_effect = lambda queries: [
             [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
         ]
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+        client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
 
         inspector = SourceInspector()
         _restore_inbound_edges_via_definitions(

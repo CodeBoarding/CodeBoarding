@@ -7,14 +7,13 @@ import os
 import platform
 import re
 import tempfile
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
+from static_analyzer.engine.lsp_client import ErrorVerdict
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
@@ -53,15 +52,14 @@ class JavaAdapter(LanguageAdapter):
         """
         return True
 
-    def warm_up(self, client: LSPClient) -> None:
-        """Have JDTLS build its search index now, before any query waits on it, on the server the analysis keeps.
+    @property
+    def search_index_timeout(self) -> int | None:
+        """JDTLS indexes the classpath, the JDK included, on its first search.
 
-        Why: JDTLS indexes the classpath, the JDK included, on its first search. On JabRef that took 72-105s, longer
-        than a request may take, so the first round of implementation queries timed out and ended the run.
+        Why: on JabRef that took 72-105s, longer than a request may take, so the first round of implementation queries
+        timed out and ended the run.
         """
-        started = time.monotonic()
-        client.workspace_symbol("CodeBoardingSearchIndexWarmup", timeout=_SEARCH_INDEX_TIMEOUT_SECONDS)
-        logger.info(f"Java search index ready: {time.monotonic() - started:.1f}s")
+        return _SEARCH_INDEX_TIMEOUT_SECONDS
 
     @property
     def language(self) -> str:
