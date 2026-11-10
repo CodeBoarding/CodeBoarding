@@ -1,6 +1,7 @@
 """C++ and CUDA analysis using clangd and the project's compiler configuration."""
 
 from collections.abc import Iterator
+from hashlib import sha256
 import logging
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from static_analyzer.engine.edge_builder import SymbolIndex
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.engine.utils import definition_location
 from static_analyzer.exceptions import WorkspaceSetupError
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
@@ -58,6 +60,15 @@ class CppAdapter(LanguageAdapter):
         client: LSPClient,
         diagnostics: FileDiagnosticsMap,
     ) -> list[dict]:
+        if not symbols:
+            for diagnostic in client.get_collected_diagnostics().get(str(file_path.resolve()), []):
+                if diagnostic.code == "fe_expected_compiler_job":
+                    raise RuntimeError(
+                        f"Cannot build a compiler invocation for {file_path}: {diagnostic.message}. "
+                        "Provide a Clang-compatible compilation database or .clangd CompileFlags. "
+                        "Standalone CUDA headers (.cuh) need an explicit -x cuda compiler language; "
+                        "scope it to CUDA files and configure the toolkit/include paths for the project."
+                    )
         candidates = inspector.cpp_local_callables(file_path)
         active = {
             (node["range"]["end"]["line"], node["range"]["end"]["character"])
@@ -92,8 +103,10 @@ class CppAdapter(LanguageAdapter):
                 continue
             identity = details[0]
             item["name"] = identity["name"]
-            display = ((identity.get("containerName") or "") + identity["name"]).replace("::", ".")
-            item["qualified_name"] = f"{display}[{identity['usr']}]"
+            constraints = ""
+            if self.is_callable(item["kind"]):
+                constraints = inspector.cpp_callable_constraints(file_path, *_position(item["selectionRange"]["start"]))
+            item["qualified_name"] = self._compiler_name(identity, constraints)
             definition = identity.get("definitionRange") or {}
             item["is_definition"] = (
                 definition.get("uri") == file_path.resolve().as_uri()
@@ -233,8 +246,62 @@ class CppAdapter(LanguageAdapter):
                 ctx.diagnostics.setdefault(str(project_root), []).append(
                     LSPDiagnostic(code="cpp-template-analysis-incomplete", message=message, severity=2)
                 )
+        # Indexed definitions and call hierarchy share colliding USRs; AST declarations do not.
+        constrained_sites = {
+            (source, site.file, site.lsp_line, site.lsp_column): site
+            for (source, target), sites in edges.items()
+            if "[constraints:" in target
+            for site in sites
+        }
+        constrained_names = {
+            name.split("[constraints:", 1)[0] for name in ctx.symbol_table.symbols if "[constraints:" in name
+        }
+        if constrained_names:
+            for path in source_files:
+                for site in ctx.source_inspector.find_call_sites(path):
+                    caller = ctx.symbol_table.find_containing_symbol(path, site.lsp_line, site.lsp_column)
+                    if caller is not None and self.is_callable(caller.kind):
+                        constrained_sites[(caller.qualified_name, site.file, site.lsp_line, site.lsp_column)] = site
+        constrained_sites = {
+            key: site
+            for key, site in constrained_sites.items()
+            if not any(
+                start <= (site.lsp_line, site.lsp_column) < end for start, end in dependent_ranges.get(site.file, [])
+            )
+        }
+        queries = [(Path(path), line, column) for _, path, line, column in constrained_sites]
+        replacements: dict[tuple[str, str, int, int], set[str]] = {}
+        for key, names in zip(constrained_sites, self.constrained_call_targets(ctx.lsp, ctx.source_inspector, queries)):
+            resolved = names & ctx.symbol_table.symbols.keys()
+            if resolved:
+                replacements[key] = resolved
+        for edge, sites in list(edges.items()):
+            if "[constraints:" in edge[1]:
+                edges[edge] = [s for s in sites if (edge[0], s.file, s.lsp_line, s.lsp_column) not in replacements]
+                if not edges[edge]:
+                    del edges[edge]
+        for key, targets in replacements.items():
+            for name in targets:
+                edges.setdefault((key[0], name), []).append(constrained_sites[key])
         for edge, sites in edges.items():
             edges[edge] = list({(site.file, site.line, site.column): site for site in sites}.values())
+
+    def constrained_call_targets(
+        self, client: LSPClient, inspector: SourceInspector, queries: list[tuple[Path, int, int]]
+    ) -> list[set[str]]:
+        """Resolve constrained overloads from AST declarations rather than Clang's USR index."""
+        results = []
+        for identities in client.symbol_info_batch(queries):
+            names = set()
+            for identity in identities:
+                declaration = definition_location(identity.get("declarationRange", {}))
+                if not identity.get("usr") or declaration is None:
+                    continue
+                constraints = inspector.cpp_callable_constraints(*declaration)
+                if constraints:
+                    names.add(self._compiler_name(identity, constraints))
+            results.append(names)
+        return results
 
     def prepare_project(self, project_root: Path) -> None:
         """Prefer explicit compiler context without requiring a project build."""
@@ -286,6 +353,15 @@ class CppAdapter(LanguageAdapter):
         if self.is_callable(symbol_kind) and "(" in detail:
             symbol_name += detail[detail.index("(") :]
         return ".".join([module, *parents, symbol_name])
+
+    @staticmethod
+    def _compiler_name(identity: dict, constraints: str) -> str:
+        """Disambiguate the constraints omitted from Clang USRs."""
+        display = ((identity.get("containerName") or "") + identity["name"]).replace("::", ".")
+        name = f"{display}[{identity['usr']}]"
+        if constraints:
+            name += f"[constraints:{sha256(constraints.encode()).hexdigest()[:16]}]"
+        return name
 
     def _document_ast(self, file_path: Path, client: LSPClient, diagnostics: FileDiagnosticsMap) -> dict:
         ast = client.document_ast(file_path)

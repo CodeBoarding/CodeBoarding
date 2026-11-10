@@ -640,6 +640,54 @@ class SourceInspector:
             )
         return symbols
 
+    def cpp_callable_constraints(self, file_path: Path, line: int, character: int) -> str:
+        """Constraint tokens with template parameter names normalized across redeclarations."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return ""
+        point = (line, parsed.byte_column(line, character))
+        node = parsed.tree.root_node.named_descendant_for_point_range(point, point)
+        scopes = []
+        while node is not None:
+            if node.type in {"template_declaration", "function_declarator"}:
+                scopes.append(node)
+            node = node.parent
+        names: dict[bytes, str] = {}
+        constraints = []
+        parameter_index = 0
+        for scope in reversed(scopes):
+            parameters = scope.child_by_field_name("parameters")
+            if parameters is not None and parameters.type == "template_parameter_list":
+                for parameter in parameters.named_children:
+                    name = parameter.child_by_field_name("declarator") or parameter.child_by_field_name("name")
+                    if name is None and parameter.type in {
+                        "type_parameter_declaration",
+                        "variadic_type_parameter_declaration",
+                    }:
+                        name = next((c for c in parameter.named_children if c.type == "type_identifier"), None)
+                    if name is not None and name.type == "variadic_declarator":
+                        name = next((c for c in name.named_children if c.type == "identifier"), None)
+                    if name is not None and name.text is not None:
+                        names[name.text] = f"${parameter_index}"
+                    constraint = parameter.child_by_field_name("type")
+                    if constraint is not None and constraint.type in {
+                        "type_identifier",
+                        "qualified_identifier",
+                        "template_type",
+                    }:
+                        constraints.append((f"${parameter_index}:", constraint))
+                    parameter_index += 1
+            constraints.extend(("", c) for c in scope.named_children if c.type == "requires_clause")
+        return "|".join(
+            prefix
+            + " ".join(
+                names.get(token.text or b"", (token.text or b"").decode("utf8"))
+                for token in self._walk(constraint)
+                if not token.children and token.type != "comment"
+            )
+            for prefix, constraint in constraints
+        )
+
     def cpp_has_automatic_storage(self, file_path: Path, line: int, character: int) -> bool:
         """Whether a local declaration owns its object until scope exit, rather than static/thread storage."""
         parsed = self._parse(file_path)
