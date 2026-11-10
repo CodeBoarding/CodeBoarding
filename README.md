@@ -173,6 +173,7 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # orcarouter_api_key        = "sk-orca-..."   # model routing gateway (https://www.orcarouter.ai)
 # requesty_api_key          = "rqsty-..."     # LLM gateway (https://www.requesty.ai)
 # opper_api_key             = "..."           # EU-hosted AI gateway (https://opper.ai)
+# uberllm_api_key           = "ull_..."       # OpenAI-compatible API for many models (https://uberllm.dev)
 # litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
@@ -252,7 +253,7 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
   - Java needs a JDK (21 recommended).
   - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. JetBrains' builds expire after about 30 days, so a run that needs Kotlin reads the current build number and checksums from this repository, and keeps the build it has when it cannot. Kotlin calls into Java are not drawn yet.
   - C++ and CUDA are analysed with [clangd](https://clangd.llvm.org/), bundled on Linux x86-64, macOS and Windows x64; other platforms need clangd 20 or newer on `PATH`. Provide `compile_commands.json`, `compile_flags.txt` or `.clangd` for full coverage, since CodeBoarding does not build the project. Incremental updates, and so PR reviews, can still miss or keep stale relations for out-of-line class members and header templates.
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, UberLLM, LiteLLM proxy, and more.
 
 ## Examples
 
