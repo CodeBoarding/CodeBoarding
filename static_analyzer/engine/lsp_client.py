@@ -123,8 +123,8 @@ class LSPClient:
         commands: list[dict] | None = None,
     ) -> None:
         self._command = command
-        self._project_root = project_root
-        self._init_options = init_options or {}
+        self.project_root = project_root
+        self.init_options = init_options or {}
         self._default_timeout = default_timeout
         # Bounds ``initialize`` only, which some servers hold until the project's build is imported.
         self._startup_timeout = startup_timeout
@@ -202,7 +202,7 @@ class LSPClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
-                cwd=str(self._project_root),
+                cwd=str(self.project_root),
             )
         except PermissionError as exc:
             binary = self._command[0] if self._command else "<lsp>"
@@ -225,7 +225,7 @@ class LSPClient:
         self._stderr_thread = threading.Thread(target=self._read_stderr, daemon=True)
         self._stderr_thread.start()
 
-        root_uri = self._project_root.as_uri()
+        root_uri = self.project_root.as_uri()
 
         text_doc_capabilities: dict = {
             "documentSymbol": {
@@ -263,13 +263,13 @@ class LSPClient:
             {
                 "processId": os.getpid(),
                 "rootUri": root_uri,
-                "rootPath": str(self._project_root),
+                "rootPath": str(self.project_root),
                 "capabilities": capabilities,
                 "workspaceFolders": [
                     {"uri": folder.as_uri(), "name": folder.name}
-                    for folder in self._workspace_folders or [self._project_root]
+                    for folder in self._workspace_folders or [self.project_root]
                 ],
-                "initializationOptions": self._init_options,
+                "initializationOptions": self.init_options,
             },
             timeout=self._startup_timeout,
         )
@@ -659,9 +659,13 @@ class LSPClient:
             time.sleep(0.2)
         return False
 
-    def wait_for_progress_completion(self, token_prefix: str, timeout: float = 300) -> None:
-        """Wait for matching work to finish, including work completed before this call."""
+    def wait_for_diagnostic_progress(
+        self, token_prefix: str, timeout: float = 300, idle_seconds: float = 3, require_completion: bool = True
+    ) -> None:
+        """Wait for completed work and quiet diagnostics, accounting for restarted checks."""
         deadline = time.monotonic() + timeout
+        quiet_since = time.monotonic()
+        generation = self.get_diagnostics_generation()
         while time.monotonic() < deadline:
             self.check_alive()
             completed = any(
@@ -672,10 +676,15 @@ class LSPClient:
                 isinstance(token, str) and token.startswith(token_prefix)
                 for token in list(self._work_done_progress_titles)
             )
-            if completed and not active:
+            current_generation = self.get_diagnostics_generation()
+            now = time.monotonic()
+            if (require_completion and not completed) or active or current_generation != generation:
+                quiet_since = now
+            elif now - quiet_since >= idle_seconds:
                 return
+            generation = current_generation
             time.sleep(0.1)
-        raise TimeoutError(f"LSP work {token_prefix!r} did not complete within {timeout}s")
+        raise TimeoutError(f"LSP diagnostic work {token_prefix!r} did not settle within {timeout}s")
 
     # ---- JDTLS server-ready wait ----
 

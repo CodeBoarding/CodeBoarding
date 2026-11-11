@@ -883,19 +883,49 @@ class TestHandleNotification:
         client._handle_notification("experimental/serverStatus", {"quiescent": True, "health": "ok"})
         client._handle_notification("$/progress", {"token": 42, "value": {"kind": "end"}})
         with pytest.raises(TimeoutError):
-            client.wait_for_progress_completion(prefix, timeout=0.01)
+            client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
 
         for token in (prefix + "0", prefix + "1"):
             client._handle_notification("$/progress", {"token": token, "value": {"kind": "begin", "title": "check"}})
         client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "end"}})
         with pytest.raises(TimeoutError):
-            client.wait_for_progress_completion(prefix, timeout=0.01)
+            client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
         client._handle_notification("$/progress", {"token": prefix + "1", "value": {"kind": "end"}})
-        client.wait_for_progress_completion(prefix, timeout=0.01)
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
 
         client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "begin", "title": "check"}})
         with pytest.raises(TimeoutError):
-            client.wait_for_progress_completion(prefix, timeout=0.01)
+            client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+
+    def test_diagnostic_drain_waits_for_restarted_check_and_late_diagnostics(self, tmp_path):
+        client = LSPClient(["cmd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        token = "rust-analyzer/flycheck/0"
+        source = tmp_path / "lib.rs"
+        client._handle_notification("$/progress", {"token": token, "value": {"kind": "end"}})
+        clock = 0.0
+
+        def advance(_seconds):
+            nonlocal clock
+            clock += 1
+            if clock == 1:
+                client._handle_notification("$/progress", {"token": token, "value": {"kind": "begin"}})
+            elif clock == 5:
+                client._handle_notification("$/progress", {"token": token, "value": {"kind": "end"}})
+            elif clock == 7:
+                client._handle_notification(
+                    "textDocument/publishDiagnostics",
+                    {"uri": source.as_uri(), "diagnostics": []},
+                )
+
+        with (
+            patch("static_analyzer.engine.lsp_client.time.monotonic", side_effect=lambda: clock),
+            patch("static_analyzer.engine.lsp_client.time.sleep", side_effect=advance),
+        ):
+            client.wait_for_diagnostic_progress("rust-analyzer/flycheck/", timeout=20, idle_seconds=3)
+        assert clock == 10
+        assert str(source.resolve()) in client.get_collected_diagnostics()
 
     def test_a_build_import_reported_failed_is_remembered(self):
         client = LSPClient(["cmd"], Path("/root"))
