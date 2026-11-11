@@ -181,6 +181,9 @@ class StaticAnalysisResults:
 
     results: dict[Language, LanguageResults] = field(default_factory=dict)
     diagnostics: dict[Language, FileDiagnosticsMap] = field(default_factory=dict)
+    # Repo-relative path -> content hash of every file when the analysis started; the next warm start
+    # diffs it against the tree. None in a pkl saved before it was recorded.
+    source_file_hashes: dict[str, str] | None = None
     # Runtime-only warm-start base; never persisted into the static-analysis cache.
     incremental_base_results: "StaticAnalysisResults | None" = None
 

@@ -286,8 +286,8 @@ class TestFromAnotherEngine(unittest.TestCase):
 class TestLoadWithSha(unittest.TestCase):
     """``load_with_sha`` returns the unpickled cache plus the tag SHA, as a pair.
 
-    Used by the warm-start flow: the SHA is needed as a git diff base, not
-    as an exact-match gate, so the loader hands back whatever's on disk
+    Used by the warm-start flow, which scopes itself by the file hashes the pkl
+    records rather than by the SHA, so the loader hands back whatever's on disk
     along with its tag value.
     """
 
@@ -316,6 +316,15 @@ class TestLoadWithSha(unittest.TestCase):
                 _realpaths([str(self.repo_root / "main.py")]),
             )
 
+    def test_keeps_the_file_hashes_the_next_warm_start_diffs(self):
+        results = StaticAnalysisResults(source_file_hashes={"main.py": "abc", "pkg/util.py": "def"})
+        self.cache.save(results, source_sha="sha-current")
+
+        loaded = self.cache.load_with_sha()
+
+        assert loaded is not None
+        self.assertEqual(loaded[0].source_file_hashes, {"main.py": "abc", "pkg/util.py": "def"})
+
     def test_returns_none_when_tag_absent(self):
         # A legacy pkl without its tag is not warm-startable.
         results = StaticAnalysisResults()
@@ -329,7 +338,7 @@ class TestLoadWithSha(unittest.TestCase):
 
     def test_does_not_gate_on_caller_supplied_sha(self):
         # Even though the cached SHA is "sha-A", the load succeeds; the caller
-        # uses the returned SHA as a git diff base, not for equality matching.
+        # only logs the returned SHA, it never matches on it.
         self.cache.save(StaticAnalysisResults(), source_sha="sha-A")
 
         loaded = self.cache.load_with_sha()

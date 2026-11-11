@@ -119,7 +119,7 @@ class TestAnalyzer:
         with (
             patch.object(analyzer, "_run_full_analysis", return_value={}) as full,
             patch("static_analyzer.update_cfg_for_changed_files", return_value={}) as update,
-            patch.object(analyzer, "_extract_language_dict", return_value={}),
+            patch.object(analyzer, "_extract_language_dict", return_value={"source_files": config.source_files}),
             patch.object(analyzer, "_collect_diagnostics_for"),
             patch.object(analyzer, "_loc_for_adapter", return_value=0),
             patch.object(analyzer, "_absorb_and_link"),
@@ -130,7 +130,7 @@ class TestAnalyzer:
                 analyzer._run_full_lsp_pass()
                 assert full.call_args.args[1] is fresh
             else:
-                analyzer._update_cached_results(MagicMock(), "baseline")
+                analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
                 assert update.call_args.args[5] is fresh
                 fresh.check_alive.assert_called_once()
         dead.shutdown.assert_called_once()
@@ -139,13 +139,13 @@ class TestAnalyzer:
     def test_a_warm_start_whose_server_was_lost_during_the_update_fails(self, tmp_path: Path):
         client = MagicMock(alive=True)
         client.check_alive.side_effect = LanguageServerStalledError("lost")
-        analyzer, _config = _analyzer(tmp_path, client)
+        analyzer, config = _analyzer(tmp_path, client)
         with (
             patch("static_analyzer.update_cfg_for_changed_files", return_value={}),
-            patch.object(analyzer, "_extract_language_dict", return_value={}),
+            patch.object(analyzer, "_extract_language_dict", return_value={"source_files": config.source_files}),
         ):
             with pytest.raises(LanguageServerStalledError):
-                analyzer._update_cached_results(MagicMock(), "baseline")
+                analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
 
     def test_a_symbol_lookup_on_a_lost_server_fails_instead_of_reading_as_no_symbols(self, tmp_path: Path):
         client = MagicMock()
