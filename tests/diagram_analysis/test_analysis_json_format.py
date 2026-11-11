@@ -258,7 +258,7 @@ class TestSymbolIds(unittest.TestCase):
         among_others = _symbol_ids(index("0.py|z.one", "a.py|a.one", "b.py|b.one"))
 
         self.assertEqual(alone["a.py|a.one"], among_others["a.py|a.one"])
-        self.assertRegex(alone["a.py|a.one"], r"^[A-Za-z0-9_-]{8}$")
+        self.assertRegex(alone["a.py|a.one"], r"^[A-Za-z0-9_-]{12}$")
 
     def test_two_methods_sharing_an_id_fail_the_write(self):
         with patch.object(analysis_json, "_symbol_id", return_value="AAAAAAAA"):
