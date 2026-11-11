@@ -1191,7 +1191,7 @@ class TestDiagramGenerator(unittest.TestCase):
         ):
             gen.prepare_analysis()
 
-        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2)
+        mock_build_hierarchy.assert_called_once_with(mock_analysis_results, 2, {}, None)
         mock_initialize_agent_llm.assert_not_called()
         self.assertIs(gen.clustering_hierarchy, hierarchy)
         self.assertIsNotNone(gen.incremental_updater)

@@ -12,7 +12,13 @@ from static_analyzer.cfg.edge import EdgeKind, ReferenceEdge
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
-from static_analyzer.clustering.service import NEW_SCOPE, ClusteringService, hierarchy_differs, unit_links
+from static_analyzer.clustering.service import (
+    NEW_SCOPE,
+    ClusteringService,
+    hierarchy_differs,
+    membership_overlap,
+    unit_links,
+)
 from static_analyzer.config import Language, NodeType
 from static_analyzer.node import Node
 from tests.static_analyzer.names.conftest import rule_of, scope_of
@@ -359,6 +365,81 @@ class TestIncrementalHierarchy(unittest.TestCase):
             ClusteringService(repo_dir=Path("/repo")).build_incremental_hierarchy(
                 analysis_for(graph("csharp", self.layout)), 2, self.spec, self.persisted, REPO, REPO
             )
+
+
+class TestFullHierarchyOverPrevious(unittest.TestCase):
+    """A full run drafts afresh, then gives each drafted component the id of the previous one it continues."""
+
+    def setUp(self):
+        first = ClusteringService(repo_dir=REPO)
+        self.baseline = first.build_full_hierarchy(analysis_for(graph("csharp", eshop())), max_depth=2)
+        self.previous = persisted_from(self.baseline)
+        self.spec = TreeSpec.from_dict(first.spec.to_dict())
+
+    def _rebuild(
+        self, layout: dict[str, list[str]], previous: dict[str, AnalysisInsights] | None = None
+    ) -> tuple[ClusteringService, ClusterScopeResult]:
+        service = ClusteringService(repo_dir=REPO)
+        hierarchy = service.build_full_hierarchy(
+            analysis_for(graph("csharp", layout)), 2, self.previous if previous is None else previous, self.spec
+        )
+        return service, hierarchy
+
+    @staticmethod
+    def _ids_by_rule_name(service: ClusteringService) -> dict[str, str]:
+        return {rule.name: rule.component_id for rule in scope_of(service.spec, ROOT_SCOPE_ID).rules}
+
+    def test_an_unchanged_tree_continues_every_component_under_its_id(self):
+        service, hierarchy = self._rebuild(eshop())
+        self.assertFalse(hierarchy_differs(hierarchy, self.previous))
+        previous_ids = {c.component_id for scope in self.previous.values() for c in scope.components}
+        self.assertEqual(service.carried_from, {component_id: component_id for component_id in previous_ids})
+
+    def test_ids_follow_the_code_when_the_size_order_changes(self):
+        """Ordering keeps 11 of its 19 files and Catalog grows from 8 to 12: drafted alone, Catalog would be 1."""
+        layout = {
+            path: names
+            for path, names in eshop().items()
+            if not ("Ordering.API" in path and int(path.rsplit("Type", 1)[1].split(".")[0]) >= 4)
+        } | project("Catalog.API", 12, "Model", "Apis")
+        drafted = ClusteringService(repo_dir=REPO)
+        drafted.build_full_hierarchy(analysis_for(graph("csharp", layout)), max_depth=2)
+        self.assertEqual(self._ids_by_rule_name(drafted)["Catalog.API"], "1")
+        service, _ = self._rebuild(layout)
+        ids = self._ids_by_rule_name(service)
+        self.assertEqual((ids["Ordering.API"], ids["Catalog.API"]), ("1", "2"))
+
+    def test_a_new_component_never_takes_an_id_the_previous_scope_retired(self):
+        scope_of(self.spec, ROOT_SCOPE_ID).last_id = 9
+        service, hierarchy = self._rebuild(eshop() | project("Shipping.API", 6))
+        [new] = [group for group in hierarchy.groups if group.group_id not in service.carried_from]
+        self.assertEqual(new.group_id, "10")
+        self.assertEqual(scope_of(service.spec, ROOT_SCOPE_ID).last_id, 10)
+
+    def test_a_component_that_kept_less_than_half_its_code_starts_over(self):
+        layout = {path: names for path, names in eshop().items() if "Webhooks" not in path or path.endswith("0.cs")}
+        service, _ = self._rebuild(layout)
+        webhooks = next(
+            component
+            for component in self.previous[ROOT_SCOPE_ID].components
+            if "Webhook" in str(component.file_methods[0].file_path)
+        )
+        self.assertNotIn(webhooks.component_id, service.carried_from.values())
+
+    def test_a_legacy_id_is_not_carried_but_its_name_is(self):
+        previous = persisted_from(self.baseline)
+        previous[ROOT_SCOPE_ID].components[0].component_id = "legacy_component_1"
+        service, _ = self._rebuild(eshop(), previous)
+        self.assertNotIn("legacy_component_1", service.carried_from)
+        self.assertEqual(service.carried_from.get("6"), "legacy_component_1")
+
+    def test_overlap_weighs_each_file_by_its_members(self):
+        old = {("a.py", "a.f"), ("a.py", "a.g"), ("b.py", "b.f")}
+        self.assertEqual(membership_overlap(old, old), 1.0)
+        self.assertEqual(membership_overlap({("c.py", "c.f")}, old), 0.0)
+        self.assertAlmostEqual(membership_overlap({("a.py", "a.f"), ("a.py", "a.g")}, old), 2 / 3)
+        # A respelled qualified name in the same file is still the same file's code.
+        self.assertEqual(membership_overlap({("a.py", "A.f"), ("a.py", "A.g"), ("b.py", "B.f")}, old), 1.0)
 
 
 class TestScopeHierarchy(unittest.TestCase):

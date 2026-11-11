@@ -184,6 +184,18 @@ class TreeSpec:
             )
             self.scopes = scopes
 
+    def renumber(self, ids: Mapping[str, str], last_ids: Mapping[ScopeId, int]) -> None:
+        """Give every rule the id in ``ids`` (a scope moves with its rule) and raise each scope's ``last_id``."""
+        scopes: dict[ScopeId, ScopeSpec] = {}
+        for scope_id, scope in self.scopes.items():
+            scope.scope_id = ids.get(scope_id, scope_id)
+            scope.rules = [
+                replace(rule, component_id=ids.get(rule.component_id, rule.component_id)) for rule in scope.rules
+            ]
+            scope.last_id = max(scope.last_id, last_ids.get(scope.scope_id, 0))
+            scopes[scope.scope_id] = scope
+        self.scopes = scopes
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
