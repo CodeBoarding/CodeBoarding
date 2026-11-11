@@ -20,7 +20,7 @@ from static_analyzer.analysis_cache import (
 )
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import Language
-from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder, build_package_dependencies
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.models import CallSite, SymbolInfo
@@ -116,7 +116,14 @@ def update_cfg_for_changed_files(
         engine_client,
         source_inspector,
     )
-    updated = _filter_to_live_files(merged_analysis).to_dict()
+    live = _filter_to_live_files(merged_analysis)
+    live.package_relations = build_package_dependencies(
+        adapter,
+        [Path(path) for path in live.source_files],
+        repository_path,
+        ((Path(edge.src_node.file_path), Path(edge.dst_node.file_path)) for edge in live.call_graph.edges),
+    )
+    updated = live.to_dict()
     # What still lies outside is another engine's, for the final merge to link.
     updated["external_call_sites"] = new_analysis["external_call_sites"]
     updated["external_callers"] = new_analysis["external_callers"]
@@ -267,13 +274,6 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     merged_analysis.class_hierarchies = {
         name: info for name, info in merged_analysis.class_hierarchies.items() if name in live_class_names
     }
-
-    filtered_packages: dict[str, Any] = {}
-    for pkg_name, pkg_info in merged_analysis.package_relations.items():
-        existing_pkg_files = [f for f in pkg_info.get("files", []) if f in existing_file_strs]
-        if existing_pkg_files:
-            filtered_packages[pkg_name] = {**pkg_info, "files": existing_pkg_files}
-    merged_analysis.package_relations = filtered_packages
 
     return merged_analysis
 

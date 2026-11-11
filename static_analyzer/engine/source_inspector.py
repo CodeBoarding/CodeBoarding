@@ -122,6 +122,9 @@ _MEMBER_ACCESS_NODE_TYPES = frozenset(
         "selector_expression",  # Go
         "field_expression",  # Rust
         "navigation_expression",  # Kotlin
+        "unconditional_assignable_selector",  # Dart
+        "conditional_assignable_selector",
+        "cascade_selector",
     }
 )
 # Receivers naming the enclosing class's base: a member named on one is not dispatched.
@@ -165,7 +168,7 @@ _GENERIC_TYPE_NODE_TYPES = frozenset({"generic_name", "generic_type"})
 _OPAQUE_ARGUMENT_NODE_TYPES = frozenset({"token_tree"})
 _CALL_TARGET_FIELD_NAMES = ("function", "constructor", "name", "field", "property", "attribute")
 _CONSTRUCTOR_FIELD_NAMES = ("type", "name")
-_ARGUMENT_NODE_TYPES = frozenset({"argument"})
+_ARGUMENT_NODE_TYPES = frozenset({"argument", "named_argument"})
 # Node types that bind a name to a value, and the field the value sits in. C#'s declarator
 # names no field, so there the value is the last child.
 _VALUE_FIELD_BY_BINDING = {
@@ -181,12 +184,13 @@ _VALUE_FIELD_BY_BINDING = {
     "public_field_definition": "value",  # TypeScript class field
     "var_spec": "value",  # Go
     "init_declarator": "value",  # C++
+    "initialized_variable_definition": "value",  # Dart
 }
 # A binding, or an object literal's ``key: value``, can name a function literal.
 _FUNCTION_VALUE_HOLDER_NODE_TYPES = frozenset(_VALUE_FIELD_BY_BINDING) | {"pair"}
 # What a ``return``, a ``yield`` or C#'s expression body hands back is passed as a value.
 _VALUE_BODY_NODE_TYPES = frozenset(
-    {"return_statement", "return_expression", "yield", "yield_expression", "arrow_expression_clause"}
+    {"return_statement", "return_expression", "yield", "yield_expression", "arrow_expression_clause", "function_body"}
 )
 _NAME_SHAPED_NODE_TYPES = frozenset(
     {
@@ -901,6 +905,8 @@ class SourceInspector:
         if parsed is None or not names:
             return [], []
 
+        if file_path.suffix == ".dart":
+            names = {name.removesuffix("=") for name in names}
         reads: list[CallSite] = []
         writes: list[CallSite] = []
         stack = [parsed.tree.root_node]
@@ -909,7 +915,15 @@ class SourceInspector:
             if node.type in _TYPE_POSITION_NODE_TYPES:
                 continue
             stack.extend(reversed(node.children))
-            if node.type not in _MEMBER_ACCESS_NODE_TYPES:
+            bare_dart_name = (
+                file_path.suffix == ".dart"
+                and node.type == "identifier"
+                and node.parent is not None
+                and node.parent.type not in _MEMBER_ACCESS_NODE_TYPES
+                and not node.parent.type.endswith("_signature")
+                and node.parent.type not in {"formal_parameter", "class_definition"}
+            )
+            if node.type not in _MEMBER_ACCESS_NODE_TYPES and not bare_dart_name:
                 continue
             member = self._select_query_node(node)
             if (
@@ -919,11 +933,17 @@ class SourceInspector:
                 continue
             pos = parsed.lsp_position(member.start_point)
             parent = node.parent
+            if parent is not None and parent.type == "assignable_expression":
+                node, parent = parent, parent.parent
             written = (
                 parent is not None
                 and parent.type in _ASSIGNMENT_NODE_TYPES
-                and parent.child_by_field_name("left") == node
+                and (parent.child_by_field_name("left") or parent.named_children[0]) == node
             )
+            if parent is not None and parent.type == "cascade_section":
+                written = any(
+                    child.type.endswith("assignment_operator") or child.type == "=" for child in parent.children
+                )
             (writes if written else reads).append(
                 CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1])
             )
@@ -1199,6 +1219,8 @@ class SourceInspector:
     @staticmethod
     def _setter_name(node: TreeSitterNode) -> TreeSitterNode | None:
         """The name a setter declares: ``set title(value)``, or a definition decorated ``@title.setter``."""
+        if node.type == "setter_signature":
+            return next((child for child in node.named_children if child.type == "identifier"), None)
         if node.type == "method_definition" and any(child.type == "set" for child in node.children):
             return node.child_by_field_name("name")
         if node.type == "decorated_definition":
@@ -1758,7 +1780,9 @@ class SourceInspector:
         parent = node.parent
         if parent is None:
             return False
-        return parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES
+        return (
+            parent.type in _CALL_NODE_TYPES or parent.type in _CONSTRUCTOR_NODE_TYPES or parent.type == "argument_part"
+        )
 
     def _smallest_named_node_covering_range(
         self, node: TreeSitterNode, line: int, start_column: int, end_column: int

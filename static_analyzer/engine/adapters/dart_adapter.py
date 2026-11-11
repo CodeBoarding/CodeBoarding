@@ -7,8 +7,11 @@ from pathlib import Path
 import yaml
 
 from infra.repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.config import Language
+from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from infra.tool_registry.paths import dart_binary
 
 
@@ -34,6 +37,26 @@ class DartAdapter(LanguageAdapter):
         if not binary:
             raise RuntimeError("Dart SDK not found. Install Dart or Flutter and add its bin directory to PATH.")
         return [binary, "language-server"]
+
+    def refine_document_symbols(
+        self,
+        file_path: Path,
+        symbols: list[dict],
+        inspector: SourceInspector,
+        client: LSPClient,
+        diagnostics: FileDiagnosticsMap,
+    ) -> list[dict]:
+        pending = list(symbols)
+        while pending:
+            symbol = pending.pop()
+            pending.extend(symbol.get("children", []))
+            if symbol["kind"] == NodeType.PROPERTY:
+                symbol["kind"] = NodeType.METHOD
+                position = symbol["selectionRange"]["start"]
+                if inspector.declares_setter(file_path, position["line"], position["character"]):
+                    # Getter and setter are separate declarations, despite the server's identical names.
+                    symbol["name"] += "="
+        return symbols
 
     def prepare_project(self, project_root: Path) -> None:
         binary = self.get_lsp_command(project_root)[0]
