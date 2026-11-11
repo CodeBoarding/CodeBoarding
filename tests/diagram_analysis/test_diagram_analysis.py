@@ -399,7 +399,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             [site.model_dump() for site in edge.call_sites], [{"line": 14, "column": 6}, {"line": 16, "column": 10}]
         )
 
-    def test_unified_analysis_parse_recovers_edges_missing_from_methods_index(self):
+    def test_unified_analysis_parse_recovers_edges_to_unindexed_methods(self):
         data = _stored(self.analysis, [])
         data["components_relations"] = [
             {

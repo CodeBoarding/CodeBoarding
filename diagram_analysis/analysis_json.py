@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 
 class RelationEdgeJson(BaseModel):
-    source: str = Field(description="Key into methods_index for the source method.")
-    target: str = Field(description="Key into methods_index for the target method.")
+    source: str = Field(description="Method key '<file_path>|<qualified_name>' of the source.")
+    target: str = Field(description="Method key '<file_path>|<qualified_name>' of the target.")
     call_sites: list[RelationCallSite] = Field(default_factory=list)
     description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
 
@@ -37,7 +37,7 @@ class RelationJson(Relation):
 
     key_edges: list[RelationEdgeJson] = Field(
         default_factory=list,
-        description="Important source-to-target edges, keyed into methods_index.",
+        description="Important source-to-target edges, by method key.",
     )
     src_id: str = Field(default="", description="Component ID of the source.")
     dst_id: str = Field(default="", description="Component ID of the destination.")
@@ -149,7 +149,7 @@ def _build_files_index_from_analysis(
 
 
 def _method_key(file_path: str, qualified_name: str) -> str:
-    """Canonical ``methods_index`` key ('<file_path>|<qualified_name>')."""
+    """Canonical method key ('<file_path>|<qualified_name>')."""
     return f"{file_path}|{qualified_name}"
 
 
