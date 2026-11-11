@@ -101,18 +101,10 @@ class RustAdapter(LanguageAdapter):
         return {"experimental": {"serverStatusNotification": True}}
 
     def wait_for_diagnostics(self, client: LSPClient) -> None:
-        """Wait for rust-analyzer to flush diagnostics.
-
-        Strategy: reset the ready signal and wait briefly for
-        ``quiescent=True`` (the precise fence). If no signal arrives
-        within 10s (e.g. rust-analyzer stayed quiescent for a tiny
-        project), fall back to debouncing on publishDiagnostics so we
-        don't block for the full 120s on a no-op.
-        """
-        client.reset_ready_signal()
-        if not client.wait_for_server_ready(timeout=10):
-            # No quiescent transition observed; debounce instead.
-            client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
+        """Wait for cargo check and its asynchronously published diagnostics."""
+        # Workspace quiescence excludes flycheck; a quiet diagnostic stream can still be incomplete.
+        client.wait_for_progress_completion("rust-analyzer/flycheck/")
+        client.wait_for_diagnostics_quiesce(idle_seconds=3.0, max_wait=60.0)
 
     def validate_workspace_ready(self, client: LSPClient) -> None:
         """Reject rust-analyzer workspaces that loaded with fatal health."""

@@ -875,6 +875,28 @@ class TestHandleNotification:
         client._handle_notification("$/progress", {"token": "t", "value": {"kind": "end"}})
         assert client.wait_for_progress_quiet("indexing", 0.1, 2)
 
+    def test_progress_completion_requires_all_started_checks_to_finish(self):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        prefix = "rust-analyzer/flycheck/"
+        client._handle_notification("experimental/serverStatus", {"quiescent": True, "health": "ok"})
+        client._handle_notification("$/progress", {"token": 42, "value": {"kind": "end"}})
+        with pytest.raises(TimeoutError):
+            client.wait_for_progress_completion(prefix, timeout=0.01)
+
+        for token in (prefix + "0", prefix + "1"):
+            client._handle_notification("$/progress", {"token": token, "value": {"kind": "begin", "title": "check"}})
+        client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "end"}})
+        with pytest.raises(TimeoutError):
+            client.wait_for_progress_completion(prefix, timeout=0.01)
+        client._handle_notification("$/progress", {"token": prefix + "1", "value": {"kind": "end"}})
+        client.wait_for_progress_completion(prefix, timeout=0.01)
+
+        client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "begin", "title": "check"}})
+        with pytest.raises(TimeoutError):
+            client.wait_for_progress_completion(prefix, timeout=0.01)
+
     def test_a_build_import_reported_failed_is_remembered(self):
         client = LSPClient(["cmd"], Path("/root"))
         client._handle_notification("intellij/importLog", {"type": 3, "message": "[INFO] Scanning", "failed": False})

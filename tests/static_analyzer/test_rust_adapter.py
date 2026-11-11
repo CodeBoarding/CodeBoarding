@@ -144,55 +144,6 @@ class TestLspInitOptions:
         assert RustAdapter().get_lsp_init_options()["cargo"]["allTargets"] is True
 
 
-class TestWaitForDiagnostics:
-    """Rust reuses ``wait_for_server_ready`` after resetting the ready signal,
-    relying on rust-analyzer's ``experimental/serverStatus.quiescent`` flag.
-    Falls back to debouncing if no signal arrives quickly."""
-
-    def test_uses_ready_signal_when_available(self):
-        """When rust-analyzer transitions to quiescent within 10s, the
-        signal-based path is taken (no debounce fallback)."""
-        adapter = RustAdapter()
-        events: list = []
-
-        class FakeClient:
-            def reset_ready_signal(self):
-                events.append("reset")
-
-            def wait_for_server_ready(self, timeout: int = 300) -> bool:
-                events.append("wait")
-                return True  # signal arrived
-
-            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
-                events.append("quiesce")
-
-        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
-        assert "reset" in events
-        assert "wait" in events
-        assert "quiesce" not in events, "should NOT fall back to debounce when signal fires"
-
-    def test_falls_back_to_debounce_when_no_signal(self):
-        """When rust-analyzer stays quiescent (no transition), falls back
-        to debouncing instead of blocking 120s."""
-        adapter = RustAdapter()
-        events: list = []
-
-        class FakeClient:
-            def reset_ready_signal(self):
-                events.append("reset")
-
-            def wait_for_server_ready(self, timeout: int = 300) -> bool:
-                events.append("wait")
-                return False  # timed out
-
-            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
-                events.append("quiesce")
-
-        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
-        assert "reset" in events
-        assert "quiesce" in events, "should fall back to debounce when no signal arrives"
-
-
 class TestValidateWorkspaceReady:
     def test_raises_when_rust_analyzer_health_is_error(self):
         client = Mock(server_health="error", server_health_message="cargo metadata failed")
