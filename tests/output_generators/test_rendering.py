@@ -137,6 +137,7 @@ def _make_depth3_unified_json() -> dict:
             "generated_at": "2026-01-01T00:00:00+00:00",
             "repo_name": "fake",
             "depth_level": 3,
+            "format_version": 4,
             "file_coverage_summary": {
                 "total_files": 0,
                 "analyzed": 0,
@@ -146,7 +147,6 @@ def _make_depth3_unified_json() -> dict:
         },
         "description": "fake project",
         "files": {},
-        "methods_index": {},
         "components": [
             {
                 "name": "API",
@@ -258,6 +258,7 @@ def _make_depth3_unified_json() -> dict:
                 "is_static": False,
             },
         ],
+        "edges": [],
     }
 
 

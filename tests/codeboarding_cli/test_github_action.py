@@ -17,11 +17,12 @@ from codeboarding_cli.github_action import (
 from infra.utils import CODEBOARDING_DIR_NAME
 
 UNIFIED_ANALYSIS_JSON = {
-    "version": 2,
-    "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1},
+    "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1, "format_version": 4},
     "description": "test",
+    "files": {},
     "components": [],
     "components_relations": [],
+    "edges": [],
 }
 
 
@@ -64,17 +65,24 @@ class TestGenerateMarkdown(unittest.TestCase):
             temp_path = Path(temp_dir)
 
             analysis_data = {
-                "version": 2,
-                "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 2},
+                "metadata": {
+                    "generated_at": "2024-01-01T00:00:00Z",
+                    "repo_name": "test",
+                    "depth_level": 2,
+                    "format_version": 4,
+                },
                 "description": "test",
+                "files": {},
                 "components": [
                     {
                         "name": "ComponentA",
+                        "component_id": "1",
                         "description": "Component A",
                         "key_entities": [],
                         "components": [
                             {
                                 "name": "SubComp1",
+                                "component_id": "1.1",
                                 "description": "Sub component 1",
                                 "key_entities": [],
                             }
@@ -83,11 +91,13 @@ class TestGenerateMarkdown(unittest.TestCase):
                     },
                     {
                         "name": "ComponentB",
+                        "component_id": "2",
                         "description": "Component B",
                         "key_entities": [],
                     },
                 ],
                 "components_relations": [],
+                "edges": [],
             }
 
             analysis_file = temp_path / "analysis.json"
@@ -448,6 +458,7 @@ class TestResolveDepthCap(unittest.TestCase):
                 "repo_name": "test",
                 "depth_level": 1,
                 "depth_cap": 4,
+                "format_version": 4,
             }
             analysis = {**UNIFIED_ANALYSIS_JSON, "metadata": metadata}
             with open(temp_path / "analysis.json", "w") as f:

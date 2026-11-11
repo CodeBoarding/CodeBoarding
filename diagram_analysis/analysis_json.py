@@ -1,5 +1,8 @@
+import base64
+import hashlib
 import logging
 import json
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,11 +16,21 @@ from agents.agent_responses import (
     RelationEdge,
     SourceCodeReference,
 )
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.relation_edges import merge_relations_by_pair
 from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
+
+# The layout build_unified_analysis_json writes; parse_unified_analysis reads only this one.
+ANALYSIS_FORMAT_VERSION = 4
+
+# 48 bits of SHA-256 over the method key. A collision widens every id at once, so each id
+# stays a pure function of its key.
+_SYMBOL_ID_WIDTH = 8
+
+# A record whose compact JSON fits in this many characters is written on one line.
+_RECORD_WIDTH = 160
 
 
 class RelationEdgeJson(BaseModel):
@@ -116,6 +129,7 @@ class AnalysisMetadata(BaseModel):
         "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
         "written before it existed.",
     )
+    format_version: int = Field(default=ANALYSIS_FORMAT_VERSION, description="Layout of the analysis.json document.")
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -124,43 +138,6 @@ class ComponentFileMethodGroupJson(BaseModel):
         default_factory=list,
         description="Qualified method/function names assigned to this component in this file.",
     )
-
-
-class FileEntryJson(BaseModel):
-    """Persisted file entry — stores only method-index keys.
-
-    Full method metadata lives in ``methods_index``; this avoids duplication.
-    """
-
-    method_keys: list[str] = Field(
-        default_factory=list,
-        description="Keys into ``methods_index`` ('<file_path>|<qualified_name>'), in declaration order.",
-    )
-    content_hash: str = Field(
-        default="",
-        description="Truncated SHA-256 of the entire file's bytes; '' when unknown.",
-    )
-    module_hash: str = Field(
-        default="",
-        description="Truncated SHA-256 of the file's module-level lines (outside method spans); '' when unknown.",
-    )
-
-
-class UnifiedAnalysisJson(BaseModel):
-    metadata: AnalysisMetadata = Field(description="Metadata about the analysis run.")
-    description: str = Field(
-        description="One paragraph explaining the functionality which is represented by this graph."
-    )
-    files: dict[str, FileEntryJson] = Field(
-        default_factory=dict,
-        description="Top-level file index keyed by relative file path.",
-    )
-    methods_index: dict[str, MethodIndexEntry] = Field(
-        default_factory=dict,
-        description="Canonical method metadata keyed by '<file_path>|<qualified_name>'.",
-    )
-    components: list[ComponentJson] = Field(description="List of the components identified in the project.")
-    components_relations: list[RelationJson] = Field(description="List of relations among the components.")
 
 
 def _build_files_index_from_analysis(
@@ -204,205 +181,6 @@ def _relativize_key_entities(key_entities: list[SourceCodeReference], repo_dir: 
         )
         for entity in key_entities
     ]
-
-
-def _relation_edge_to_json(edge: RelationEdge, repo_dir: Path) -> RelationEdgeJson:
-    return RelationEdgeJson(
-        source=_source_reference_method_key(edge.source, repo_dir),
-        target=_source_reference_method_key(edge.target, repo_dir),
-        call_sites=edge.call_sites,
-        description=edge.description,
-    )
-
-
-def _to_component_file_method_refs(file_methods: list[FileMethodGroup]) -> list[ComponentFileMethodGroupJson]:
-    refs: list[ComponentFileMethodGroupJson] = []
-    for group in file_methods:
-        qnames: list[str] = []
-        seen: set[str] = set()
-        for method in group.methods:
-            qname = method.qualified_name
-            if qname in seen:
-                continue
-            seen.add(qname)
-            qnames.append(qname)
-        refs.append(ComponentFileMethodGroupJson(file_path=group.file_path, methods=qnames))
-    return refs
-
-
-def _method_refs_to_placeholders(method_names: list[str]) -> list[MethodEntry]:
-    return [
-        MethodEntry(
-            qualified_name=method_name,
-            start_line=0,
-            end_line=0,
-            node_type="METHOD",
-        )
-        for method_name in method_names
-    ]
-
-
-def _build_methods_index_from_files(files_index: dict[str, FileEntry]) -> dict[str, MethodIndexEntry]:
-    methods_index: dict[str, MethodIndexEntry] = {}
-    for file_path, entry in files_index.items():
-        for method in entry.methods:
-            methods_index[_method_key(file_path, method.qualified_name)] = MethodIndexEntry(
-                file_path=file_path,
-                qualified_name=method.qualified_name,
-                start_line=method.start_line,
-                end_line=method.end_line,
-                type=method.node_type,
-                content_hash=method.content_hash,
-            )
-    return methods_index
-
-
-def _build_file_entry_json_from_files(files_index: dict[str, FileEntry]) -> dict[str, FileEntryJson]:
-    return {
-        file_path: FileEntryJson(
-            method_keys=[_method_key(file_path, m.qualified_name) for m in entry.methods],
-            content_hash=entry.content_hash,
-            module_hash=entry.module_hash,
-        )
-        for file_path, entry in files_index.items()
-        if file_path
-    }
-
-
-def _hydrate_component_methods_from_refs(
-    analysis: AnalysisInsights,
-    methods_index: dict[str, MethodIndexEntry],
-) -> None:
-    missing: list[str] = []
-    for component in analysis.components:
-        rebuilt: list[FileMethodGroup] = []
-        for group in component.file_methods:
-            file_path = group.file_path
-            methods: list[MethodEntry] = []
-            for method in group.methods:
-                qname = method.qualified_name
-                indexed = methods_index.get(_method_key(file_path, qname))
-                if indexed is None:
-                    missing.append(f"{file_path}|{qname}")
-                    continue
-                methods.append(
-                    MethodEntry(
-                        qualified_name=indexed.qualified_name,
-                        start_line=indexed.start_line,
-                        end_line=indexed.end_line,
-                        node_type=indexed.type,
-                        content_hash=indexed.content_hash,
-                    )
-                )
-
-            methods = sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
-            rebuilt.append(FileMethodGroup(file_path=file_path, methods=methods))
-
-        component.file_methods = rebuilt
-
-    if missing:
-        logger.warning("Missing method index entry for %d ref(s): %s", len(missing), missing)
-
-
-def _relation_to_json(r: Relation, repo_dir: Path) -> RelationJson:
-    """Convert a Relation to RelationJson, preserving all fields including static analysis evidence."""
-    return RelationJson(
-        relation=r.relation,
-        src_name=r.src_name,
-        dst_name=r.dst_name,
-        evidence=r.evidence,
-        key_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.key_edges],
-        src_id=r.src_id,
-        dst_id=r.dst_id,
-        is_static=r.is_static,
-        all_edges=[_relation_edge_to_json(edge, repo_dir) for edge in r.all_edges],
-    )
-
-
-def from_component_to_json_component(
-    component: Component,
-    expandable_components: list[Component],
-    repo_dir: Path,
-    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
-    processed_ids: set[str] | None = None,
-) -> ComponentJson:
-    if processed_ids is None:
-        processed_ids = set()
-
-    component_id_val: str = component.component_id
-    if component_id_val in processed_ids:
-        logger.warning(f"Component {component.name} (ID: {component_id_val}) already processed, skipping expansion")
-        can_expand = False
-    else:
-        processed_ids.add(component_id_val)
-        can_expand = any(c.component_id == component.component_id for c in expandable_components)
-
-    nested_components: list[ComponentJson] = []
-    nested_relations: list[RelationJson] = []
-
-    if not can_expand and sub_analyses and component.component_id in sub_analyses:
-        # Serializing skips the subtree below, and analysis.json is the store — so this
-        # discards an already-analysed subtree permanently. Callers must mark a component
-        # holding a sub-analysis as expandable; say so loudly rather than losing the work.
-        logger.warning(
-            "Component %s (ID: %s) holds an analysed sub-analysis but is not marked expandable; "
-            "%d sub-component(s) will not be written",
-            component.name,
-            component_id_val,
-            len(sub_analyses[component.component_id][0].components),
-        )
-
-    if can_expand and sub_analyses and component.component_id in sub_analyses:
-        sub_analysis, sub_expandable = sub_analyses[component.component_id]
-        nested_components = [
-            from_component_to_json_component(c, sub_expandable, repo_dir, sub_analyses, processed_ids)
-            for c in sub_analysis.components
-        ]
-        nested_relations = [
-            _relation_to_json(r, repo_dir)
-            for r in merge_relations_by_pair(sub_analysis.components_relations, include_relation=True)
-        ]
-
-    return ComponentJson(
-        name=component.name,
-        component_id=component.component_id,
-        description=component.description,
-        key_entities=_relativize_key_entities(component.key_entities, repo_dir),
-        source_cluster_ids=component.source_cluster_ids,
-        file_methods=_to_component_file_method_refs(component.file_methods),
-        can_expand=can_expand,
-        components=nested_components,
-        components_relations=nested_relations,
-    )
-
-
-def from_analysis_to_json(
-    analysis: AnalysisInsights,
-    expandable_components: list[Component],
-    repo_dir: Path,
-    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
-) -> str:
-    """Convert an AnalysisInsights to a flat JSON string (no metadata wrapper)."""
-    components_json = [
-        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
-    ]
-    # Build a dict matching the old AnalysisInsightsJson shape but with nested components
-    relations_json = [
-        _relation_to_json(r, repo_dir)
-        for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
-    ]
-    files_index = _build_files_index_from_analysis(analysis, sub_analyses)
-    methods_index = _build_methods_index_from_files(files_index)
-    files_json = _build_file_entry_json_from_files(files_index)
-    data = {
-        "description": analysis.description,
-        "files": {fp: entry.model_dump() for fp, entry in files_json.items()},
-        "methods_index": {k: v.model_dump() for k, v in methods_index.items()},
-        "components": [c.model_dump(exclude_none=True) for c in components_json],
-        "components_relations": [r.model_dump() for r in relations_json],
-    }
-
-    return json.dumps(data, indent=2)
 
 
 def _compute_depth_level(
@@ -460,112 +238,125 @@ def build_unified_analysis_json(
     file_coverage_summary: FileCoverageSummary | None = None,
     tree_spec: dict | None = None,
 ) -> str:
-    """Build the full unified analysis JSON with metadata and nested sub-analyses.
+    """Build the analysis.json document for an analysis and its nested sub-analyses.
 
-    ``repo_dir`` relativizes relation-edge file paths into ``methods_index`` keys.
-    ``source_tree_hash`` is the precomputed whole-tree version key (the caller
-    fingerprints the tree once and reuses it across saves). ``depth_level``
-    (realized depth) is computed automatically from the sub_analyses structure;
-    ``depth_cap`` is the run's configured ceiling, persisted separately so a run
-    that stopped short of the cap (separability-gated) doesn't leave a future
-    incremental/partial run capped at the shallower realized depth.
+    ``repo_dir`` relativizes relation-edge file paths. ``source_tree_hash`` is the precomputed
+    whole-tree version key (the caller fingerprints the tree once and reuses it across saves).
+    ``depth_level`` (realized depth) is computed automatically from the sub_analyses structure;
+    ``depth_cap`` is the run's configured ceiling, persisted separately so a run that stopped
+    short of the cap (separability-gated) doesn't leave a future incremental/partial run capped
+    at the shallower realized depth.
+
+    The document states each fact once:
+
+    - ``files[path].methods[qualified_name] = [start_line, end_line, type, content_hash, id]``.
+      Everything else cites a method by that id; a method outside the index is cited by its
+      '<file_path>|<qualified_name>' key, which holds '|' where an id never does.
+    - ``edges`` lists every method edge once: ``[source, target, [[line, column], ...]]``, plus
+      its description when it has one.
+    - Only leaves list ``file_methods``; a parent's members are its children's.
+    - Relations omit ``all_edges``, which a reader rebuilds from ``edges`` (see ``_edges_by_relation``).
+    - A key edge is ``[source, target, description?, call_sites?]``; its call sites are those of
+      the same edge in its relation unless written.
+
+    Where a rebuild would not give back what Core holds, the field is written out.
     """
-    components_json = [
-        from_component_to_json_component(c, expandable_components, repo_dir, sub_analyses) for c in analysis.components
-    ]
     files_index = _build_files_index_from_analysis(analysis, sub_analyses)
-    methods_index = _build_methods_index_from_files(files_index)
-
-    # Use default summary if none provided
-    if file_coverage_summary is None:
-        summary = FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={})
-    else:
-        summary = file_coverage_summary
-
-    relations_json = [
-        _relation_to_json(r, repo_dir)
-        for r in merge_relations_by_pair(analysis.components_relations, include_relation=True)
-    ]
-    unified = UnifiedAnalysisJson(
-        metadata=AnalysisMetadata(
-            generated_at=datetime.now(timezone.utc).isoformat(),
-            source_tree_hash=source_tree_hash,
-            repo_name=repo_name,
-            depth_level=_compute_depth_level(sub_analyses),
-            depth_cap=depth_cap,
-            file_coverage_summary=summary,
-            tree_spec=tree_spec or {},
-        ),
-        description=analysis.description,
-        files=_build_file_entry_json_from_files(files_index),
-        methods_index=methods_index,
-        components=components_json,
-        components_relations=relations_json,
+    ids = _symbol_ids(
+        [
+            _method_key(file_path, method.qualified_name)
+            for file_path, entry in files_index.items()
+            for method in entry.methods
+        ]
     )
-    return unified.model_dump_json(indent=2, exclude_none=True)
+
+    relations = merge_relations_by_pair(analysis.components_relations, include_relation=True)
+    rows_by_pair: dict[tuple[str, str], list] = {}
+    for relation in relations:
+        for edge in relation.all_edges:
+            pair = (
+                _source_reference_method_key(edge.source, repo_dir),
+                _source_reference_method_key(edge.target, repo_dir),
+            )
+            rows_by_pair.setdefault(pair, _edge_row(edge, ids, repo_dir))
+    edges = [rows_by_pair[pair] for pair in sorted(rows_by_pair)]
+
+    processed_ids: set[str] = set()
+    components = [
+        _component_json(component, expandable_components, repo_dir, ids, sub_analyses, processed_ids)
+        for component in analysis.components
+    ]
+    held = _edges_by_relation(edges, *_leaf_lineage(components))
+    _write_nested_relations(components, held, ids, repo_dir)
+
+    metadata = AnalysisMetadata(
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        source_tree_hash=source_tree_hash,
+        repo_name=repo_name,
+        depth_level=_compute_depth_level(sub_analyses),
+        depth_cap=depth_cap,
+        file_coverage_summary=file_coverage_summary
+        or FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}),
+        tree_spec=tree_spec or {},
+    )
+    document = {
+        "metadata": metadata.model_dump(mode="json"),
+        "description": analysis.description,
+        # A pathless file has no entry of its own; it is written only to index its methods.
+        "files": {
+            file_path: _file_json(file_path, entry, ids)
+            for file_path, entry in files_index.items()
+            if file_path or entry.methods
+        },
+        "components": components,
+        "components_relations": [
+            _relation_json(relation, held.get(("", relation.src_id, relation.dst_id), []), ids, repo_dir)
+            for relation in relations
+        ],
+        "edges": edges,
+    }
+    return dump_analysis_document(document)
+
+
+def dump_analysis_document(data: dict) -> str:
+    """Serialize *data* as compact JSON with one short record per line.
+
+    A record whose compact form, trailing comma included, fits in ``_RECORD_WIDTH`` characters
+    stays on one line; a longer one puts each item on its own line, one space deeper. Why: a
+    change to one method, edge or relation then touches only its own lines of a git diff.
+    """
+    lines: list[str] = []
+    _emit_record(data, "", "", "", lines)
+    return "\n".join(lines) + "\n"
 
 
 def parse_unified_analysis(
     data: dict,
 ) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
-    """Parse a unified analysis JSON dict into root AnalysisInsights and sub-analyses.
+    """Parse an analysis.json document into the root AnalysisInsights and its sub-analyses.
 
     Returns:
         (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component_id
         to its nested AnalysisInsights.
     """
-    methods_index_raw = data.get("methods_index", {})
-    methods_index: dict[str, MethodIndexEntry] = {
-        key: MethodIndexEntry(**entry) for key, entry in methods_index_raw.items()
-    }
+    version = (data.get("metadata") or {}).get("format_version")
+    if version != ANALYSIS_FORMAT_VERSION:
+        raise ValueError(
+            f"analysis.json format_version {version!r} is not {ANALYSIS_FORMAT_VERSION}; run a full analysis to rewrite it"
+        )
+    reader = _DocumentReader(data)
+    root_analysis = reader.analysis(data.get("description", ""), data["components"], data["components_relations"], "")
+    if reader.missing:
+        logger.warning("Missing method index entry for %d ref(s): %s", len(reader.missing), reader.missing)
 
-    sub_analyses: dict[str, AnalysisInsights] = {}
-    root_analysis = _extract_analysis_recursive(data, sub_analyses, methods_index=methods_index)
-
-    files_raw = data.get("files", {})
-    files_index = _reconstruct_files_index(files_raw, methods_index)
-
-    root_analysis.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
-    _hydrate_component_methods_from_refs(root_analysis, methods_index)
-    for sub in sub_analyses.values():
+    root_analysis.files = {path: FileEntry().merge_from(entry) for path, entry in reader.files.items()}
+    for sub in reader.sub_analyses.values():
         # Same shape a live scope gets from ``build_files_index``: only the files its components
         # own. The root carries the whole index, so a save loses nothing.
         owned = {group.file_path for component in sub.components for group in component.file_methods}
-        sub.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items() if path in owned}
-        _hydrate_component_methods_from_refs(sub, methods_index)
+        sub.files = {path: FileEntry().merge_from(entry) for path, entry in reader.files.items() if path in owned}
 
-    return root_analysis, sub_analyses
-
-
-def _reconstruct_files_index(
-    files_raw: dict,
-    methods_index: dict[str, MethodIndexEntry],
-) -> dict[str, FileEntry]:
-    """Rebuild in-memory ``FileEntry`` objects from persisted ``method_keys``."""
-    files_index: dict[str, FileEntry] = {}
-    for file_path, entry_raw in files_raw.items():
-        entry = FileEntry(
-            content_hash=entry_raw.get("content_hash", ""),
-            module_hash=entry_raw.get("module_hash", ""),
-        )
-        indexed_methods: list[MethodEntry] = []
-        for key in entry_raw["method_keys"]:
-            indexed = methods_index.get(key)
-            if indexed is None:
-                logger.warning("Missing methods_index entry for key %s (file %s)", key, file_path)
-                continue
-            indexed_methods.append(
-                MethodEntry(
-                    qualified_name=indexed.qualified_name,
-                    start_line=indexed.start_line,
-                    end_line=indexed.end_line,
-                    node_type=indexed.type,
-                    content_hash=indexed.content_hash,
-                )
-            )
-        entry.merge_from(FileEntry(methods=indexed_methods))
-        files_index[file_path] = entry
-    return files_index
+    return root_analysis, reader.sub_analyses
 
 
 def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> dict[str, str]:
@@ -577,95 +368,383 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
     return id_to_name
 
 
-def _extract_analysis_recursive(
-    data: dict,
-    sub_analyses: dict[str, AnalysisInsights],
-    methods_index: dict[str, MethodIndexEntry],
-    parent_component_id: str = "",
-) -> AnalysisInsights:
-    """Recursively extract AnalysisInsights from data dict, collecting all sub-analyses.
+def _symbol_ids(keys: list[str]) -> dict[str, str]:
+    """Map each method key to a short id derived from the key itself, widening on collision."""
+    width = _SYMBOL_ID_WIDTH
+    digests = {
+        key: base64.urlsafe_b64encode(hashlib.sha256(key.encode("utf-8")).digest()).decode("ascii") for key in keys
+    }
+    while True:
+        ids = {key: digest[:width] for key, digest in digests.items()}
+        if len(set(ids.values())) == len(ids):
+            return ids
+        logger.warning("Symbol id collision at width %d; widening to %d", width, width + 2)
+        width += 2
 
-    Args:
-        data: The analysis data dict containing components, description, etc.
-        sub_analyses: Dict to populate with component_id -> AnalysisInsights mappings.
 
-    Returns:
-        AnalysisInsights for this level (components are non-nested at this level).
-    """
-    components: list[Component] = []
+def _cite(reference: SourceCodeReference, ids: dict[str, str], repo_dir: Path) -> str:
+    key = _source_reference_method_key(reference, repo_dir)
+    return ids.get(key, key)
 
-    for index, comp_data in enumerate(data.get("components", []), start=1):
-        file_methods = [
-            FileMethodGroup(
-                file_path=group["file_path"],
-                methods=_method_refs_to_placeholders([str(m) for m in group.get("methods", [])]),
-            )
-            for group in comp_data.get("file_methods", [])
-        ]
-        key_entities = [
-            SourceCodeReference(
-                qualified_name=ke["qualified_name"],
-                reference_file=ke.get("reference_file"),
-                reference_start_line=ke.get("reference_start_line", 0),
-                reference_end_line=ke.get("reference_end_line", 0),
-            )
-            for ke in comp_data.get("key_entities", [])
-        ]
 
-        # Create the component for this level (non-nested)
-        legacy_prefix = f"{parent_component_id}_" if parent_component_id else ""
-        fallback_component_id = f"legacy_component_{legacy_prefix}{index}"
-        component = Component(
-            name=comp_data.get("name", fallback_component_id),
-            component_id=comp_data.get("component_id") or fallback_component_id,
-            description=comp_data.get("description", ""),
-            key_entities=key_entities,
-            file_methods=file_methods,
-            source_cluster_ids=comp_data.get("source_cluster_ids", []),
+def _edge_row(edge: RelationEdge, ids: dict[str, str], repo_dir: Path) -> list:
+    row = [
+        _cite(edge.source, ids, repo_dir),
+        _cite(edge.target, ids, repo_dir),
+        [[site.line, site.column] for site in edge.call_sites],
+    ]
+    if edge.description:
+        row.append(edge.description)
+    return row
+
+
+def _key_edge_row(
+    edge: RelationEdge, call_sites_of: dict[tuple[str, str], list], ids: dict[str, str], repo_dir: Path
+) -> list:
+    source, target, call_sites = _edge_row(edge, ids, repo_dir)[:3]
+    if call_sites != call_sites_of.get((source, target), []):
+        return [source, target, edge.description, call_sites]
+    return [source, target, edge.description] if edge.description else [source, target]
+
+
+def _file_json(file_path: str, entry: FileEntry, ids: dict[str, str]) -> dict:
+    return {
+        "content_hash": entry.content_hash,
+        "module_hash": entry.module_hash,
+        "methods": {
+            method.qualified_name: [
+                method.start_line,
+                method.end_line,
+                method.node_type,
+                method.content_hash,
+                ids[_method_key(file_path, method.qualified_name)],
+            ]
+            for method in entry.methods
+        },
+    }
+
+
+def _component_json(
+    component: Component,
+    expandable_components: list[Component],
+    repo_dir: Path,
+    ids: dict[str, str],
+    sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None,
+    processed_ids: set[str],
+) -> dict:
+    """A component and its subtree; nested relations stay in memory until ``_write_nested_relations``."""
+    component_id = component.component_id
+    if component_id in processed_ids:
+        logger.warning(f"Component {component.name} (ID: {component_id}) already processed, skipping expansion")
+        can_expand = False
+    else:
+        processed_ids.add(component_id)
+        can_expand = any(c.component_id == component_id for c in expandable_components)
+
+    if not can_expand and sub_analyses and component_id in sub_analyses:
+        # Serializing skips the subtree below, and analysis.json is the store — so this
+        # discards an already-analysed subtree permanently. Callers must mark a component
+        # holding a sub-analysis as expandable; say so loudly rather than losing the work.
+        logger.warning(
+            "Component %s (ID: %s) holds an analysed sub-analysis but is not marked expandable; "
+            "%d sub-component(s) will not be written",
+            component.name,
+            component_id,
+            len(sub_analyses[component_id][0].components),
         )
-        components.append(component)
 
-        # Recursively process nested components if they exist
-        nested_components = comp_data.get("components")
-        if isinstance(nested_components, list) and nested_components:
-            nested_data = {
-                "description": comp_data.get("description", ""),
-                "components": nested_components,
-                "components_relations": comp_data.get("components_relations", []),
-            }
-            sub_analysis = _extract_analysis_recursive(nested_data, sub_analyses, methods_index, component.component_id)
-            sub_analyses[component.component_id] = sub_analysis
-
+    children: list[dict] = []
     relations: list[Relation] = []
-    for r in data.get("components_relations", []):
-        key_edges: list[RelationEdge] = []
-        all_edges: list[RelationEdge] = []
-        for edge in r.get("key_edges", []):
-            try:
-                key_edges.append(RelationEdge.from_dict(edge, methods_index))
-            except ValueError as exc:
-                logger.warning("Skipping relation key edge: %s", exc)
-        for edge in r.get("all_edges", []):
-            try:
-                all_edges.append(RelationEdge.from_dict(edge, methods_index))
-            except ValueError as exc:
-                logger.warning("Skipping relation all edge: %s", exc)
-        relations.append(
-            Relation(
-                relation=r["relation"],
-                src_name=r["src_name"],
-                dst_name=r["dst_name"],
-                evidence=r.get("evidence", ""),
-                key_edges=key_edges,
-                src_id=r.get("src_id", ""),
-                dst_id=r.get("dst_id", ""),
-                is_static=r.get("is_static", False),
-                all_edges=all_edges,
+    if can_expand and sub_analyses and component_id in sub_analyses:
+        sub_analysis, sub_expandable = sub_analyses[component_id]
+        children = [
+            _component_json(child, sub_expandable, repo_dir, ids, sub_analyses, processed_ids)
+            for child in sub_analysis.components
+        ]
+        relations = merge_relations_by_pair(sub_analysis.components_relations, include_relation=True)
+
+    members = [
+        ids.get(key, key)
+        for group in component.file_methods
+        for key in dict.fromkeys(_method_key(group.file_path, method.qualified_name) for method in group.methods)
+    ]
+    data: dict = {
+        "name": component.name,
+        "component_id": component_id,
+        "description": component.description,
+        "key_entities": [
+            entity.model_dump(mode="json", exclude_none=True)
+            for entity in _relativize_key_entities(component.key_entities, repo_dir)
+        ],
+        "source_cluster_ids": component.source_cluster_ids,
+        "can_expand": can_expand,
+    }
+    if not children or set(members) != _members_of(children):
+        data["file_methods"] = members
+    data["components"] = children
+    data["components_relations"] = relations
+    return data
+
+
+def _members_of(components: list[dict]) -> set[str]:
+    members: set[str] = set()
+    for component in components:
+        members |= (
+            set(component["file_methods"]) if "file_methods" in component else _members_of(component["components"])
+        )
+    return members
+
+
+def _write_nested_relations(
+    components: list[dict], held: dict[tuple[str, str, str], list[list]], ids: dict[str, str], repo_dir: Path
+) -> None:
+    for component in components:
+        component["components_relations"] = [
+            _relation_json(
+                relation, held.get((component["component_id"], relation.src_id, relation.dst_id), []), ids, repo_dir
             )
+            for relation in component["components_relations"]
+        ]
+        _write_nested_relations(component["components"], held, ids, repo_dir)
+
+
+def _relation_json(relation: Relation, held: list[list], ids: dict[str, str], repo_dir: Path) -> dict:
+    rows = [_edge_row(edge, ids, repo_dir) for edge in relation.all_edges]
+    derived = sorted(map(json.dumps, rows)) == sorted(map(json.dumps, held))
+    call_sites_of = {(row[0], row[1]): row[2] for row in (held if derived else rows)}
+    data = {
+        "relation": relation.relation,
+        "src_name": relation.src_name,
+        "dst_name": relation.dst_name,
+        "evidence": relation.evidence,
+        "src_id": relation.src_id,
+        "dst_id": relation.dst_id,
+        "is_static": relation.is_static,
+        "key_edges": [_key_edge_row(edge, call_sites_of, ids, repo_dir) for edge in relation.key_edges],
+    }
+    if not derived:
+        logger.debug(
+            "Writing all_edges of %s -> %s: they are not the edges between its components",
+            relation.src_id,
+            relation.dst_id,
+        )
+        data["all_edges"] = rows
+    return data
+
+
+def _leaf_lineage(components: list[dict]) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Map each leaf member reference to its leaf, and each leaf to its ancestry ending in itself."""
+    leaf_of: dict[str, str] = {}
+    lineage: dict[str, list[str]] = {}
+
+    def visit(level: list[dict], ancestors: list[str]) -> None:
+        for component in level:
+            component_id = component["component_id"]
+            if component.get("components"):
+                visit(component["components"], [*ancestors, component_id])
+                continue
+            lineage[component_id] = [*ancestors, component_id]
+            for ref in component.get("file_methods", []):
+                leaf_of[ref] = component_id
+
+    visit(components, [])
+    return leaf_of, lineage
+
+
+def _edges_by_relation(
+    edges: list[list], leaf_of: dict[str, str], lineage: dict[str, list[str]]
+) -> dict[tuple[str, str, str], list[list]]:
+    """File each edge row under the relations that hold it, keyed by (scope, src_id, dst_id).
+
+    The top-level relations (scope '') join leaves, so an edge sits under its endpoints'
+    leaves. A nested scope's relations join its children, so an edge also sits in the one
+    scope where its endpoints' leaves first part: their lowest common ancestor, between the
+    children of it that hold each leaf.
+    """
+    held: dict[tuple[str, str, str], list[list]] = {}
+    for row in edges:
+        source_leaf, target_leaf = leaf_of.get(row[0]), leaf_of.get(row[1])
+        if source_leaf is None or target_leaf is None:
+            continue
+        held.setdefault(("", source_leaf, target_leaf), []).append(row)
+        source_line, target_line = lineage[source_leaf], lineage[target_leaf]
+        depth = 0
+        while depth < min(len(source_line), len(target_line)) and source_line[depth] == target_line[depth]:
+            depth += 1
+        if 0 < depth < min(len(source_line), len(target_line)):
+            held.setdefault((source_line[depth - 1], source_line[depth], target_line[depth]), []).append(row)
+    return held
+
+
+class _DocumentReader:
+    """Rebuilds the in-memory analysis from a parsed analysis.json document."""
+
+    def __init__(self, data: dict) -> None:
+        self.files: dict[str, FileEntry] = {}
+        self.methods: dict[str, tuple[str, MethodEntry]] = {}
+        self.sub_analyses: dict[str, AnalysisInsights] = {}
+        self.missing: list[str] = []
+        for file_path, entry in data["files"].items():
+            methods = []
+            for qualified_name, (start_line, end_line, node_type, content_hash, symbol_id) in entry["methods"].items():
+                method = MethodEntry(
+                    qualified_name=qualified_name,
+                    start_line=start_line,
+                    end_line=end_line,
+                    node_type=node_type,
+                    content_hash=content_hash,
+                )
+                self.methods[symbol_id] = (file_path, method)
+                methods.append(method)
+            if file_path:
+                self.files[file_path] = FileEntry(
+                    methods=methods, content_hash=entry["content_hash"], module_hash=entry["module_hash"]
+                )
+        self.held = _edges_by_relation(data["edges"], *_leaf_lineage(data["components"]))
+
+    def analysis(self, description: str, components: list[dict], relations: list[dict], scope: str) -> AnalysisInsights:
+        return AnalysisInsights(
+            description=description,
+            components=[self.component(component) for component in components],
+            components_relations=[self.relation(relation, scope) for relation in relations],
         )
 
-    return AnalysisInsights(
-        description=data.get("description", ""),
-        components=components,
-        components_relations=relations,
-    )
+    def component(self, data: dict) -> Component:
+        component_id = data["component_id"]
+        children = data.get("components", [])
+        if children:
+            self.sub_analyses[component_id] = self.analysis(
+                data["description"], children, data.get("components_relations", []), component_id
+            )
+        if "file_methods" in data or not children:
+            members = [self.member(ref) for ref in data.get("file_methods", [])]
+            groups = _groups([member for member in members if member is not None])
+        else:
+            union = {
+                (group.file_path, method.qualified_name): (group.file_path, method)
+                for child in self.sub_analyses[component_id].components
+                for group in child.file_methods
+                for method in group.methods
+            }
+            groups = _groups(sorted(union.values(), key=lambda member: member[0]))
+        return Component(
+            name=data["name"],
+            component_id=component_id,
+            description=data["description"],
+            key_entities=[SourceCodeReference(**entity) for entity in data.get("key_entities", [])],
+            file_methods=groups,
+            source_cluster_ids=data.get("source_cluster_ids", []),
+        )
+
+    def member(self, ref: str) -> tuple[str, MethodEntry] | None:
+        member = self.methods.get(ref)
+        if member is None:
+            if "|" not in ref:
+                raise ValueError(f"Unknown method id {ref!r}")
+            # A raw key names no indexed method, so there is no member to hold.
+            self.missing.append(ref)
+        return member
+
+    def relation(self, data: dict, scope: str) -> Relation:
+        rows = data.get("all_edges")
+        if rows is None:
+            rows = self.held.get((scope, data["src_id"], data["dst_id"]), [])
+        call_sites_of = {(row[0], row[1]): row[2] for row in rows}
+        return Relation(
+            relation=data["relation"],
+            src_name=data["src_name"],
+            dst_name=data["dst_name"],
+            evidence=data.get("evidence", ""),
+            key_edges=[
+                self.edge(
+                    [row[0], row[1], row[3] if len(row) > 3 else call_sites_of.get((row[0], row[1]), [])] + row[2:3]
+                )
+                for row in data.get("key_edges", [])
+            ],
+            src_id=data["src_id"],
+            dst_id=data["dst_id"],
+            is_static=data.get("is_static", False),
+            all_edges=[self.edge(row) for row in rows],
+        )
+
+    def edge(self, row: list) -> RelationEdge:
+        return RelationEdge(
+            source=self.reference(row[0]),
+            target=self.reference(row[1]),
+            call_sites=[RelationCallSite(line=line, column=column) for line, column in row[2]],
+            description=row[3] if len(row) > 3 else "",
+        )
+
+    def reference(self, ref: str) -> SourceCodeReference:
+        indexed = self.methods.get(ref)
+        if indexed is not None:
+            file_path, method = indexed
+            return SourceCodeReference(
+                qualified_name=method.qualified_name,
+                reference_file=file_path or None,
+                reference_start_line=method.start_line,
+                reference_end_line=method.end_line,
+            )
+        if "|" not in ref:
+            raise ValueError(f"Unknown method id {ref!r}")
+        file_path, _, qualified_name = ref.partition("|")
+        return SourceCodeReference(qualified_name=qualified_name, reference_file=file_path or None)
+
+
+def _groups(members: list[tuple[str, MethodEntry]]) -> list[FileMethodGroup]:
+    """Group members by file in first-seen order, each group's methods in line order."""
+    by_file: dict[str, list[MethodEntry]] = {}
+    for file_path, method in members:
+        by_file.setdefault(file_path, []).append(method.model_copy())
+    return [
+        FileMethodGroup(
+            file_path=file_path, methods=sorted(methods, key=lambda m: (m.start_line, m.end_line, m.qualified_name))
+        )
+        for file_path, methods in by_file.items()
+    ]
+
+
+def _emit_record(value: object, indent: str, prefix: str, tail: str, lines: list[str]) -> None:
+    flat = _flat_json(value, _RECORD_WIDTH - len(indent) - len(prefix) - len(tail))
+    container = _json_items(value)
+    if flat is not None or container is None:
+        lines.append(f"{indent}{prefix}{flat}{tail}")
+        return
+    opening, closing, item_iter = container
+    items = list(item_iter)
+    lines.append(f"{indent}{prefix}{opening}")
+    for position, (item_prefix, item) in enumerate(items):
+        _emit_record(item, indent + " ", item_prefix, "," if position < len(items) - 1 else "", lines)
+    lines.append(f"{indent}{closing}{tail}")
+
+
+def _flat_json(value: object, budget: int) -> str | None:
+    """Compact JSON for *value*; None for a container longer than *budget* characters.
+
+    Why the budget: the attempt stops early, so a large container costs a few records, not its whole size.
+    """
+    container = _json_items(value)
+    if container is None:
+        return json.dumps(value, ensure_ascii=False)
+    opening, closing, items = container
+    budget -= 2
+    parts: list[str] = []
+    for item_prefix, item in items:
+        flat_item = _flat_json(item, budget - len(item_prefix))
+        if flat_item is None:
+            return None
+        part = item_prefix + flat_item
+        budget -= len(part) + (1 if parts else 0)
+        if budget < 0:
+            return None
+        parts.append(part)
+    return opening + ",".join(parts) + closing
+
+
+def _json_items(value: object) -> tuple[str, str, Iterable[tuple[str, object]]] | None:
+    """A JSON container's brackets and its (key prefix, item) pairs; None for a scalar."""
+    if isinstance(value, dict):
+        return "{", "}", ((json.dumps(field, ensure_ascii=False) + ":", item) for field, item in value.items())
+    if isinstance(value, list):
+        return "[", "]", (("", item) for item in value)
+    return None

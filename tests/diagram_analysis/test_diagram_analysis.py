@@ -27,11 +27,7 @@ from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.analysis_json import (
     ComponentFileMethodGroupJson,
     ComponentJson,
-    RelationJson,
-    UnifiedAnalysisJson,
     build_unified_analysis_json,
-    from_analysis_to_json,
-    from_component_to_json_component,
     parse_unified_analysis,
 )
 from diagram_analysis.diagram_generator import (
@@ -58,6 +54,14 @@ from static_analyzer.clustering.service import ClusteringService
 from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.node import Node
+
+
+def _stored(analysis: AnalysisInsights, expandable_components: list[Component], repo_dir: Path = Path(".")) -> dict:
+    return json.loads(
+        build_unified_analysis_json(
+            analysis, expandable_components, "repo", repo_dir=repo_dir, source_tree_hash="", depth_cap=1
+        )
+    )
 
 
 def _root_spec() -> TreeSpec:
@@ -114,63 +118,6 @@ class TestComponentJson(unittest.TestCase):
 
         self.assertEqual(len(comp.key_entities), 1)
         self.assertEqual(comp.key_entities[0].qualified_name, "test.TestClass")
-
-
-class TestUnifiedAnalysisJson(unittest.TestCase):
-    def test_unified_analysis_json_creation(self):
-        # Test creating a UnifiedAnalysisJson instance
-        from diagram_analysis.analysis_json import AnalysisMetadata
-
-        comp1 = ComponentJson(
-            name="Comp1",
-            component_id="comp1_id",
-            description="Description 1",
-            key_entities=[],
-        )
-        comp2 = ComponentJson(
-            name="Comp2",
-            component_id="comp2_id",
-            description="Description 2",
-            key_entities=[],
-        )
-        rel = RelationJson(src_name="Comp1", dst_name="Comp2", relation="uses")
-
-        analysis = UnifiedAnalysisJson(
-            metadata=AnalysisMetadata(
-                generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1, depth_cap=1
-            ),
-            description="Test analysis",
-            components=[comp1, comp2],
-            components_relations=[rel],
-        )
-
-        self.assertEqual(analysis.description, "Test analysis")
-        self.assertEqual(len(analysis.components), 2)
-        self.assertEqual(len(analysis.components_relations), 1)
-        self.assertEqual(analysis.metadata.repo_name, "test")
-
-    def test_unified_analysis_json_model_dump(self):
-        # Test serialization
-        from diagram_analysis.analysis_json import AnalysisMetadata
-
-        comp = ComponentJson(
-            name="Comp",
-            component_id="comp_dump_id",
-            description="Description",
-            key_entities=[],
-        )
-        analysis = UnifiedAnalysisJson(
-            metadata=AnalysisMetadata(
-                generated_at="2026-01-01T00:00:00Z", repo_name="test", depth_level=1, depth_cap=1
-            ),
-            description="Test",
-            components=[comp],
-            components_relations=[],
-        )
-
-        data = analysis.model_dump()
-        self.assertEqual(data["description"], "Test")
-        self.assertEqual(len(data["components"]), 1)
 
 
 class TestAnalysisJsonConversion(unittest.TestCase):
@@ -238,50 +185,20 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             ),
         }
 
-    def test_from_component_to_json_component_can_expand_true(self):
-        # Test when component can be expanded
-        new_components = [self.comp1]  # comp1 can be expanded
-
-        result = from_component_to_json_component(self.comp1, new_components, self.repo_dir)
-
-        self.assertIsInstance(result, ComponentJson)
-        self.assertEqual(result.name, "Component1")
-        self.assertTrue(result.can_expand)
-
-    def test_from_component_to_json_component_can_expand_false(self):
-        # Test when component cannot be expanded
-        new_components: list[Component] = []  # No new components
-
-        result = from_component_to_json_component(self.comp1, new_components, self.repo_dir)
-
-        self.assertIsInstance(result, ComponentJson)
-        self.assertEqual(result.name, "Component1")
-        self.assertFalse(result.can_expand)
-
-    def test_from_component_to_json_component_preserves_data(self):
-        # Test that all data is preserved
+    def test_stored_component_preserves_data(self):
         ref = SourceCodeReference(
             qualified_name="test.TestClass",
             reference_file="test.py",
             reference_start_line=5,
             reference_end_line=15,
         )
-        comp = Component(
-            name="TestComp",
-            description="Test description",
-            file_methods=[
-                FileMethodGroup(file_path="a.py"),
-                FileMethodGroup(file_path="b.py"),
-            ],
-            key_entities=[ref],
-        )
+        comp = Component(name="TestComp", description="Test description", key_entities=[ref], component_id="1")
 
-        result = from_component_to_json_component(comp, [], self.repo_dir)
+        result = _stored(AnalysisInsights(description="d", components=[comp], components_relations=[]), [])
 
-        self.assertEqual(result.name, "TestComp")
-        self.assertEqual(result.description, "Test description")
-        self.assertEqual(set(fg.file_path for fg in result.file_methods), {"a.py", "b.py"})
-        self.assertEqual(len(result.key_entities), 1)
+        self.assertEqual(result["components"][0]["name"], "TestComp")
+        self.assertEqual(result["components"][0]["description"], "Test description")
+        self.assertEqual(result["components"][0]["key_entities"][0]["qualified_name"], "test.TestClass")
 
     def test_key_entity_reference_file_is_relativized(self):
         # The reference resolver leaves reference_file absolute; serialization must make it
@@ -307,27 +224,20 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             ],
         )
 
-        result = from_component_to_json_component(comp, [], repo)
+        result = _stored(AnalysisInsights(description="d", components=[comp], components_relations=[]), [], repo)
 
         self.assertEqual(
-            [ke.reference_file for ke in result.key_entities],
+            [ke["reference_file"] for ke in result["components"][0]["key_entities"]],
             ["pkg/mod.py", "pkg/other.py"],
         )
 
-    def test_from_analysis_to_json(self):
-        # Test full analysis conversion to JSON
-        new_components = [self.comp1]  # Only comp1 can expand
-
-        json_str = from_analysis_to_json(self.analysis, new_components, self.repo_dir)
-
-        # Parse JSON to verify it's valid
-        data = json.loads(json_str)
+    def test_stored_document_marks_expandable_components(self):
+        data = _stored(self.analysis, [self.comp1])
 
         self.assertEqual(data["description"], "Test application")
         self.assertEqual(len(data["components"]), 2)
         self.assertEqual(len(data["components_relations"]), 1)
 
-        # Verify can_expand flags
         comp1_data = next(c for c in data["components"] if c["name"] == "Component1")
         comp2_data = next(c for c in data["components"] if c["name"] == "Component2")
 
@@ -335,51 +245,8 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertFalse(comp2_data["can_expand"])
         self.assertEqual(comp1_data["components"], [])
         self.assertEqual(comp1_data["components_relations"], [])
-        self.assertEqual(comp2_data["components"], [])
-        self.assertEqual(comp2_data["components_relations"], [])
 
-    def test_from_analysis_to_json_includes_all_edges(self):
-        self._add_edge_methods_to_index()
-        self.analysis.components_relations = [
-            Relation(
-                src_name="Component1",
-                dst_name="Component2",
-                relation="calls",
-                src_id="1",
-                dst_id="2",
-                is_static=True,
-                all_edges=[
-                    RelationEdge(
-                        source=SourceCodeReference(
-                            qualified_name="component1.run",
-                            reference_file="component1.py",
-                            reference_start_line=10,
-                            reference_end_line=20,
-                        ),
-                        target=SourceCodeReference(
-                            qualified_name="component2.load",
-                            reference_file="component2.py",
-                            reference_start_line=30,
-                            reference_end_line=40,
-                        ),
-                        call_sites=[RelationCallSite(line=12, column=8), RelationCallSite(line=18, column=12)],
-                    )
-                ],
-            )
-        ]
-
-        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
-
-        relation = data["components_relations"][0]
-        self.assertNotIn("edge_count", relation)
-        self.assertTrue(relation["is_static"])
-        self.assertEqual(relation["all_edges"][0]["source"], "component1.py|component1.run")
-        self.assertEqual(relation["all_edges"][0]["target"], "component2.py|component2.load")
-        self.assertEqual(
-            relation["all_edges"][0]["call_sites"], [{"line": 12, "column": 8}, {"line": 18, "column": 12}]
-        )
-
-    def test_from_analysis_to_json_collapses_relations_but_keeps_edges(self):
+    def test_stored_relations_collapse_by_pair_but_keep_edges(self):
         self._add_edge_methods_to_index()
         self.analysis.components_relations = [
             Relation(
@@ -433,16 +300,14 @@ class TestAnalysisJsonConversion(unittest.TestCase):
             ),
         ]
 
-        data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+        parsed, _ = parse_unified_analysis(_stored(self.analysis, []))
 
-        self.assertEqual(len(data["components_relations"]), 2)
-        relations_by_label = {relation["relation"]: relation for relation in data["components_relations"]}
-        self.assertEqual(len(relations_by_label["calls"]["all_edges"]), 1)
-        self.assertEqual(relations_by_label["calls"]["all_edges"][0]["source"], "component1.py|component1.run")
-        self.assertEqual(len(relations_by_label["dispatches to"]["key_edges"]), 1)
-        self.assertEqual(
-            relations_by_label["dispatches to"]["key_edges"][0]["source"], "component1.py|component1.dispatch"
-        )
+        self.assertEqual(len(parsed.components_relations), 2)
+        relations_by_label = {relation.relation: relation for relation in parsed.components_relations}
+        self.assertEqual(len(relations_by_label["calls"].all_edges), 1)
+        self.assertEqual(relations_by_label["calls"].all_edges[0].source.qualified_name, "component1.run")
+        self.assertEqual(len(relations_by_label["dispatches to"].key_edges), 1)
+        self.assertEqual(relations_by_label["dispatches to"].key_edges[0].source.qualified_name, "component1.dispatch")
 
     def test_unified_analysis_parse_preserves_all_edges(self):
         self._add_edge_methods_to_index()
@@ -535,27 +400,19 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         )
 
     def test_unified_analysis_parse_recovers_edges_missing_from_methods_index(self):
-        data = json.loads(
-            build_unified_analysis_json(
-                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
-            )
-        )
+        data = _stored(self.analysis, [])
         data["components_relations"] = [
             {
                 "relation": "calls",
                 "src_name": "Component1",
                 "dst_name": "Component2",
+                "evidence": "",
                 "src_id": "1",
                 "dst_id": "2",
                 "is_static": True,
                 "key_edges": [
-                    {
-                        "source": "missing.py|missing.call",
-                        "target": "component2.py|component2.load",
-                        "description": "external or stale endpoint",
-                    }
+                    ["missing.py|missing.call", "component2.py|component2.load", "external or stale endpoint"]
                 ],
-                "all_edges": [],
             }
         ]
 
@@ -591,14 +448,12 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         ]
         index_relation_endpoints(self.analysis, self.repo_dir)
 
-        data = json.loads(
-            build_unified_analysis_json(
-                self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
-            )
-        )
+        data = _stored(self.analysis, [])
 
-        self.assertNotIn("|importlib.metadata.entry_points", data["methods_index"])
-        self.assertNotIn("plugin.py|plugin.register", data["methods_index"])
+        self.assertEqual(
+            data["components_relations"][0]["key_edges"][0],
+            ["|importlib.metadata.entry_points", "plugin.py|plugin.register"],
+        )
         self.assertNotIn("", data["files"])
         parsed, _ = parse_unified_analysis(data)
         edge = parsed.components_relations[0].key_edges[0]
@@ -618,7 +473,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         )
         self.assertEqual(data["metadata"]["source_tree_hash"], precomputed)
 
-    def test_from_analysis_to_json_does_not_infer_unproven_key_edge_call_sites(self):
+    def test_stored_key_edge_does_not_infer_unproven_call_sites(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             source_file = Path(tmp_dir) / "component1.py"
             source_file.write_text(
@@ -675,12 +530,11 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 )
             ]
 
-            data = json.loads(from_analysis_to_json(self.analysis, [], self.repo_dir))
+            parsed, _ = parse_unified_analysis(_stored(self.analysis, []))
 
-        key_edge = data["components_relations"][0]["key_edges"][0]
-        self.assertEqual(key_edge["call_sites"], [])
+        self.assertEqual(parsed.components_relations[0].key_edges[0].call_sites, [])
 
-    def test_from_analysis_to_json_normalizes_absolute_relation_edge_paths(self):
+    def test_stored_relation_edge_paths_are_repo_relative(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             repo_dir = Path(tmp_dir)
             source_file = repo_dir / "component1.py"
@@ -717,25 +571,25 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 )
             ]
 
-            data = json.loads(from_analysis_to_json(self.analysis, [], repo_dir=repo_dir))
+            parsed, _ = parse_unified_analysis(_stored(self.analysis, [], repo_dir))
 
-        key_edge = data["components_relations"][0]["key_edges"][0]
-        self.assertEqual(key_edge["source"], "component1.py|component1.run")
-        self.assertEqual(key_edge["target"], "component1.py|component1.load")
-        self.assertEqual(key_edge["call_sites"], [])
+        key_edge = parsed.components_relations[0].key_edges[0]
+        self.assertEqual(
+            (key_edge.source.reference_file, key_edge.source.qualified_name), ("component1.py", "component1.run")
+        )
+        self.assertEqual(
+            (key_edge.target.reference_file, key_edge.target.qualified_name), ("component1.py", "component1.load")
+        )
+        self.assertEqual(key_edge.call_sites, [])
 
-    def test_from_analysis_to_json_empty(self):
-        # Test with empty analysis
-        empty_analysis = AnalysisInsights(description="Empty", components=[], components_relations=[])
+    def test_stored_empty_analysis(self):
+        data = _stored(AnalysisInsights(description="Empty", components=[], components_relations=[]), [])
 
-        json_str = from_analysis_to_json(empty_analysis, [], self.repo_dir)
-
-        data = json.loads(json_str)
         self.assertEqual(data["description"], "Empty")
         self.assertEqual(len(data["components"]), 0)
         self.assertEqual(len(data["components_relations"]), 0)
 
-    def test_from_analysis_to_json_with_references(self):
+    def test_stored_component_keeps_its_key_entities(self):
         # Test with source code references
         ref1 = SourceCodeReference(
             qualified_name="src.class1.Class1",
@@ -758,19 +612,18 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
         analysis = AnalysisInsights(description="Test", components=[comp], components_relations=[])
 
-        json_str = from_analysis_to_json(analysis, [], self.repo_dir)
-        data = json.loads(json_str)
+        data = _stored(analysis, [])
 
         comp_data = data["components"][0]
         self.assertEqual(len(comp_data["key_entities"]), 2)
 
-    def test_from_analysis_to_json_formatting(self):
-        # Test that JSON is properly formatted with indentation
-        json_str = from_analysis_to_json(self.analysis, [], self.repo_dir)
+    def test_stored_document_is_one_record_per_line(self):
+        text = build_unified_analysis_json(
+            self.analysis, [], "repo", repo_dir=self.repo_dir, source_tree_hash="", depth_cap=1
+        )
 
-        # Check that it's indented (contains newlines and spaces)
-        self.assertIn("\n", json_str)
-        self.assertIn("  ", json_str)  # 2-space indentation
+        self.assertTrue(text.startswith('{\n "metadata":'))
+        self.assertIn('\n "edges":[]\n}', text)
 
 
 class TestLoadedScopesOwnTheirFiles(unittest.TestCase):
