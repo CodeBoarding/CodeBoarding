@@ -89,9 +89,9 @@ class TestFullPass:
         assert analyzer._engine_clients == [(whole, fresh)]
 
 
-@pytest.mark.parametrize("changed", [None, set()])
+@pytest.mark.parametrize("changed", [None, ["a/a.ts"]])
 def test_a_warm_start_re_analyses_fully_as_the_parts_and_updates_changed_files_on_the_config(
-    tmp_path: Path, changed: set | None
+    tmp_path: Path, changed: list[str] | None
 ):
     analyzer, whole = _analyzer(tmp_path, slots=1)
     analyzer.ignore_manager = RepoIgnoreManager(tmp_path)
@@ -99,13 +99,12 @@ def test_a_warm_start_re_analyses_fully_as_the_parts_and_updates_changed_files_o
 
     with (
         patch.object(analyzer, "_spawn_engine_client", spawn),
-        patch.object(analyzer, "_changed_files_for_language", return_value=changed),
-        patch.object(analyzer, "_extract_language_dict", return_value={}),
+        patch.object(analyzer, "_extract_language_dict", return_value={"source_files": whole.source_files}),
         patch("static_analyzer.update_cfg_for_changed_files", return_value={}),
         patch.object(analyzer, "_absorb_and_link"),
         patch("static_analyzer.track_lsp_result"),
     ):
-        analyzer._update_cached_results(MagicMock(), "baseline")
+        analyzer._update_cached_results(MagicMock(), None if changed is None else {tmp_path / p for p in changed})
 
     started = [call.args[0] for call in spawn.call_args_list]
     assert started == (whole.split if changed is None else [whole])

@@ -13,7 +13,7 @@ def _host(changes: ChangeSet | None, repo: Path) -> DiagramGenerator:
 
 
 def test_none_changeset_returns_none(tmp_path: Path) -> None:
-    """No ChangeSet -> full run -> git scoping (None)."""
+    """No ChangeSet -> full run -> the warm start scopes itself by recorded hashes (None)."""
     assert _host(None, tmp_path)._changed_files_for_static_analysis() is None
 
 
