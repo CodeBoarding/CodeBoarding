@@ -17,12 +17,13 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.relation_edges import merge_relations_by_pair
 from diagram_analysis import analysis_json
 from diagram_analysis.analysis_json import (
-    ANALYSIS_FORMAT_VERSION,
     _symbol_ids,
     build_unified_analysis_json,
     dump_analysis_document,
     parse_unified_analysis,
 )
+from diagram_analysis.exceptions import AnalysisFormatError, SymbolIdCollisionError
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 
 METHODS = {"a.py": ["a.one", "a.two"], "b.py": ["b.one"], "c.py": ["c.one"]}
 
@@ -241,28 +242,38 @@ class TestWhatReadersCannotRebuildIsWrittenOut(unittest.TestCase):
         self.assertEqual(parsed.components[0].file_methods, root.components[0].file_methods)
 
 
+def index(*keys: str) -> dict[str, FileEntry]:
+    files: dict[str, FileEntry] = {}
+    for key in keys:
+        path, name = key.split("|")
+        files.setdefault(path, FileEntry()).methods.append(
+            MethodEntry(qualified_name=name, start_line=1, end_line=2, node_type="FUNCTION")
+        )
+    return files
+
+
 class TestSymbolIds(unittest.TestCase):
-    def test_ids_are_a_pure_function_of_the_method_key(self):
-        alone = _symbol_ids(["a.py|a.one"])
-        among_others = _symbol_ids(["0.py|z.one", "a.py|a.one", "b.py|b.one"])
+    def test_ids_are_a_pure_function_of_the_method(self):
+        alone = _symbol_ids(index("a.py|a.one"))
+        among_others = _symbol_ids(index("0.py|z.one", "a.py|a.one", "b.py|b.one"))
 
         self.assertEqual(alone["a.py|a.one"], among_others["a.py|a.one"])
-        self.assertEqual(len(alone["a.py|a.one"]), 8)
+        self.assertRegex(alone["a.py|a.one"], r"^[A-Za-z0-9_-]{8}$")
 
-    def test_a_collision_widens_every_id_at_once(self):
-        keys = [f"a.py|fn{i}" for i in range(200)]
-        with patch.object(analysis_json, "_SYMBOL_ID_WIDTH", 1):
-            ids = _symbol_ids(keys)
-
-        self.assertEqual(len(set(ids.values())), len(keys))
-        self.assertEqual(len({len(symbol_id) for symbol_id in ids.values()}), 1)
-        self.assertGreater(len(ids[keys[0]]), 1)
+    def test_two_methods_sharing_an_id_fail_the_write(self):
+        with patch.object(analysis_json, "_symbol_id", return_value="AAAAAAAA"):
+            with self.assertRaises(SymbolIdCollisionError):
+                store(*tree())
 
 
 class TestRejectedDocuments(unittest.TestCase):
+    def test_a_document_without_a_format_version_is_rejected(self):
+        with self.assertRaisesRegex(AnalysisFormatError, "predates format versioning"):
+            parse_unified_analysis({"metadata": {}, "methods_index": {}})
+
     def test_another_format_version_is_rejected(self):
-        with self.assertRaises(ValueError):
-            parse_unified_analysis({"metadata": {"format_version": 3}})
+        with self.assertRaisesRegex(AnalysisFormatError, "'v2'"):
+            parse_unified_analysis({"metadata": {"format_version": "v2"}})
 
     def test_an_id_with_no_method_is_rejected(self):
         doc = store(*tree())

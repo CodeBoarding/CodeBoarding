@@ -17,7 +17,7 @@ from codeboarding_cli.github_action import (
 from infra.utils import CODEBOARDING_DIR_NAME
 
 UNIFIED_ANALYSIS_JSON = {
-    "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1, "format_version": 4},
+    "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1, "format_version": "v1"},
     "description": "test",
     "files": {},
     "components": [],
@@ -69,7 +69,7 @@ class TestGenerateMarkdown(unittest.TestCase):
                     "generated_at": "2024-01-01T00:00:00Z",
                     "repo_name": "test",
                     "depth_level": 2,
-                    "format_version": 4,
+                    "format_version": "v1",
                 },
                 "description": "test",
                 "files": {},
@@ -458,7 +458,7 @@ class TestResolveDepthCap(unittest.TestCase):
                 "repo_name": "test",
                 "depth_level": 1,
                 "depth_cap": 4,
-                "format_version": 4,
+                "format_version": "v1",
             }
             analysis = {**UNIFIED_ANALYSIS_JSON, "metadata": metadata}
             with open(temp_path / "analysis.json", "w") as f:

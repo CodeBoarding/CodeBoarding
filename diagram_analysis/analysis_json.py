@@ -18,19 +18,11 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.relation_edges import merge_relations_by_pair
+from diagram_analysis.exceptions import AnalysisFormatError, SymbolIdCollisionError
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION, RECORD_WIDTH, SYMBOL_ID_BYTES
 from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
-
-# The layout build_unified_analysis_json writes; parse_unified_analysis reads only this one.
-ANALYSIS_FORMAT_VERSION = 4
-
-# 48 bits of SHA-256 over the method key. A collision widens every id at once, so each id
-# stays a pure function of its key.
-_SYMBOL_ID_WIDTH = 8
-
-# A record whose compact JSON fits in this many characters is written on one line.
-_RECORD_WIDTH = 160
 
 
 class RelationEdgeJson(BaseModel):
@@ -129,7 +121,7 @@ class AnalysisMetadata(BaseModel):
         "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
         "written before it existed.",
     )
-    format_version: int = Field(default=ANALYSIS_FORMAT_VERSION, description="Layout of the analysis.json document.")
+    format_version: str = Field(default=ANALYSIS_FORMAT_VERSION, description="Layout of the analysis.json document.")
 
 
 class ComponentFileMethodGroupJson(BaseModel):
@@ -262,13 +254,7 @@ def build_unified_analysis_json(
     Where a rebuild would not give back what Core holds, the field is written out.
     """
     files_index = _build_files_index_from_analysis(analysis, sub_analyses)
-    ids = _symbol_ids(
-        [
-            _method_key(file_path, method.qualified_name)
-            for file_path, entry in files_index.items()
-            for method in entry.methods
-        ]
-    )
+    ids = _symbol_ids(files_index)
 
     relations = merge_relations_by_pair(analysis.components_relations, include_relation=True)
     rows_by_pair: dict[tuple[str, str], list] = {}
@@ -321,7 +307,7 @@ def build_unified_analysis_json(
 def dump_analysis_document(data: dict) -> str:
     """Serialize *data* as compact JSON with one short record per line.
 
-    A record whose compact form, trailing comma included, fits in ``_RECORD_WIDTH`` characters
+    A record whose compact form, trailing comma included, fits in ``RECORD_WIDTH`` characters
     stays on one line; a longer one puts each item on its own line, one space deeper. Why: a
     change to one method, edge or relation then touches only its own lines of a git diff.
     """
@@ -341,9 +327,7 @@ def parse_unified_analysis(
     """
     version = (data.get("metadata") or {}).get("format_version")
     if version != ANALYSIS_FORMAT_VERSION:
-        raise ValueError(
-            f"analysis.json format_version {version!r} is not {ANALYSIS_FORMAT_VERSION}; run a full analysis to rewrite it"
-        )
+        raise AnalysisFormatError(version, ANALYSIS_FORMAT_VERSION)
     reader = _DocumentReader(data)
     root_analysis = reader.analysis(data.get("description", ""), data["components"], data["components_relations"], "")
     if reader.missing:
@@ -368,18 +352,24 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
     return id_to_name
 
 
-def _symbol_ids(keys: list[str]) -> dict[str, str]:
-    """Map each method key to a short id derived from the key itself, widening on collision."""
-    width = _SYMBOL_ID_WIDTH
-    digests = {
-        key: base64.urlsafe_b64encode(hashlib.sha256(key.encode("utf-8")).digest()).decode("ascii") for key in keys
-    }
-    while True:
-        ids = {key: digest[:width] for key, digest in digests.items()}
-        if len(set(ids.values())) == len(ids):
-            return ids
-        logger.warning("Symbol id collision at width %d; widening to %d", width, width + 2)
-        width += 2
+def _symbol_ids(files_index: dict[str, FileEntry]) -> dict[str, str]:
+    """Map each indexed method's key to its id; two methods sharing an id fail the write."""
+    ids: dict[str, str] = {}
+    owners: dict[str, str] = {}
+    for file_path, entry in files_index.items():
+        for method in entry.methods:
+            key = _method_key(file_path, method.qualified_name)
+            symbol_id = _symbol_id(file_path, method.qualified_name)
+            if owners.setdefault(symbol_id, key) != key:
+                raise SymbolIdCollisionError(symbol_id, owners[symbol_id], key)
+            ids[key] = symbol_id
+    return ids
+
+
+def _symbol_id(file_path: str, qualified_name: str) -> str:
+    encoded = json.dumps([file_path, qualified_name], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.blake2b(encoded, digest_size=SYMBOL_ID_BYTES).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii")
 
 
 def _cite(reference: SourceCodeReference, ids: dict[str, str], repo_dir: Path) -> str:
@@ -705,7 +695,7 @@ def _groups(members: list[tuple[str, MethodEntry]]) -> list[FileMethodGroup]:
 
 
 def _emit_record(value: object, indent: str, prefix: str, tail: str, lines: list[str]) -> None:
-    flat = _flat_json(value, _RECORD_WIDTH - len(indent) - len(prefix) - len(tail))
+    flat = _flat_json(value, RECORD_WIDTH - len(indent) - len(prefix) - len(tail))
     container = _json_items(value)
     if flat is not None or container is None:
         lines.append(f"{indent}{prefix}{flat}{tail}")

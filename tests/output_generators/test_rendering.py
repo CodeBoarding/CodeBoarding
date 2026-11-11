@@ -137,7 +137,7 @@ def _make_depth3_unified_json() -> dict:
             "generated_at": "2026-01-01T00:00:00+00:00",
             "repo_name": "fake",
             "depth_level": 3,
-            "format_version": 4,
+            "format_version": "v1",
             "file_coverage_summary": {
                 "total_files": 0,
                 "analyzed": 0,

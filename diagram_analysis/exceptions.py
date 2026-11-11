@@ -54,3 +54,22 @@ class ScopeSemanticsError(RuntimeError):
         super().__init__(f"Semantic analysis failed for scope {scope_id!r}")
         self.scope_id = scope_id
         self.telemetry_properties = telemetry_properties
+
+
+class SymbolIdCollisionError(RuntimeError):
+    """Raised when two indexed methods hash to the same analysis.json id."""
+
+    def __init__(self, symbol_id: str, first_key: str, second_key: str):
+        super().__init__(f"Methods {first_key!r} and {second_key!r} share the analysis.json id {symbol_id!r}")
+        self.symbol_id = symbol_id
+        self.keys = (first_key, second_key)
+
+
+class AnalysisFormatError(ValueError):
+    """Raised when an analysis.json document is not in the format this Core reads."""
+
+    def __init__(self, found: str | None, expected: str):
+        written = "predates format versioning" if found is None else f"is format {found!r}"
+        super().__init__(f"analysis.json {written}, not {expected!r}; run a full analysis to rewrite it")
+        self.found = found
+        self.expected = expected
