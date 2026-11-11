@@ -1,0 +1,145 @@
+import logging
+import os
+import shutil
+from pathlib import Path
+
+from codeboarding_workflows.analysis import run_incremental_workflow
+from diagram_analysis import DEFAULT_DEPTH_CAP, DiagramGenerator, RunContext
+from diagram_analysis.io_utils import load_analysis_metadata
+from output_generators.rendering import render_docs
+from infra.repo_utils import checkout_repo, clone_repository
+from infra.utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, create_temp_repo_folder
+
+logger = logging.getLogger(__name__)
+
+
+def generate_markdown(
+    analysis_path: Path,
+    repo_name: str,
+    repo_url: str,
+    target_branch: str,
+    temp_repo_folder: Path,
+    output_dir: str,
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+        temp_dir=temp_repo_folder,
+        format=".md",
+    )
+
+
+def generate_html(
+    analysis_path: Path, repo_name: str, repo_url: str, target_branch: str, temp_repo_folder: Path
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}",
+        temp_dir=temp_repo_folder,
+        format=".html",
+    )
+
+
+def generate_mdx(
+    analysis_path: Path,
+    repo_name: str,
+    repo_url: str,
+    target_branch: str,
+    temp_repo_folder: Path,
+    output_dir: str,
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+        temp_dir=temp_repo_folder,
+        format=".mdx",
+    )
+
+
+def generate_rst(
+    analysis_path: Path,
+    repo_name: str,
+    repo_url: str,
+    target_branch: str,
+    temp_repo_folder: Path,
+    output_dir: str,
+) -> None:
+    render_docs(
+        analysis_path=analysis_path,
+        repo_name=repo_name,
+        repo_ref=f"{repo_url}/blob/{target_branch}/{output_dir}",
+        temp_dir=temp_repo_folder,
+        format=".rst",
+    )
+
+
+def _seed_existing_analysis(existing_analysis_dir: Path, temp_repo_folder: Path) -> None:
+    """Copy existing analysis files into the temp folder so incremental analysis can use them."""
+    for filename in (ANALYSIS_FILENAME, "analysis_manifest.json"):
+        src = existing_analysis_dir / filename
+        if src.is_file():
+            shutil.copy2(src, temp_repo_folder / filename)
+            logger.info(f"Seeded existing {filename} for incremental analysis")
+
+
+def _resolve_depth_cap(temp_repo_folder: Path) -> int:
+    """Depth cap: explicit env var, else the seeded baseline's own depth_cap, else the default."""
+    if "DIAGRAM_DEPTH_LEVEL" in os.environ:
+        raise ValueError("DIAGRAM_DEPTH_LEVEL is no longer supported; use DIAGRAM_DEPTH_CAP")
+    env_depth = os.getenv("DIAGRAM_DEPTH_CAP")
+    if env_depth is not None:
+        return int(env_depth)
+    metadata = load_analysis_metadata(temp_repo_folder)
+    if metadata is not None:
+        return int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
+    return DEFAULT_DEPTH_CAP
+
+
+def generate_analysis(
+    repo_url: str,
+    source_branch: str,
+    target_branch: str,
+    extension: str,
+    output_dir: str = CODEBOARDING_DIR_NAME,
+    existing_analysis_dir: str | None = None,
+) -> Path:
+    """Generate analysis for a GitHub repository URL (GitHub Action entry point)."""
+    os.environ.setdefault("CODEBOARDING_SOURCE", "github_action")
+    repo_root = Path(os.getenv("REPO_ROOT", "repos"))
+    repo_name = clone_repository(repo_url, repo_root)
+    repo_dir = repo_root / repo_name
+    run_context = RunContext.resolve(project_name=repo_name)
+    checkout_repo(repo_dir, source_branch)
+    temp_repo_folder = create_temp_repo_folder()
+
+    if existing_analysis_dir:
+        _seed_existing_analysis(Path(existing_analysis_dir), temp_repo_folder)
+
+    generator = DiagramGenerator(
+        repo_location=repo_dir,
+        temp_folder=temp_repo_folder,
+        repo_name=repo_name,
+        output_dir=temp_repo_folder,
+        depth_cap=_resolve_depth_cap(temp_repo_folder),
+        run_id=run_context.run_id,
+        log_path=run_context.log_path,
+    )
+
+    analysis_path = run_incremental_workflow(generator)
+
+    match extension:
+        case ".md":
+            generate_markdown(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+        case ".html":
+            generate_html(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder)
+        case ".mdx":
+            generate_mdx(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+        case ".rst":
+            generate_rst(analysis_path, repo_name, repo_url, target_branch, temp_repo_folder, output_dir)
+        case _:
+            raise ValueError(f"Unsupported extension: {extension}")
+
+    return temp_repo_folder

@@ -17,6 +17,7 @@ The example starts with a large pull-request diff, then shows the six components
 [![JavaScript](https://img.shields.io/badge/JavaScript-222222?style=flat-square&logo=javascript&logoColor=F7DF1E)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Java](https://img.shields.io/badge/Java-E76F00?style=flat-square&logo=openjdk&logoColor=white)](https://www.java.com/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
@@ -103,8 +104,8 @@ git clone https://github.com/CodeBoarding/CodeBoarding.git
 cd CodeBoarding
 uv sync --frozen
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-python install.py
-python main.py full --local /path/to/repo
+python -m infra.install
+python -m codeboarding_cli.main full --local /path/to/repo
 ```
 
 ### Use the packaged CLI
@@ -152,7 +153,7 @@ codeboarding-render /path/to/analysis.json --format mdx --output-dir /path/to/do
 python codeboarding_cli/render.py ../../demo/markitdown/.codeboarding/analysis.json --format md
 ```
 
-`python install.py` and `codeboarding-setup` download language server binaries to `~/.codeboarding/servers/`, shared across projects. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
+An analysis downloads the language servers its repository's languages need into `~/.codeboarding/servers/` the first time it needs them, shared across projects; `python -m infra.install` and `codeboarding-setup` download all of them up front. Node.js (and its bundled `npm`) is required for the Python, TypeScript, JavaScript, and PHP language servers; if neither `node` nor `CODEBOARDING_NODE_PATH` is set, setup downloads a pinned Node.js runtime into `~/.codeboarding/servers/nodeenv/` automatically.
 
 ## Configuration
 
@@ -170,6 +171,8 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 # ollama_base_url           = "http://localhost:11434"
 # openrouter_api_key        = "sk-..."
 # orcarouter_api_key        = "sk-orca-..."   # model routing gateway (https://www.orcarouter.ai)
+# requesty_api_key          = "rqsty-..."     # LLM gateway (https://www.requesty.ai)
+# opper_api_key             = "..."           # EU-hosted AI gateway (https://opper.ai)
 # litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
@@ -183,32 +186,33 @@ On first run, CodeBoarding creates `~/.codeboarding/config.toml`. Set one provid
 
 Shell environment variables such as `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `OLLAMA_BASE_URL` take precedence over the config file. For private repositories, set `GITHUB_TOKEN` in your environment.
 
-Two environment variables tune the static analysis itself:
+Three environment variables tune the static analysis itself:
 
 | Variable | Effect |
 | --- | --- |
-| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C#, 60s elsewhere). Not a hard cap on every request: the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s) and are unaffected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
-| `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers may be resident at once. `0` (the default) leaves the bound off. |
+| `CODEBOARDING_LSP_REQUEST_TIMEOUT` | Seconds a language-server request may block *when it uses the per-language default* (120s for C# and Kotlin, 60s elsewhere). Not a hard cap on every request: `initialize` has its own startup budget (the request default), Kotlin's build import is awaited separately (up to 1800s), and the indexing and didOpen-drain probes pass their own scaled budget (60s plus 2s per file, capped at 1800s); neither is affected. Applies to every language in the run. Unset or empty leaves the defaults alone; any other unusable value fails the run rather than falling back. |
+| `CODEBOARDING_MAX_CONCURRENT_ENGINES` | How many language servers an analysis runs at once. Unset or `0`, the CLI and the GitHub Action run one at a time, each stopped when its language is done, and the editor keeps one per project running. Set, the editor's servers also start only for an analysis, so its file queries are unavailable. |
+| `CODEBOARDING_LSP_MEMORY_BUDGET_MB` | Megabytes the language servers running at once share; tsserver's heap is its share less 512. Unset, it is three quarters of the machine's memory (or of a cgroup v2 container's limit, when lower), at most 12 GB. |
 
 ## Common commands
 
 ```bash
 # Analyze a local repository
-python main.py full --local ./my-project
+python -m codeboarding_cli.main full --local ./my-project
 
 # Raise the depth ceiling to auto-expand deeper (rarely needed — a component that
 # outgrows the leaf ceiling is flagged expandable at whatever depth the run stops
 # and can be expanded on demand; --depth-cap is a safety-valve cap, default 3)
-python main.py full --local ./my-project --depth-cap 5
+python -m codeboarding_cli.main full --local ./my-project --depth-cap 5
 
 # Re-analyze only changed parts when possible
-python main.py incremental --local ./my-project
+python -m codeboarding_cli.main incremental --local ./my-project
 
 # Update a single component by ID
-python main.py partial --local ./my-project --component-id "1.2"
+python -m codeboarding_cli.main partial --local ./my-project --component-id "1.2"
 
 # Analyze a remote GitHub repository
-python main.py full https://github.com/pytorch/pytorch
+python -m codeboarding_cli.main full https://github.com/pytorch/pytorch
 ```
 
 `--depth-cap` configures `metadata.depth_cap`; `metadata.depth_level` records the
@@ -231,8 +235,9 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 > `.codeboarding/` only if you want the baseline to travel with the branch (so a teammate or a
 > fresh checkout can run incremental too). With no baseline at all — or one that predates content
 > versioning — `incremental` fails fast with "run a full analysis first" rather than silently
-> doing a full run. Static-analysis caches are versioned but not migrated; after a cache-version
-> upgrade, run a full analysis once to reindex.
+> doing a full run. Static-analysis caches are versioned but not migrated: after a cache-version
+> upgrade, `incremental` logs a warning and runs one full analysis at the baseline's depth, which
+> counts against your LLM provider like any other full run.
 
 ## Where to use it
 
@@ -243,8 +248,11 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Go, PHP, Rust, C#, Dart (including Flutter apps).
-- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, LiteLLM proxy, and more.
+- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#, Dart (including Flutter apps), C++ and CUDA (preview).
+  - Java needs a JDK (21 recommended).
+  - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. JetBrains' builds expire after about 30 days, so a run that needs Kotlin reads the current build number and checksums from this repository, and keeps the build it has when it cannot. Kotlin calls into Java are not drawn yet.
+  - C++ and CUDA are analysed with [clangd](https://clangd.llvm.org/), bundled on Linux x86-64, macOS and Windows x64; other platforms need clangd 20 or newer on `PATH`. Provide `compile_commands.json`, `compile_flags.txt` or `.clangd` for full coverage, since CodeBoarding does not build the project. Incremental updates, and so PR reviews, can still miss or keep stale relations for out-of-line class members and header templates.
+- LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
 
 Dart analysis requires the [Dart SDK](https://dart.dev/get-dart), or the
 [Flutter SDK](https://docs.flutter.dev/get-started/install) for Flutter projects,

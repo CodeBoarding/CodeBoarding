@@ -6,7 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
-from logging_config import setup_logging
+from infra.logging_config import setup_logging
 from output_generators import SUPPORTED_FORMATS, render as render_output
 
 logger = logging.getLogger(__name__)

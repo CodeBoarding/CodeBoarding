@@ -14,8 +14,8 @@ from agents.content_hash import (
     read_source_lines,
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
-from repo_utils.ignore import RepoIgnoreManager
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import CALLABLE_TYPES, CLASS_TYPES
 from static_analyzer.node import Node

@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
+
 
 @dataclass
 class SymbolInfo:
@@ -29,6 +31,8 @@ class SymbolInfo:
     # Empty for a top-level symbol and for every alias.
     # Why: slicing a qualified name finds the real owner only by luck of the naming scheme.
     owner_qualified_name: str = ""
+    explicit_identity: bool = False
+    is_definition: bool = True
 
     @property
     def definition_location(self) -> tuple[str, int, int]:
@@ -127,6 +131,7 @@ class LanguageAnalysisResult:
     package_dependencies: dict[str, dict] = field(default_factory=dict)
     source_files: list[str] = field(default_factory=list)
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)
+    diagnostics: FileDiagnosticsMap = field(default_factory=dict)
     # Non-call relationship edges completing the graph for clustering. Each entry
     # is (source_qname, target_qname). type_references: code names a type (param,
     # return, annotation, cast); import_edges: module A imports symbol/module B.

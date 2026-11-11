@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.config import NodeType
 from static_analyzer.engine.models import SymbolInfo
@@ -109,6 +111,30 @@ class TestRegisterSymbols:
         assert "mod.MyClass" in st.symbols
         # The child should be registered with parent chain
         assert "MyClass.method" in st.symbols
+
+    @pytest.mark.parametrize("fields_are_members,expected", [(True, NodeType.ENUM_MEMBER), (False, NodeType.FIELD)])
+    def test_enum_fields_become_members_only_where_the_server_files_them_so(self, fields_are_members, expected):
+        adapter = _make_adapter()
+        adapter.reports_enum_members_as_fields = fields_are_members
+        st = SymbolTable(adapter)
+        symbols = [
+            {
+                "name": "Color",
+                "kind": NodeType.ENUM,
+                "range": {"start": {"line": 0, "character": 0}, "end": {"line": 3, "character": 0}},
+                "selectionRange": {"start": {"line": 0, "character": 5}, "end": {"line": 0, "character": 10}},
+                "children": [
+                    {
+                        "name": "Red",
+                        "kind": NodeType.FIELD,
+                        "range": {"start": {"line": 1, "character": 4}, "end": {"line": 1, "character": 7}},
+                        "selectionRange": {"start": {"line": 1, "character": 4}, "end": {"line": 1, "character": 7}},
+                    }
+                ],
+            }
+        ]
+        st.register_symbols(Path("mod.cs"), symbols, parent_chain=[], project_root=Path("/root"))
+        assert st.symbols["Color.Red"].kind == expected
 
     def test_promotes_variable_with_callable_children_to_class(self):
         adapter = _make_adapter()

@@ -5,22 +5,22 @@ from pathlib import Path
 from tqdm import tqdm
 
 from agents.llm_config import LLMConfigError
-from agents.llm_errors import LLMAuthError
+from agents.llm_errors import LLMAuthError, LLMQuotaError
+from diagram_analysis.exceptions import ScopeSemanticsError
 from codeboarding_cli.bootstrap import bootstrap_environment, resolve_local_run_paths
 from codeboarding_cli.view_instructions import print_view_instructions
 from codeboarding_workflows.analysis import run_full
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source, remote_source
-from constants import CLI_ROOT_DOCUMENT_NAME
+from infra.constants import CLI_ROOT_DOCUMENT_NAME
 from diagram_analysis import DEFAULT_DEPTH_CAP, RunContext, RunPaths
-from diagram_analysis.exceptions import ScopeSemanticsError
-from monitoring import monitor_execution
-from monitoring.paths import get_monitoring_run_dir
+from infra.monitoring import monitor_execution
+from infra.monitoring.paths import get_monitoring_run_dir
 from output_generators.rendering import render_docs
-from repo_utils import get_branch, store_token
-from repo_utils.git_ops import get_current_commit
-from repo_utils.ignore import initialize_codeboardingignore
-from utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
+from infra.repo_utils import get_branch, store_token
+from infra.repo_utils.git_ops import get_current_commit
+from infra.repo_utils.ignore import initialize_codeboardingignore
+from infra.utils import ANALYSIS_FILENAME, CODEBOARDING_DIR_NAME, copy_files, monitoring_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ def _run_remote(args: argparse.Namespace) -> None:
                 upload=args.upload,
                 should_monitor=should_monitor,
             )
-        except (LLMAuthError, ScopeSemanticsError):
+        except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
             # The next repository would fail the same way, so stop the run.
             raise
         except Exception:

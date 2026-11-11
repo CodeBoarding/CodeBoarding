@@ -8,7 +8,7 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager, _ALWAYS_IGNORED_DIRS
+from infra.repo_utils.ignore import RepoIgnoreManager, _ALWAYS_IGNORED_DIRS
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 
@@ -191,7 +191,7 @@ class GoAdapter(LanguageAdapter):
             "ui.diagnostic.staticcheck": True,
         }
 
-    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
+    def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
         """Tune Go GC for lower peak memory at the cost of more CPU.
 
         ``GOGC=50`` makes the garbage collector run more frequently (default

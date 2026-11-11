@@ -773,6 +773,74 @@ class TestAnalysisJsonConversion(unittest.TestCase):
         self.assertIn("  ", json_str)  # 2-space indentation
 
 
+class TestLoadedScopesOwnTheirFiles(unittest.TestCase):
+    """A loaded sub-analysis must look like a live one: indexing the whole repository in every
+    scope cost 2.2M method entries for 25,749 real methods on a 74 MB analysis."""
+
+    @staticmethod
+    def _component(component_id: str, *file_paths: str) -> Component:
+        return Component(
+            name=component_id,
+            description="",
+            key_entities=[],
+            component_id=component_id,
+            file_methods=[
+                FileMethodGroup(
+                    file_path=path,
+                    methods=[
+                        MethodEntry(qualified_name=f"{path}.run", start_line=1, end_line=2, node_type="FUNCTION"),
+                    ],
+                )
+                for path in file_paths
+            ],
+        )
+
+    @staticmethod
+    def _scope(*components: Component) -> AnalysisInsights:
+        scope = AnalysisInsights(description="scope", components=list(components), components_relations=[])
+        scope.files = {
+            group.file_path: FileEntry(methods=list(group.methods), content_hash=f"{group.file_path}-hash")
+            for component in components
+            for group in component.file_methods
+        }
+        return scope
+
+    def _document(self, root: AnalysisInsights, sub: AnalysisInsights) -> str:
+        return build_unified_analysis_json(
+            analysis=root,
+            expandable_components=[root.components[0]],
+            repo_name="repo",
+            repo_dir=Path("."),
+            source_tree_hash="",
+            depth_cap=2,
+            sub_analyses={"1": (sub, [])},
+        )
+
+    def setUp(self):
+        self.document = self._document(
+            self._scope(self._component("1", "a.py", "b.py"), self._component("2", "c.py")),
+            self._scope(self._component("1.1", "a.py"), self._component("1.2", "b.py")),
+        )
+
+    def test_sub_analysis_indexes_only_the_files_its_components_own(self):
+        root, subs = parse_unified_analysis(json.loads(self.document))
+
+        self.assertEqual(set(root.files), {"a.py", "b.py", "c.py"})
+        self.assertEqual(set(subs["1"].files), {"a.py", "b.py"})
+        self.assertEqual(subs["1"].files["a.py"].content_hash, "a.py-hash")
+        self.assertIsNot(subs["1"].files["a.py"], root.files["a.py"])
+
+    def test_saving_a_loaded_tree_writes_the_same_document(self):
+        def without_timestamp(document: str) -> dict:
+            parsed = json.loads(document)
+            del parsed["metadata"]["generated_at"]
+            return parsed
+
+        root, subs = parse_unified_analysis(json.loads(self.document))
+
+        self.assertEqual(without_timestamp(self._document(root, subs["1"])), without_timestamp(self.document))
+
+
 class TestDepthCapPersistence(unittest.TestCase):
     """depth_cap must never be saved lower than the tree's own realized depth —
     a partial run against a shallow baseline that grafts on a deeper subtree
@@ -2371,6 +2439,68 @@ class TestDiagramGenerator(unittest.TestCase):
             frozenset({"changed.py"}),
             incremental=True,
         )
+
+    def test_an_identifier_name_is_renamed_even_when_its_group_did_not_change(self):
+        """CodeBoarding-action: an unchanged, name-locked ``action_scripts`` shipped on every PR."""
+        gen = DiagramGenerator(
+            repo_location=self.repo_location,
+            temp_folder=self.temp_folder,
+            repo_name="test_repo",
+            output_dir=self.output_dir,
+            depth_cap=2,
+            run_id="test-run-id",
+            log_path="test_repo/test-run-log",
+        )
+        graph = CallGraph(language="python")
+        graph.add_node(Node("pkg.changed", NodeType.FUNCTION, "changed.py", 1, 5))
+        graph.add_node(Node("pkg.stable", NodeType.FUNCTION, "stable.py", 1, 5))
+        hierarchy = ClusterScopeResult(
+            scope_id=ROOT_SCOPE_ID,
+            graphs_by_language={"python": graph},
+            groups=[
+                ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": {"pkg.changed"}}),
+                ClusterGroup(group_id="2", cluster_ids=[2], symbol_members_by_language={"python": {"pkg.stable"}}),
+            ],
+        )
+        static_analysis = StaticAnalysisResults()
+        static_analysis.add_cfg(Language.PYTHON, graph)
+        gen.static_analysis = static_analysis
+        gen._changed_members = {"pkg.changed"}
+        root_analysis = AnalysisInsights(
+            description="root",
+            components=[
+                Component(name="action_scripts", description="", key_entities=[], component_id="1"),
+                Component(name="release_scripts", description="", key_entities=[], component_id="2"),
+            ],
+            components_relations=[],
+            files={
+                "changed.py": FileEntry(
+                    methods=[MethodEntry(qualified_name="pkg.changed", start_line=1, end_line=5, node_type="FUNCTION")]
+                ),
+                "stable.py": FileEntry(
+                    methods=[MethodEntry(qualified_name="pkg.stable", start_line=1, end_line=5, node_type="FUNCTION")]
+                ),
+            },
+        )
+        baseline = _MembershipBaseline(
+            meta_by_id={
+                "1": _ComponentBaseline(
+                    name="action_scripts",
+                    description="",
+                    key_entities=[],
+                    source_cluster_ids=[],
+                    member_keys=frozenset({("changed.py", "pkg.changed")}),
+                    member_qnames=frozenset({"pkg.changed"}),
+                )
+            }
+        )
+        gen._enrich_scope = Mock()
+
+        gen._enrich_incremental_scopes(hierarchy, root_analysis, {}, {"1"}, baseline)
+
+        call = gen._enrich_scope.call_args
+        self.assertEqual(call.args[2], {"1", "2"})
+        self.assertEqual(call.args[3], frozenset())
 
     def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
         gen = DiagramGenerator(

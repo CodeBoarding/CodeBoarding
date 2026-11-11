@@ -8,8 +8,8 @@ from codeboarding_workflows.analysis import run_partial
 from codeboarding_workflows.orchestration import run_analysis_pipeline
 from codeboarding_workflows.sources import SourceContext, local_source
 from diagram_analysis import RunContext, RunPaths
-from repo_utils.ignore import initialize_codeboardingignore
-from utils import ANALYSIS_FILENAME
+from infra.repo_utils.ignore import initialize_codeboardingignore
+from infra.utils import ANALYSIS_FILENAME
 
 logger = logging.getLogger(__name__)
 

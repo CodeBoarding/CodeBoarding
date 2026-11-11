@@ -1,10 +1,13 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+import httpx
+import openai
 from langchain_core.messages import AIMessage
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
-from agents.tree_planner_agent import BUDGET, TreePlannerAgent
+from agents.tree_planner_agent import BUDGET, DRAW_TIMEOUT_SECONDS, TreePlannerAgent
+from agents.llm_errors import LLMQuotaError
 from static_analyzer.clustering.names import ROLE_WORDS, CandidateGroup, GroupingContext
 from static_analyzer.clustering.names.frontier import BOX, Candidate
 
@@ -51,6 +54,21 @@ def answer(*groups: tuple[str, list[str]]) -> TreePlanInsights:
 
 
 class TestTreePlannerAgent(unittest.TestCase):
+    def test_a_successful_draw_does_not_hide_exhausted_quota(self):
+        response = httpx.Response(402, request=httpx.Request("POST", "https://lambda.example/chat/completions"))
+        error = openai.APIStatusError(
+            "Resource exhausted: token limit reached",
+            response=response,
+            body={"type": "gha_proxy", "message": "Resource exhausted: token limit reached"},
+        )
+        items = candidates(BUDGET + 3)
+        successful = answer(("Everything", [f"G{i}" for i in range(1, len(items) + 1)]))
+        with patch.object(TreePlannerAgent, "_ask", side_effect=[successful, error]):
+            with self.assertRaises(LLMQuotaError) as caught:
+                self._agent(draws=2).group(items, context(items))
+        self.assertIs(caught.exception.__cause__, error)
+        self.assertEqual(caught.exception.telemetry_properties["error_code"], "free_credits_exhausted")
+
     def _agent(self, draws: int = 1) -> TreePlannerAgent:
         llm = MagicMock()
         llm.model_name = "test-model"
@@ -177,6 +195,38 @@ class TestTreePlannerAgent(unittest.TestCase):
 
         self.assertEqual(result.groups[0].name, "All")
         self.assertEqual(llm.invoke.call_count, 2)
+
+    @patch("agents.retry.time.sleep")
+    def test_a_throttled_draw_is_retried(self, sleep):
+        items = candidates(BUDGET + 1)
+        labelled = {f"G{i + 1}": CandidateGroup(c.label, (c.key,)) for i, c in enumerate(items)}
+        response = httpx.Response(429, request=httpx.Request("POST", "https://proxy.example/v1/chat/completions"))
+        llm = MagicMock()
+        llm.invoke.side_effect = [
+            openai.RateLimitError("Error code: 429 - Rate Exceeded.", response=response, body=None),
+            AIMessage(content='{"groups":[{"name":"All","members":["G1"]}]}'),
+        ]
+
+        result = TreePlannerAgent(llm, draws=1)._ask("prompt", labelled)
+
+        self.assertEqual(result.groups[0].name, "All")
+        sleep.assert_called_once()
+
+    @patch("agents.retry.time.sleep")
+    def test_no_retry_starts_after_the_draw_deadline(self, sleep):
+        items = candidates(BUDGET + 1)
+        labelled = {f"G{i + 1}": CandidateGroup(c.label, (c.key,)) for i, c in enumerate(items)}
+        response = httpx.Response(429, request=httpx.Request("POST", "https://proxy.example/v1/chat/completions"))
+        llm = MagicMock()
+        llm.invoke.side_effect = openai.RateLimitError("Error code: 429 - Rate Exceeded.", response=response, body=None)
+
+        # The draw starts at 0; the first failure comes back after the deadline.
+        with patch("agents.tree_planner_agent.time.monotonic", side_effect=[0.0, DRAW_TIMEOUT_SECONDS + 1.0]):
+            with self.assertRaises(openai.RateLimitError):
+                TreePlannerAgent(llm, draws=1)._ask("prompt", labelled)
+
+        self.assertEqual(llm.invoke.call_count, 1)
+        sleep.assert_not_called()
 
     def test_three_draws_fold_to_the_one_the_others_agree_with(self):
         items = candidates(BUDGET + 3)

@@ -85,11 +85,15 @@ class CallGraph:
 
     def has_node(self, name: str) -> bool:
         """Check if a name (or any of its aliases) maps to a node in the graph."""
-        return self._resolve_name(name) in self.nodes
+        return self.canonical_name(name) in self.nodes
+
+    def canonical_name(self, name: str) -> str:
+        """Resolve a possibly-aliased name to the canonical name in the graph."""
+        return self._alias_to_canonical.get(name, name)
 
     def add_edge(self, src_name: str, dst_name: str, call_sites: Sequence[Mapping[str, Hashable]] = ()) -> None:
-        src_name = self._resolve_name(src_name)
-        dst_name = self._resolve_name(dst_name)
+        src_name = self.canonical_name(src_name)
+        dst_name = self.canonical_name(dst_name)
 
         if src_name not in self.nodes or dst_name not in self.nodes:
             raise ValueError("Both source and destination nodes must exist in the graph.")
@@ -114,7 +118,7 @@ class CallGraph:
         Stored separately from call edges. Silently ignores endpoints that aren't
         nodes or self-loops.
         """
-        src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
+        src, dst = self.canonical_name(ref.src), self.canonical_name(ref.dst)
         if src in self.nodes and dst in self.nodes and src != dst:
             self.reference_edges.append(ReferenceEdge(src, dst, ref.kind))
 
@@ -197,7 +201,7 @@ class CallGraph:
                 continue
             # Resolve endpoints through the alias map so an edge stored under a short alias
             # still lands on the canonical node (matching how add_edge resolves call edges).
-            src, dst = self._resolve_name(ref.src), self._resolve_name(ref.dst)
+            src, dst = self.canonical_name(ref.src), self.canonical_name(ref.dst)
             if src in self.nodes and dst in self.nodes:
                 nx_graph.add_edge(src, dst)
         return nx_graph
@@ -208,10 +212,6 @@ class CallGraph:
             if node.methods_called_by_me:
                 result += f"Method {node.fully_qualified_name} is calling the following methods: {', '.join(node.methods_called_by_me)}\n"
         return result
-
-    def _resolve_name(self, name: str) -> str:
-        """Resolve a possibly-aliased name to the canonical name in the graph."""
-        return self._alias_to_canonical.get(name, name)
 
     def _carry_reference_edges(self, out: CallGraph, *extra_sources: CallGraph) -> None:
         """Copy reference edges whose both endpoints survive into a derived graph.
@@ -226,7 +226,7 @@ class CallGraph:
                 # Resolve through the SOURCE's alias map: an endpoint stored under a short
                 # alias must map to the canonical name ``out`` promoted it to, or a call edge
                 # (which add_edge resolves) survives while its reference edge is silently dropped.
-                resolved = ReferenceEdge(source._resolve_name(ref.src), source._resolve_name(ref.dst), ref.kind)
+                resolved = ReferenceEdge(source.canonical_name(ref.src), source.canonical_name(ref.dst), ref.kind)
                 if resolved.src in out.nodes and resolved.dst in out.nodes and resolved.src != resolved.dst:
                     carried.append(resolved)
         out.reference_edges = list(dict.fromkeys(carried))

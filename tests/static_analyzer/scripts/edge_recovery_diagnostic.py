@@ -33,7 +33,7 @@ CallGraph.add_node = patched_add_node
 logging.basicConfig(level=logging.WARNING)
 
 from static_analyzer import StaticAnalyzer
-from utils import get_artifact_dir
+from infra.utils import get_artifact_dir
 
 repo_path = Path(".")
 analyzer = StaticAnalyzer(repo_path)

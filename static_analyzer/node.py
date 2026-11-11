@@ -24,8 +24,14 @@ class Node:
         line_start: int,
         line_end: int,
         col_start: int = 0,
+        symbol_name: str = "",
+        owner_qualified_name: str = "",
+        explicit_identity: bool = False,
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
+        self.symbol_name = symbol_name
+        self.owner_qualified_name = owner_qualified_name
+        self.explicit_identity = explicit_identity
         self.file_path = file_path
         self.line_start = line_start
         self.line_end = line_end

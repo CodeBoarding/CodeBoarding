@@ -6,8 +6,8 @@ from pathlib import Path
 import requests
 
 from codeboarding_workflows.sources.local import SourceContext
-from repo_utils import clone_repository, get_repo_name, upload_onboarding_materials
-from utils import copy_files, create_temp_repo_folder, remove_temp_repo_folder
+from infra.repo_utils import clone_repository, get_repo_name, upload_onboarding_materials
+from infra.utils import copy_files, create_temp_repo_folder, remove_temp_repo_folder
 
 logger = logging.getLogger(__name__)
 

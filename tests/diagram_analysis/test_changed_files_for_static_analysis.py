@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from diagram_analysis.diagram_generator import DiagramGenerator
-from repo_utils.change_detector import ChangeSet
+from infra.repo_utils.change_detector import ChangeSet
 
 
 def _host(changes: ChangeSet | None, repo: Path) -> DiagramGenerator:

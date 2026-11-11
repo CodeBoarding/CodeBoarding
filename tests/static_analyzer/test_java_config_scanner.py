@@ -13,7 +13,7 @@ from static_analyzer.java_config_scanner import (
     JavaConfigScanner,
     scan_java_projects,
 )
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 
 
 class TestJavaProjectConfig(unittest.TestCase):
@@ -535,6 +535,167 @@ class TestJavaConfigScanner(unittest.TestCase):
 
         (self.repo_path / "gradlew.bat").write_text("@echo off")
         self.assertTrue(scanner._has_gradle_wrapper(self.repo_path))
+
+
+class TestMavenReactorModules(unittest.TestCase):
+    """A Maven project goes only when a kept root's reactor imports it; anything else keeps its engine."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.repo_path = Path(self.temp_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _pom(self, directory: str, *modules: str, extra: str = "") -> None:
+        pom_dir = self.repo_path / directory
+        pom_dir.mkdir(parents=True, exist_ok=True)
+        listed = "".join(f"<module>{module}</module>" for module in modules)
+        (pom_dir / "pom.xml").write_text(
+            f'<project xmlns="http://maven.apache.org/POM/4.0.0"><modules>{listed}</modules>{extra}</project>'
+        )
+
+    def _scan(self) -> set[str]:
+        projects = JavaConfigScanner(self.repo_path).scan()
+        return {project.root.relative_to(self.repo_path).as_posix() for project in projects}
+
+    def test_listed_modules_are_removed(self):
+        self._pom(".", "core", "web")
+        self._pom("core")
+        self._pom("web")
+
+        self.assertEqual(self._scan(), {"."})
+
+    def test_nested_aggregators_are_followed_to_the_root(self):
+        self._pom(".", "extensions")
+        self._pom("extensions", "servlet")
+        self._pom("extensions/servlet", "api")
+        self._pom("extensions/servlet/api")
+
+        self.assertEqual(self._scan(), {"."})
+
+    def test_module_named_with_a_trailing_slash_is_removed(self):
+        self._pom(".", "core/")
+        self._pom("core")
+
+        self.assertEqual(self._scan(), {"."})
+
+    def test_nested_aggregator_may_list_a_sibling_inside_the_root(self):
+        self._pom(".", "parent")
+        self._pom("parent", "../core")
+        self._pom("core")
+
+        self.assertEqual(self._scan(), {"."})
+
+    def test_commented_out_module_keeps_its_engine(self):
+        # guice's extensions/struts2: the root engine imports no project for it, so only its own engine sees it.
+        self._pom(".", "extensions")
+        self._pom("extensions/servlet")
+        self._pom("extensions/struts2")
+        (self.repo_path / "extensions" / "pom.xml").write_text(
+            """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+                <modules>
+                    <module>servlet</module>
+                    <!-- not supported yet
+                    <module>struts2</module> -->
+                </modules>
+            </project>
+        """
+        )
+
+        self.assertEqual(self._scan(), {".", "extensions/struts2"})
+
+    def test_module_listed_only_in_a_profile_keeps_its_engine(self):
+        self._pom(
+            ".",
+            "core",
+            extra="<profiles><profile><modules><module>benchmarks</module></modules></profile></profiles>",
+        )
+        self._pom("core")
+        self._pom("benchmarks")
+
+        self.assertEqual(self._scan(), {".", "benchmarks"})
+
+    def test_module_outside_the_root_keeps_its_engine(self):
+        self._pom("parent", "../app")
+        self._pom("app", "lib")
+        self._pom("app/lib")
+
+        # ``app`` stays, and is the root of its own reactor.
+        self.assertEqual(self._scan(), {"parent", "app"})
+
+    def test_module_named_by_its_pom_file_keeps_its_engine(self):
+        self._pom(".", "core/pom.xml", "web/pom-jakarta.xml")
+        self._pom("core")
+        self._pom("web")
+        (self.repo_path / "web" / "pom-jakarta.xml").write_text("<project/>")
+
+        self.assertEqual(self._scan(), {".", "core", "web"})
+
+    def test_nested_project_the_root_does_not_list_keeps_its_engine(self):
+        self._pom(".", "core")
+        self._pom("core")
+        self._pom("samples/demo")
+
+        self.assertEqual(self._scan(), {".", "samples/demo"})
+
+    def test_aggregator_the_root_does_not_list_is_a_root_itself(self):
+        self._pom(".", "core")
+        self._pom("core")
+        self._pom("tools", "cli")
+        self._pom("tools/cli")
+
+        self.assertEqual(self._scan(), {".", "tools"})
+
+    def test_sibling_aggregators_listing_each_other_both_stay(self):
+        self._pom("a", "../b")
+        self._pom("b", "../a")
+
+        self.assertEqual(self._scan(), {"a", "b"})
+
+    def test_module_listing_its_parent_leaves_the_parent(self):
+        self._pom(".", "core")
+        self._pom("core", "..")
+
+        self.assertEqual(self._scan(), {"."})
+
+    def test_pom_listing_itself_stays(self):
+        self._pom(".", ".", "core")
+        self._pom("core")
+
+        self.assertEqual(self._scan(), {"."})
+
+    def test_module_of_a_root_gradle_replaced_keeps_its_engine(self):
+        # Gradle's settings decide what it imports, so a pom that was replaced vouches for nothing.
+        self._pom(".", "core")
+        self._pom("core")
+        (self.repo_path / "settings.gradle").write_text("rootProject.name = 'test'")
+        (self.repo_path / "gradlew").write_text("#!/bin/sh")
+
+        projects = JavaConfigScanner(self.repo_path).scan()
+
+        self.assertEqual(
+            {(project.root.relative_to(self.repo_path).as_posix(), project.build_system) for project in projects},
+            {(".", "gradle"), ("core", "maven")},
+        )
+
+    def test_unparseable_aggregator_leaves_its_modules(self):
+        self._pom(".", "extensions")
+        self._pom("extensions/servlet")
+        (self.repo_path / "extensions" / "pom.xml").write_text("<project><unclosed>")
+
+        self.assertEqual(self._scan(), {".", "extensions/servlet"})
+
+    def test_repository_reached_through_a_symlink(self):
+        self._pom("repo", "core")
+        self._pom("repo/core")
+        link = self.repo_path / "link"
+        link.symlink_to(self.repo_path / "repo", target_is_directory=True)
+
+        projects = JavaConfigScanner(link).scan()
+
+        self.assertEqual([project.root for project in projects], [link])
 
 
 class TestScanJavaProjects(unittest.TestCase):

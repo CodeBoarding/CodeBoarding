@@ -2,7 +2,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights
 from static_analyzer.config import NodeType
-from utils import sanitize
+from infra.utils import sanitize
 
 
 def generated_mermaid_str(

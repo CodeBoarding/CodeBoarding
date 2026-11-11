@@ -30,7 +30,7 @@ from diagram_analysis.incremental_update import (
 from agents.incremental_results import RecursiveScopeUpdateResult
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
-from agents.llm_errors import LLMAuthError, llm_failure_properties
+from agents.llm_errors import LLMAuthError, LLMQuotaError, is_quota_exhausted, llm_failure_properties
 from agents.relation_edges import (
     drop_misattributed_edges,
     index_relation_endpoints,
@@ -38,8 +38,8 @@ from agents.relation_edges import (
     prune_ungrounded_edges,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
-from clustering_ids import CodeBoardingClusterIds
-from constants import ROOT_DOCUMENT_NAMES
+from infra.clustering_ids import CodeBoardingClusterIds
+from infra.constants import ROOT_DOCUMENT_NAMES
 from agents.scope_analysis_agent import ScopeAnalysisAgent
 from agents.content_hash import SourceCache, hash_repo_source_files, tree_hash_from_file_hashes
 from diagram_analysis.analysis_json import (
@@ -57,22 +57,22 @@ from diagram_analysis.file_index import build_files_index, refresh_method_spans_
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
-from repo_utils.path_utils import normalize_repo_path
-from utils import sanitize
+from infra.repo_utils.path_utils import normalize_repo_path
+from infra.utils import sanitize
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
 from health.runner import run_health_checks
-from monitoring import StreamingStatsWriter
-from monitoring.mixin import MonitoringMixin
-from monitoring.paths import get_monitoring_run_dir
-from repo_utils.change_detector import ChangeSet
-from repo_utils.ignore import RepoIgnoreManager
+from infra.monitoring import StreamingStatsWriter
+from infra.monitoring.mixin import MonitoringMixin
+from infra.monitoring.paths import get_monitoring_run_dir
+from infra.repo_utils.change_detector import ChangeSet
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import StaticAnalysisFatalError, StaticAnalyzer, get_static_analysis
 from static_analyzer.analysis_cache import StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
-from static_analyzer.reference_resolver import StaticReferenceResolver
-from static_analyzer.cluster_relations import (
+from diagram_analysis.reference_resolver import StaticReferenceResolver
+from diagram_analysis.cluster_relations import (
     build_global_node_to_component_map,
     build_global_relations,
     is_self_or_descendant,
@@ -84,13 +84,14 @@ from static_analyzer.clustering import (
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
+from static_analyzer.clustering.names.tokens import is_natural_name
 from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
 from agents.tree_planner_agent import TreePlannerAgent
-from user_config import GROUPER_ENV, GROUPERS
+from infra.user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.config import AdapterName
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.scanner import ProjectScanner
-from telemetry.events import track_analysis
+from infra.monitoring.telemetry.events import track_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -818,9 +819,11 @@ class DiagramGenerator:
                 incremental,
                 enclosing_names=enclosing_names,
             )
-        except LLMAuthError:
+        except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
             raise
         except Exception as error:
+            if is_quota_exhausted(error):
+                raise LLMQuotaError(error) from error
             raise ScopeSemanticsError(scope.scope_id, telemetry_properties=llm_failure_properties(error)) from error
         if semantics is None:
             with self._naming_counts_lock:
@@ -891,10 +894,16 @@ class DiagramGenerator:
             analysis = root_analysis if scope.scope_id == ROOT_SCOPE_ID else sub_analyses.get(scope.scope_id)
             if analysis is None:
                 continue
+            # A baseline name that is a directory or an identifier is renamed even when nothing
+            # changed: locked or carried forward, it would ship on every later run.
+            unnatural_ids = {
+                component.component_id for component in analysis.components if not is_natural_name(component.name)
+            }
             editable_ids = {
                 group.group_id
                 for group in scope.groups
                 if group.group_id in refreshed_ids
+                or group.group_id in unnatural_ids
                 or bool(self._group_files(group, scope) & changed_files)
                 or bool(group.qualified_names & self._changed_members)
             }
@@ -904,6 +913,7 @@ class DiagramGenerator:
                 group.group_id
                 for group in scope.groups
                 if group.group_id in editable_ids
+                and group.group_id not in unnatural_ids
                 and group.group_id in baseline_membership.meta_by_id
                 and self._group_member_keys(group, scope) == baseline_membership.meta_by_id[group.group_id].member_keys
             )
@@ -1120,7 +1130,7 @@ class DiagramGenerator:
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
-        except (LLMAuthError, ScopeSemanticsError):
+        except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
             # An LLM failure aborts the whole run rather than shipping this component with deterministic names.
             raise
         except Exception:
@@ -1335,7 +1345,7 @@ class DiagramGenerator:
                     stats["completed"] += 1
                     try:
                         outcomes.append((component, level, future.result()))
-                    except (LLMAuthError, ScopeSemanticsError):
+                    except (LLMAuthError, LLMQuotaError, ScopeSemanticsError):
                         for pending in future_to_task:
                             pending.cancel()
                         raise

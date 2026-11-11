@@ -5,17 +5,21 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Collection, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
-from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.edge_build_context import EdgeBuildContext
+from static_analyzer.engine.lsp_client import ErrorVerdict, LSPClient
+from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
 )
-from utils import get_config
+from infra.utils import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +152,10 @@ class LanguageAdapter(ABC):
         """Return LSP initialization options specific to this language server."""
         return {}
 
+    def get_lsp_heap_options(self, heap_bytes: int) -> dict:
+        """Initialization options keeping the server's heap within *heap_bytes*; none where Core leaves it alone."""
+        return {}
+
     def get_workspace_settings(self) -> dict | None:
         """Return settings to send via ``workspace/didChangeConfiguration``.
 
@@ -169,6 +177,14 @@ class LanguageAdapter(ABC):
         most servers.
         """
         return 60
+
+    def get_lsp_startup_timeout(self) -> int:
+        """Return the seconds ``initialize`` may take.
+
+        Override for servers that import the project's build before answering ``initialize``, so a
+        long import does not also become the bound on every later request.
+        """
+        return self.get_lsp_default_timeout()
 
     @property
     def wait_for_workspace_ready(self) -> bool:
@@ -239,13 +255,51 @@ class LanguageAdapter(ABC):
         """
         return None
 
+    def error_verdict(self, error: dict) -> ErrorVerdict:
+        """What an internal error answering a request means. Default: the request went unserved.
+
+        Why per server: one that fails while reading a library's sources has still placed the target
+        outside the repository, and one that races its own requests serves the same one when asked again.
+        """
+        return ErrorVerdict.FAILURE
+
     def validate_workspace_ready(self, client: LSPClient) -> None:
         """Raise if a ready signal represents an unusable workspace state."""
         return None
 
-    def get_lsp_env(self, project_root: Path | None = None) -> dict[str, str]:
-        """Return extra environment variables for the LSP server process."""
+    @property
+    def search_index_timeout(self) -> int | None:
+        """Seconds the server's first search may take, for a server that builds its search index on it; None if not."""
+        return None
+
+    def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
+        """Return extra environment variables for the LSP server process.
+
+        *source_files* are the files the engine will analyse, for servers sized to them.
+        """
         return {}
+
+    def get_lsp_commands(self, project_root: Path) -> list[dict]:
+        """``workspace/executeCommand`` params the server is sent once initialized, and again on a restart."""
+        return []
+
+    def rebuilds_for(self, changed_files: Collection[Path], project_root: Path) -> bool:
+        """Whether a warm start over *changed_files* must re-analyse the whole project on a fresh server."""
+        return False
+
+    def workspace_folders(self, project_root: Path, source_files: Sequence[Path]) -> list[Path]:
+        """Workspace folders to announce to the server in place of the project, or none."""
+        return []
+
+    def fallback_workspace_folders(
+        self, client: LSPClient, project_root: Path, source_files: Sequence[Path]
+    ) -> list[Path]:
+        """Workspace folders to restart the server on when it could not load the project, or none.
+
+        Why: a server that imports the project's build resolves nothing across files when that
+        import fails, and can instead be handed a workspace that only names the source roots.
+        """
+        return []
 
     def prepare_project(self, project_root: Path) -> None:
         """Run any pre-LSP project preparation (e.g. dependency restore).
@@ -256,6 +310,18 @@ class LanguageAdapter(ABC):
         ``CS0518: Predefined type System.X is not defined``.
         """
         return None
+
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        """Span an analysis's servers; on exit, once they are down, put back what the adapter changed in the repo."""
+        yield
+
+    def lift_import_filters(self, project_root: Path) -> bool:
+        """Remove what the server's import did to hide repository sources; True if it needs restarting.
+
+        Only inside ``session``, which puts the files back.
+        """
+        return False
 
     def discover_source_files(
         self, project_root: Path, ignore_manager: RepoIgnoreManager, nested_roots: Sequence[Path] = ()
@@ -323,6 +389,11 @@ class LanguageAdapter(ABC):
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
     @property
+    def reports_enum_members_as_fields(self) -> bool:
+        """Whether the server files an enum's members as fields, in a language whose enums hold nothing else."""
+        return False
+
+    @property
     def resolves_method_groups(self) -> bool:
         """Whether to also query names passed as values and members read without a call, keeping only
         what resolves to something callable -- ``app.MapGet("/items", GetAllItems)``, ``this.redraw.bind(this)``."""
@@ -333,6 +404,53 @@ class LanguageAdapter(ABC):
         """Whether to add edges to overrides of a resolved call target, using
         inheritance read from source. Only needed when the server answers
         neither ``textDocument/implementation`` nor ``typeHierarchy``."""
+        return False
+
+    @property
+    def source_names_every_subtype(self) -> bool:
+        """Whether every type deriving from another names it in source, as
+        ``SourceInspector.find_derived_type_names`` reads it. Then a member of a
+        class nothing derives from is owed no ``textDocument/implementation``
+        query. Not so where inheritance is implicit (Go) or not yet read (TS)."""
+        return False
+
+    @property
+    def drain_probe_round_seconds(self) -> int | None:
+        """Seconds after which the didOpen drain probe is asked again, or None to wait the whole budget
+        on one request. Why: a server that drops a request arriving during a large didOpen burst still
+        answers it when asked again."""
+        return None
+
+    @property
+    def constructor_calls_resolve_to_class(self) -> bool:
+        """Whether the server answers a constructor call with the class it constructs rather than the
+        constructor. Why it matters: a call from inside that class would then read as containment."""
+        return False
+
+    def constructed_class(self, symbol: SymbolInfo) -> str | None:
+        """The class a call answered with that class runs *symbol* for, or None. Read only where
+        ``constructor_calls_resolve_to_class``. Default: a constructor's owner."""
+        return symbol.owner_qualified_name if symbol.kind == NodeType.CONSTRUCTOR else None
+
+    def constructs(self, target: SymbolInfo, callee: str) -> bool:
+        """Whether a call naming *callee* that the server answered with the class *target* constructs
+        it. Why: a synthetic member, such as an enum's ``values()``, is answered with the class too."""
+        return callee == target.name
+
+    def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
+        """Whether two declarations whose qualified names nest are written apart, so an edge between
+        them is not containment. Default: never."""
+        return False
+
+    @property
+    def resolves_bases_by_definition(self) -> bool:
+        """Whether a server without ``typeHierarchy`` has each base named in a type's header resolved
+        by a definition query, rather than matched by its simple name against every type in the repository."""
+        return False
+
+    @property
+    def resolves_bases_by_type_definition(self) -> bool:
+        """Use type definitions instead of type hierarchy, following aliases to their underlying bases."""
         return False
 
     @property
@@ -347,6 +465,33 @@ class LanguageAdapter(ABC):
         """Whether ``new Bag { a, b }`` should count as calling ``Bag.Add``
         once per element, rather than only constructing the type."""
         return False
+
+    def refine_document_symbols(
+        self,
+        file_path: Path,
+        symbols: list[dict],
+        inspector: SourceInspector,
+        client: LSPClient,
+        diagnostics: FileDiagnosticsMap,
+    ) -> list[dict]:
+        """The server's symbols for a file, completed from source where they cannot tell declarations apart.
+
+        Why: a server that names every overload alike files the second under the first one's
+        qualified name. Unchanged by default.
+        """
+        return symbols
+
+    def prepare_edges(self, ctx: EdgeBuildContext) -> None:
+        """Prepare server documents needed to resolve calls against cached declarations."""
+
+    def complete_edges(
+        self,
+        ctx: EdgeBuildContext,
+        source_files: list[Path],
+        edges: dict[tuple[str, str], list[CallSite]],
+        project_root: Path,
+    ) -> None:
+        """Add compiler-resolved dependencies that position-based definition queries cannot express."""
 
     def record_document_symbols(self, file_path: Path, symbols: list[dict], project_root: Path) -> None:
         """Take note of a file's symbol tree before its names are built.

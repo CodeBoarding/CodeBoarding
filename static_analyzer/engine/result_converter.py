@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.models import LanguageAnalysisResult
+from static_analyzer.engine.models import ExternalCallSite, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
@@ -38,7 +39,7 @@ def convert_to_codeboarding_format(
         - package_relations: dict
         - references: list[Node]
         - source_files: list[str]
-        - diagnostics: dict (empty — diagnostics are collected separately)
+        - diagnostics: dict (analysis limitations; server diagnostics are collected separately)
     """
     language = adapter.language
     call_graph = CallGraph(language=language)
@@ -66,14 +67,7 @@ def convert_to_codeboarding_format(
         if is_ignored(sym.file_path):
             continue
 
-        node = Node(
-            fully_qualified_name=qname,
-            node_type=node_type,
-            file_path=str(sym.file_path),
-            line_start=sym.start_line + 1,
-            line_end=sym.end_line + 1,
-            col_start=sym.start_char,
-        )
+        node = _node(sym)
         symbol_nodes[qname] = node
         call_graph.add_node(node)
 
@@ -146,17 +140,20 @@ def convert_to_codeboarding_format(
         seen_refs.add(qname)
 
         # Reuse existing node if in the graph, otherwise create a new one
-        if qname in symbol_nodes:
-            references.append(symbol_nodes[qname])
-        else:
-            ref_node = Node(
-                fully_qualified_name=qname,
-                node_type=_map_symbol_kind(sym.kind),
-                file_path=str(sym.file_path),
-                line_start=sym.start_line + 1,
-                line_end=sym.end_line + 1,
-            )
-            references.append(ref_node)
+        references.append(symbol_nodes[qname] if qname in symbol_nodes else _node(sym))
+
+    # A call into another engine's file is linked once the graphs are merged. Its caller may be no node here
+    # (a constant, a local): it goes along, and becomes a node only if the call links, as it would here.
+    external_call_sites: list[ExternalCallSite] = []
+    external_callers: dict[str, Node] = {}
+    for site in result.external_call_sites:
+        caller = call_graph.canonical_name(site.caller)
+        if not call_graph.has_node(caller):
+            sym = symbol_table.symbols.get(caller)
+            if sym is None or is_ignored(sym.file_path):
+                continue
+            external_callers.setdefault(caller, _node(sym))
+        external_call_sites.append(replace(site, caller=caller))
 
     return {
         "call_graph": call_graph,
@@ -164,9 +161,24 @@ def convert_to_codeboarding_format(
         "package_relations": result.package_dependencies,
         "references": references,
         "source_files": result.source_files,
-        "diagnostics": {},
-        "external_call_sites": [site for site in result.external_call_sites if call_graph.has_node(site.caller)],
+        "diagnostics": result.diagnostics,
+        "external_call_sites": external_call_sites,
+        "external_callers": list(external_callers.values()),
     }
+
+
+def _node(sym: SymbolInfo) -> Node:
+    return Node(
+        fully_qualified_name=sym.qualified_name,
+        node_type=_map_symbol_kind(sym.kind),
+        file_path=str(sym.file_path),
+        line_start=sym.start_line + 1,
+        line_end=sym.end_line + 1,
+        col_start=sym.start_char,
+        symbol_name=sym.name if sym.explicit_identity else "",
+        owner_qualified_name=sym.owner_qualified_name if sym.explicit_identity else "",
+        explicit_identity=sym.explicit_identity,
+    )
 
 
 def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult, known: set[str]) -> None:
@@ -179,8 +191,14 @@ def _add_reference_edges(call_graph: CallGraph, result: LanguageAnalysisResult, 
     class_qnames = {qname for qname, node in call_graph.nodes.items() if node.type in CLASS_TYPES}
 
     # CONTAINS: each method / nested symbol -> its innermost enclosing class node.
-    for qname in call_graph.nodes:
+    for qname, node in call_graph.nodes.items():
         if qname in class_qnames or qname in known:
+            continue
+        owner = node.owner_qualified_name
+        while owner in call_graph.nodes and owner not in class_qnames:
+            owner = call_graph.nodes[owner].owner_qualified_name
+        if owner in class_qnames:
+            call_graph.add_reference_edge(ReferenceEdge(qname, owner, EdgeKind.CONTAINS))
             continue
         parts = qname.split(".")
         for i in range(len(parts) - 1, 0, -1):

@@ -13,7 +13,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg import CallGraph
 
 PROJECT_MANIFESTS = (

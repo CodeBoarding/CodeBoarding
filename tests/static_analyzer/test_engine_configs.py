@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer import (
     StaticAnalysisFatalError,
     StaticAnalyzer,
@@ -188,6 +188,23 @@ class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
         self.assertIn("full analysis", str(caught.exception))
 
 
+class TestAnalyzerInstallsItsLanguagesServers(unittest.TestCase):
+    def test_the_scanned_languages_servers_are_requested_before_engines_are_built(self):
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        scanned = [
+            ProgrammingLanguage("Python", 10, 50.0, [".py"], lsp_server_key="python"),
+            ProgrammingLanguage("JavaScript", 10, 50.0, [".js"], lsp_server_key="typescript"),
+        ]
+        with (
+            patch.object(ProjectScanner, "scan", return_value=scanned),
+            patch("static_analyzer.ensure_language_servers") as ensure,
+            patch("static_analyzer._create_engine_configs", return_value=[]) as engines,
+        ):
+            ensure.side_effect = lambda keys: self.assertFalse(engines.called)
+            StaticAnalyzer(tmp)
+        ensure.assert_called_once_with({"python", "typescript"})
+
+
 class TestFamilyBucketIsStable(unittest.TestCase):
     """The bucket key must not move when a repo gains its first .ts or loses its last."""
 
@@ -342,7 +359,7 @@ class TestTscIsAskedForJavaScript(unittest.TestCase):
         payload = '{"files": [], "exclude": ["legacy", "**/*.gen.ts"]}'
         with patch("static_analyzer.typescript_config_scanner.subprocess.run") as run:
             run.return_value = SimpleNamespace(returncode=0, stdout=payload, stderr="")
-            _, excluded = scanner._resolve_project_files(Path("/repo"), ["tsc", "--showConfig"], [])
+            _, excluded, _ = scanner._resolve_project_files(Path("/repo"), ["tsc", "--showConfig"], [])
         self.assertEqual(excluded, ["legacy", "**/*.gen.ts"])
 
 

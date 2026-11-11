@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx
+import openai
 from langchain.agents.middleware import ModelCallLimitMiddleware, ModelRequest, ToolCallLimitMiddleware
 from langchain.agents.structured_output import ToolStrategy
 from langchain_core.callbacks import BaseCallbackHandler
@@ -55,9 +57,23 @@ class ToolCallingFakeModel(FakeMessagesListChatModel):
         return self
 
 
-def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsights]:
+class ThrottledOnceModel(ToolCallingFakeModel):
+    """Answers like its parent after one 429 from the hosted proxy's concurrency cap."""
+
+    throttled: bool = False
+
+    def _generate(self, *args: Any, **kwargs: Any):
+        if not self.throttled:
+            self.throttled = True
+            response = httpx.Response(429, request=httpx.Request("POST", "https://proxy.example/v1/chat/completions"))
+            body = {"Reason": "ConcurrentInvocationLimitExceeded", "Type": "User", "message": "Rate Exceeded."}
+            raise openai.RateLimitError(f"Error code: 429 - {body}", response=response, body=body)
+        return super()._generate(*args, **kwargs)
+
+
+def _inputs(file_path: str = "pkg.py") -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsights]:
     graph = CallGraph(language="python")
-    graph.add_node(Node("pkg.run", NodeType.FUNCTION, "pkg.py", 1, 3))
+    graph.add_node(Node("pkg.run", NodeType.FUNCTION, file_path, 1, 3))
     static_analysis = StaticAnalysisResults()
     static_analysis.add_cfg(Language.PYTHON, graph)
     scope = ClusterScopeResult(
@@ -79,12 +95,65 @@ def _inputs() -> tuple[StaticAnalysisResults, ClusterScopeResult, AnalysisInsigh
     return static_analysis, scope, analysis
 
 
-def _answer() -> ScopeAnalysisResult:
+def _answer(name: str = "Runner") -> ScopeAnalysisResult:
     return ScopeAnalysisResult(
         description="scope",
-        components=[ScopeComponentSemantics(group_id="1", name="Runner", description="Runs work")],
+        components=[ScopeComponentSemantics(group_id="1", name=name, description="Runs work")],
         relations=[],
     )
+
+
+def _final(name: str, call_id: str = "final") -> AIMessage:
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "ScopeAnalysisResult", "args": _answer(name).model_dump(), "id": call_id, "type": "tool_call"}
+        ],
+    )
+
+
+class TestScopeNames(unittest.TestCase):
+    """A new ``billing_jobs/`` directory shipped as a component named after it."""
+
+    def _analyze(
+        self, *names: str, locked: frozenset[str] = frozenset()
+    ) -> tuple[ScopeAnalysisResult, RequestRecorder]:
+        static_analysis, scope, analysis = _inputs("billing_jobs/handler.py")
+        model = ToolCallingFakeModel(responses=[_final(name, f"final-{index}") for index, name in enumerate(names)])
+        recorder = RequestRecorder()
+        agent = ScopeAnalysisAgent(Path("/repo"), static_analysis, model)
+        agent.agent_monitoring_callback = recorder
+        result = agent.analyze(scope, analysis, {"1"}, locked_name_ids=locked)
+        assert result is not None
+        return result, recorder
+
+    def test_an_identifier_name_is_asked_for_again(self):
+        result, recorder = self._analyze("billing_jobs", "Invoice Generation Jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+        self.assertEqual(len(recorder.requests), 2)
+        self.assertIn("- 1: billing_jobs", str(recorder.requests[1][-1].content))
+
+    def test_the_directory_re_cased_is_not_a_name_either(self):
+        result, _ = self._analyze("Billing Jobs", "Invoice Generation Jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+
+    def test_a_second_identifier_leaves_the_group_unnamed(self):
+        result, _ = self._analyze("billing_jobs", "billingJobs")
+
+        self.assertEqual(result.components[0].name, "")
+
+    def test_a_natural_name_costs_no_second_call(self):
+        result, recorder = self._analyze("Invoice Generation Jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+        self.assertEqual(len(recorder.requests), 1)
+
+    def test_a_locked_name_is_not_asked_for_again(self):
+        _, recorder = self._analyze("billing_jobs", locked=frozenset({"1"}))
+
+        self.assertEqual(len(recorder.requests), 1)
 
 
 class TestScopeInputBudget(unittest.TestCase):
@@ -246,6 +315,23 @@ class TestScopeAnalysisAgent(unittest.TestCase):
             agent.analyze(scope, analysis, {"1"})
 
         runtime.invoke.assert_called_once()
+
+    @patch("agents.retry.time.sleep")
+    def test_a_throttled_model_call_is_retried_inside_the_run(self, sleep):
+        """Why: one 429 from the hosted proxy used to fail the scope, and with it the whole run."""
+        static_analysis, scope, analysis = _inputs()
+        final_response = AIMessage(
+            content="",
+            tool_calls=[
+                {"name": "ScopeAnalysisResult", "args": _answer().model_dump(), "id": "final", "type": "tool_call"}
+            ],
+        )
+        model = ThrottledOnceModel(responses=[final_response])
+
+        result = ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertEqual(result, _answer())
+        sleep.assert_called_once()
 
     @patch.object(ReadFileTool, "_run", return_value="source")
     def test_graph_ceiling_allows_tool_budget_to_terminate_the_run(self, read_file):

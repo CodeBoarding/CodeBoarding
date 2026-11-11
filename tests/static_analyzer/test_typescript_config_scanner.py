@@ -1,6 +1,7 @@
 """Tests for TypeScript / JavaScript project configuration scanner."""
 
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from static_analyzer.typescript_config_scanner import (
     TypeScriptProject,
     _resolve_system_tsc,
 )
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 
 def _force_fallback_walk(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -292,6 +293,32 @@ class TestFallbackWhenTscMissing:
         assert sorted(all_files) == sorted(set(all_files))
 
 
+def test_no_scan_walks_into_installed_dependencies(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """After a dependency install node_modules holds hundreds of thousands of entries, none of them the repository's."""
+    _force_fallback_walk(monkeypatch)
+    (tmp_path / "tsconfig.json").write_text(json.dumps({}))
+    (tmp_path / "a.ts").write_text("export {};")
+    for directory in ("node_modules/dep", ".git/objects"):
+        (tmp_path / directory).mkdir(parents=True)
+        (tmp_path / directory / "tsconfig.json").write_text(json.dumps({}))
+        (tmp_path / directory / "index.ts").write_text("export {};")
+    scanned: list[Path] = []
+    scandir = os.scandir
+
+    def recording(path=".", *args):
+        scanned.append(Path(path))
+        return scandir(path, *args)
+
+    monkeypatch.setattr(os, "scandir", recording)
+    scanner = TypeScriptConfigScanner(tmp_path)
+    projects = scanner.find_typescript_projects()
+    unclaimed = scanner.find_unclaimed_family_files(projects)
+
+    assert [project.root for project in projects] == [tmp_path.resolve()]
+    assert {f.name for f in projects[0].files} == {"a.ts"} and unclaimed == []
+    assert not [path for path in scanned if {"node_modules", ".git"} & set(path.parts)]
+
+
 class TestTypeScriptProjectDataclass:
     def test_default_files_empty_list(self):
         p = TypeScriptProject(root=Path("/x"))
@@ -328,3 +355,72 @@ class TestResolveSystemTsc:
             lambda _name: None,
         )
         assert _resolve_system_tsc() is None
+
+
+class TestReferencedConfigs:
+    """A solution config owns no files; the configs its ``references`` name do, whatever they are called."""
+
+    def test_vite_solution_reaches_its_app_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        # The CodeBoarding-vscode layout: the root excludes webview-ui/, whose tsconfig.json is a
+        # solution over tsconfig.app.json and tsconfig.node.json.
+        (tmp_path / "tsconfig.json").write_text(json.dumps({"exclude": ["webview-ui"]}))
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "extension.ts").write_text("export {};")
+        ui = tmp_path / "webview-ui"
+        (ui / "src").mkdir(parents=True)
+        (ui / "src" / "App.tsx").write_text("export {};")
+        (ui / "tsconfig.json").write_text("{}")
+        (ui / "tsconfig.app.json").write_text("{}")
+        (ui / "tsconfig.node.json").write_text("{}")
+
+        def payload_for(config: Path) -> dict:
+            if config == tmp_path.resolve():
+                return {"files": [str(tmp_path / "src" / "extension.ts")], "exclude": ["webview-ui"]}
+            if config == ui.resolve():
+                return {"files": [], "references": [{"path": "./tsconfig.app.json"}, {"path": "./tsconfig.node.json"}]}
+            if config.name == "tsconfig.app.json":
+                return {"files": [str(ui / "src" / "App.tsx")]}
+            return {"files": []}
+
+        _stub_tsc(monkeypatch, payload_for)
+        projects = TypeScriptConfigScanner(tmp_path).find_typescript_projects()
+        claimed = {f for p in projects for f in p.files}
+        assert (ui / "src" / "App.tsx").resolve() in claimed
+        assert (tmp_path / "src" / "extension.ts").resolve() in claimed
+        assert {p.root for p in projects} == {tmp_path.resolve(), ui.resolve()}
+
+    def test_a_referenced_directory_already_found_is_resolved_once(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        (tmp_path / "tsconfig.json").write_text("{}")
+        (tmp_path / "packages" / "a").mkdir(parents=True)
+        (tmp_path / "packages" / "a" / "tsconfig.json").write_text("{}")
+        (tmp_path / "packages" / "a" / "x.ts").write_text("export {};")
+        asked: list[Path] = []
+
+        def payload_for(config: Path) -> dict:
+            asked.append(config)
+            if config == tmp_path.resolve():
+                return {"files": [], "references": [{"path": "./packages/a"}, {"path": "./packages/a/tsconfig.json"}]}
+            return {"files": [str(tmp_path / "packages" / "a" / "x.ts")], "references": [{"path": "../.."}]}
+
+        _stub_tsc(monkeypatch, payload_for)
+        projects = TypeScriptConfigScanner(tmp_path).find_typescript_projects()
+        assert len(projects) == 1
+        assert sorted(asked) == sorted([tmp_path.resolve(), (tmp_path / "packages" / "a").resolve()])
+
+    def test_a_reference_outside_the_repository_is_not_followed(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / "tsconfig.json").write_text("{}")
+        (tmp_path / "shared").mkdir()
+        (tmp_path / "shared" / "tsconfig.json").write_text("{}")
+        asked: list[Path] = []
+
+        def payload_for(config: Path) -> dict:
+            asked.append(config)
+            return {"files": [], "references": [{"path": "../shared"}]}
+
+        _stub_tsc(monkeypatch, payload_for)
+        TypeScriptConfigScanner(repo).find_typescript_projects()
+        assert asked == [repo.resolve()]

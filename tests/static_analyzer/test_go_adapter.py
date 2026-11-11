@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from static_analyzer.engine.adapters.go_adapter import GoAdapter, _directory_filters_from_ignore_manager
-from repo_utils.ignore import RepoIgnoreManager
-from utils import CODEBOARDING_DIR_NAME
+from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.utils import CODEBOARDING_DIR_NAME
 
 
 class TestGetLspCommandGoCheck:

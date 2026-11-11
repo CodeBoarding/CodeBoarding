@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.config import NodeType
@@ -165,6 +165,31 @@ def test_a_site_whose_caller_is_no_node_is_dropped():
     assert linked.unresolved == []
 
 
+def test_a_declaration_only_an_edge_keeps_is_reached_and_added_with_its_edge():
+    """A constant the other engine's own calls never reached is no node there, as one engine would make it."""
+    graph = _graph()
+    constant = _node("Framework.Builder.Default", NodeType.CONSTANT, BUILDER, 50)
+    idle = _node("Framework.Builder.Idle", NodeType.CONSTANT, BUILDER, 52)
+    index = GraphIndex(graph, [constant, idle])
+
+    link_external_call_sites(index, [_site(BUILDER, 49, 4)], CSharpAdapter(), SourceInspector(), {HOST})
+
+    assert _edges(graph) == [(CALLER, "Framework.Builder.Default")]
+    assert graph.nodes["Framework.Builder.Default"] is constant
+    assert "Framework.Builder.Idle" not in graph.nodes
+
+
+def test_a_caller_only_an_edge_keeps_is_added_with_its_edge():
+    graph = _graph()
+    logger = _node("Modules.Host.Logger", NodeType.FIELD, HOST, 5)
+    site = ExternalCallSite("Modules.Host.Logger", BUILDER, 19, 4, CallSite(HOST, 5, 30))
+
+    link_external_call_sites(GraphIndex(graph, [logger]), [site], CSharpAdapter(), SourceInspector(), {HOST})
+
+    assert ("Modules.Host.Logger", "Framework.Builder.UseAuditing(App app)") in _edges(graph)
+    assert graph.nodes["Modules.Host.Logger"] is logger
+
+
 def test_a_call_into_the_callers_own_class_is_not_an_edge():
     graph = _graph()
 
@@ -249,6 +274,36 @@ def test_an_override_in_a_file_the_engine_read_is_left_to_the_engine():
     _link(graph, [site], analysed=frozenset({HOST, BUILDER, LOUD}))
 
     assert graph.edges == []
+
+
+class TestImplementationsAcrossEngines:
+    """An engine asks its server for implementations only of calls into its own files; the merge finds the rest."""
+
+    def test_a_call_into_another_engine_reaches_the_subtypes_implementation(self):
+        graph = _graph()
+        self._link(graph)
+        assert "Framework.Loud.UseAuditing(App app)" in _destinations(graph)
+
+    def test_an_implementation_two_levels_down_is_reached_too(self):
+        graph = _graph()
+        graph.add_node(_node("Framework.Louder", NodeType.CLASS, LOUD, 40, 0, 60))
+        graph.add_node(_node("Framework.Louder.UseAuditing(App app)", NodeType.METHOD, LOUD, 44))
+        graph.add_reference_edge(ReferenceEdge("Framework.Louder", "Framework.Loud", EdgeKind.INHERITS))
+        self._link(graph)
+        assert {"Framework.Loud.UseAuditing(App app)", "Framework.Louder.UseAuditing(App app)"} <= _destinations(graph)
+
+    def test_only_the_same_signature_implements_it(self):
+        graph = _graph()
+        graph.add_node(_node("Framework.Loud.UseAuditing(string name)", NodeType.METHOD, LOUD, 14))
+        graph.add_node(_node("Framework.Loud.UseAuditingFor(App app)", NodeType.METHOD, LOUD, 20))
+        self._link(graph)
+        destinations = _destinations(graph)
+        assert "Framework.Loud.UseAuditing(App app)" in destinations
+        assert not {"Framework.Loud.UseAuditing(string name)", "Framework.Loud.UseAuditingFor(App app)"} & destinations
+
+    def _link(self, graph: CallGraph) -> None:
+        with patch.object(CSharpAdapter, "expands_virtual_dispatch", new_callable=PropertyMock, return_value=False):
+            _link(graph, [_site(BUILDER, 19, 4)])
 
 
 class TestShapesTheEngineKept:

@@ -12,7 +12,7 @@ from typing import Any
 from agents.agent_responses import AnalysisInsights
 from agents.constants import ModelCapabilities
 from agents.llm_errors import ScopeContextTooLargeError
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.cfg.edge import EdgeKind
 from static_analyzer.clustering import ClusterConnectionEdge, ClusterGroup, ClusterScopeResult
 from static_analyzer.node import Node

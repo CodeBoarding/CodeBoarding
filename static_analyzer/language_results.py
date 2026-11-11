@@ -79,11 +79,11 @@ class ClassHierarchy:
         if self.entries is None:
             self.entries = {}
         if isinstance(other, dict):
-            self.entries.update(other)
+            _union_entries(self.entries, other)
         elif isinstance(other, list):
             for item in other:
                 if isinstance(item, dict):
-                    self.entries.update(item)
+                    _union_entries(self.entries, item)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         if self.entries is None:
@@ -119,7 +119,7 @@ class PackageDependencies:
         if self.entries is None:
             self.entries = {}
         if isinstance(other, dict):
-            self.entries.update(other)
+            _union_entries(self.entries, other)
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         if self.entries is None:
@@ -167,3 +167,19 @@ class LanguageResults:
         self.references.visit_paths(fn)
         self.dependencies.visit_paths(fn)
         self.source_files.visit_paths(fn)
+
+
+def _union_entries(entries: dict, other: dict) -> None:
+    """Add *other*'s entries to *entries*; a key both hold keeps the union of each list field.
+
+    Why: each engine lists only the links it saw, so a plain update would erase another engine's.
+    """
+    for name, info in other.items():
+        known = entries.get(name)
+        if isinstance(known, dict) and isinstance(info, dict):
+            merged = {**known, **info}
+            for key, value in info.items():
+                if isinstance(value, list) and isinstance(known.get(key), list):
+                    merged[key] = known[key] + [item for item in value if item not in known[key]]
+            info = merged
+        entries[name] = info

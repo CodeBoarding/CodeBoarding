@@ -15,12 +15,7 @@ from langchain_openai import ChatOpenAI
 from agents.constants import LLMDefaults, ModelCapabilities
 from agents.model_capabilities import ContextWindow, get_context_window
 from agents.prompts import PromptProfile, resolve_prompt_profile
-from monitoring.callbacks import MonitoringCallback
-
-# Initialize global monitoring callback with its own stats container to avoid ContextVar dependency
-from monitoring.stats import RunStats
-
-MONITORING_CALLBACK = MonitoringCallback(stats_container=RunStats())
+from infra.monitoring.callbacks import MONITORING_CALLBACK
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +283,32 @@ LLM_PROVIDERS = {
         agent_model="openai/gpt-5.4-mini",
         base_url_env="ORCAROUTER_BASE_URL",
         default_base_url="https://api.orcarouter.ai/v1",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
+    "requesty": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["REQUESTY_API_KEY"],
+        api_key_env="REQUESTY_API_KEY",
+        agent_model="gemini-3.8-flash",
+        base_url_env="REQUESTY_BASE_URL",
+        default_base_url="https://router.requesty.ai/v1",
+        extra_args={
+            "max_tokens": None,
+            "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,
+            "max_retries": 0,
+        },
+    ),
+    "opper": LLMConfig(
+        chat_class=ChatOpenAI,
+        selection_envs=["OPPER_API_KEY"],
+        api_key_env="OPPER_API_KEY",
+        agent_model="gemini-3.8-flash",
+        base_url_env="OPPER_BASE_URL",
+        default_base_url="https://api.opper.ai/v3/compat",
         extra_args={
             "max_tokens": None,
             "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,

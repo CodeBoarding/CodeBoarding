@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import time
 from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -13,12 +14,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate
 
 from agents.agent_responses import PlannedGroup, TreePlanInsights
-from agents.llm_config import MONITORING_CALLBACK, get_current_prompt_profile, supports_json_mode
-from agents.llm_errors import LLMAuthError, raise_if_auth_error
+from agents.llm_config import get_current_prompt_profile, supports_json_mode
+from infra.monitoring.callbacks import MONITORING_CALLBACK
+from agents.llm_errors import LLMAuthError, LLMQuotaError, is_quota_exhausted, raise_if_auth_error
 from agents.prompts import get_tree_plan_prompts
-from agents.retry import RetryAction, RetryDecision, default_backoff, with_retries
-from monitoring import trace
-from monitoring.mixin import MonitoringMixin
+from agents.retry import LLM_MAX_ATTEMPTS, RetryAction, RetryDecision, classify_llm_error, with_retries
+from infra.monitoring import trace
+from infra.monitoring.mixin import MonitoringMixin
 from static_analyzer.clustering.names import CandidateGroup, GroupingContext, KinshipGrouper, stem, tokenize
 from static_analyzer.clustering.names.draft import GUARD_SHARE, MIN_UNITS
 from static_analyzer.clustering.names.frontier import Candidate
@@ -101,7 +103,7 @@ class TreePlannerAgent(MonitoringMixin):
         return folded
 
     def _draw(self, prompt: str, labelled: dict[str, CandidateGroup]) -> list[TreePlanInsights]:
-        """``draws`` answers to one prompt, drawn concurrently; a draw that fails is dropped."""
+        """Draw concurrently, dropping failed draws unless credentials or quota prevent further work."""
         # Not ``with``: its ``__exit__`` waits for a stalled draw; a copied context carries the
         # monitoring step into each worker.
         pool = ThreadPoolExecutor(max_workers=self.draws)
@@ -115,6 +117,8 @@ class TreePlannerAgent(MonitoringMixin):
                 except LLMAuthError:
                     raise
                 except Exception as exc:
+                    if is_quota_exhausted(exc):
+                        raise LLMQuotaError(exc) from exc
                     failures.append(exc)
                     logger.warning("[Planner] draw failed: %s", exc)
         finally:
@@ -135,15 +139,21 @@ class TreePlannerAgent(MonitoringMixin):
                 raise ValueError("planner returned malformed JSON")
             return insights
 
+        # Why: ``_draw`` stops waiting after DRAW_TIMEOUT_SECONDS but cannot stop this worker, so no new
+        # attempt starts once the draw has been abandoned.
+        deadline = time.monotonic() + DRAW_TIMEOUT_SECONDS
+
         def classify(exc: Exception, attempt: int) -> RetryDecision:
             raise_if_auth_error(exc)
             if isinstance(exc, ValueError):
-                return RetryDecision(action=RetryAction.RETRY_NOW)
-            return RetryDecision(
-                action=RetryAction.RETRY, backoff_s=default_backoff(attempt, initial_s=10.0, multiplier=2.0, max_s=60.0)
-            )
+                decision = RetryDecision(action=RetryAction.RETRY_NOW)
+            else:
+                decision = classify_llm_error(exc, attempt)
+            if time.monotonic() + decision.backoff_s >= deadline:
+                return RetryDecision(action=RetryAction.GIVE_UP)
+            return decision
 
-        return with_retries(once, max_attempts=3, classify=classify, log_prefix="Planner draw")
+        return with_retries(once, max_attempts=LLM_MAX_ATTEMPTS, classify=classify, log_prefix="Planner draw")
 
     @staticmethod
     def _read(text: str, labelled: dict[str, CandidateGroup]) -> TreePlanInsights | None:

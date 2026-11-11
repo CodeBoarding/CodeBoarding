@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Collection
 from pathlib import Path
@@ -17,6 +18,7 @@ from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,7 @@ class CallGraphBuilder:
 
         self._symbol_table = SymbolTable(adapter)
         self._source_inspector = SourceInspector()
+        self._diagnostics: FileDiagnosticsMap = {}
 
     @property
     def symbol_table(self) -> SymbolTable:
@@ -72,9 +75,11 @@ class CallGraphBuilder:
         t_indices_done = time.monotonic()
         logger.info("Build indices: %.1fs", t_indices_done - t_symbols_done)
 
-        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector)
+        ctx = EdgeBuildContext(self._lsp, self._symbol_table, self._source_inspector, diagnostics=self._diagnostics)
+        self._adapter.prepare_edges(ctx)
         edge_set = build_edges_via_definitions(self._adapter, ctx, source_files)
         edge_set = self._postprocess_edges(edge_set)
+        self._adapter.complete_edges(ctx, source_files, edge_set, self._root)
         t_edges_done = time.monotonic()
         logger.info("Phase 2 total (build edges): %.1fs, %d edges", t_edges_done - t_indices_done, len(edge_set))
 
@@ -129,6 +134,7 @@ class CallGraphBuilder:
             package_dependencies=package_deps,
             source_files=abs_files,
             external_call_sites=ctx.external_call_sites,
+            diagnostics=ctx.diagnostics,
         )
 
     def _probe_timeout(self, total_files: int) -> int:
@@ -198,6 +204,9 @@ class CallGraphBuilder:
                     opened_early.append(file_path)
                     self._lsp.did_open(file_path)
                     symbols = self._lsp.document_symbol(file_path)
+            symbols = self._adapter.refine_document_symbols(
+                file_path, symbols, self._source_inspector, self._lsp, self._diagnostics
+            )
             self._adapter.record_document_symbols(file_path, symbols, self._repository)
             self._symbol_table.register_symbols(
                 file_path,
@@ -237,15 +246,29 @@ class CallGraphBuilder:
             time.sleep(0.1)
         pbar.finish()
         logger.info("did_open %d files: %.1fs", total, time.monotonic() - t_open_start)
-        return self._send_sync_probe(source_files, probe_timeout, label="didOpen drain")
+        return self._send_sync_probe(
+            source_files, probe_timeout, "didOpen drain", self._adapter.drain_probe_round_seconds
+        )
 
-    def _send_sync_probe(self, source_files: list[Path], probe_timeout: int, label: str = "indexing") -> list[dict]:
+    def _send_sync_probe(
+        self, source_files: list[Path], probe_timeout: int, label: str = "indexing", round_seconds: int | None = None
+    ) -> list[dict]:
         """Send a documentSymbol probe to wait for the LSP server to finish ``label``."""
         probe_result: list[dict] = []
         logger.info("Waiting for LSP server %s (timeout=%ds)...", label, probe_timeout)
         t_probe = time.monotonic()
-        if source_files:
-            probe_result = self._lsp.document_symbol(source_files[0], timeout=probe_timeout)
+        deadline = t_probe + probe_timeout
+        round_seconds = round_seconds or probe_timeout
+        rounds = math.ceil(probe_timeout / round_seconds) if source_files else 0
+        for attempt in range(rounds):
+            timeout = max(1, math.ceil(min(deadline - time.monotonic(), round_seconds)))
+            try:
+                probe_result = self._lsp.document_symbol(source_files[0], timeout=timeout)
+                break
+            except TimeoutError:
+                if attempt == rounds - 1:
+                    raise
+                logger.info("Still waiting for LSP server %s (%.0fs)...", label, time.monotonic() - t_probe)
         logger.info(
             "Sync probe: %.1fs (%d symbols)",
             time.monotonic() - t_probe,

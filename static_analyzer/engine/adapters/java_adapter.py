@@ -5,25 +5,44 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import re
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSP_INTERNAL_ERROR, ErrorVerdict
 from static_analyzer.engine.lsp_constants import (
     CALLABLE_KINDS,
     CLASS_LIKE_KINDS,
 )
 from static_analyzer.engine.utils import total_ram_gb
 from static_analyzer.java_utils import create_jdtls_command, find_java_21_or_later
-from utils import CODEBOARDING_DIR_NAME, get_config
+from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.tool_registry.java import java_runtimes
+from infra.utils import CODEBOARDING_DIR_NAME, get_config
 
 logger = logging.getLogger(__name__)
+
+# An entry with a body, as its opening tag and the rest up to its own closing tag. Self-closing entries never match.
+_CLASSPATH_ENTRY = re.compile(
+    rb"(<classpathentry\b[^>]*[^/]>)((?:(?!<classpathentry\b).)*?</classpathentry>)", re.DOTALL
+)
+_INCLUSION_FILTER = re.compile(rb'\s+including="[^"]*"')
+# Indexing is one-off and grows with the classpath; a server that cannot search within this is broken.
+_SEARCH_INDEX_TIMEOUT_SECONDS = 1800
 
 # The languages a JVM source root can be named for, in ``src/<source set>/<language>``.
 
 
 class JavaAdapter(LanguageAdapter):
+
+    def __init__(self) -> None:
+        super().__init__()
+        # What the import wrote, and what ``lift_import_filters`` left in its place.
+        self._filtered_classpaths: dict[Path, tuple[bytes, bytes]] = {}
 
     @property
     def wait_for_workspace_ready(self) -> bool:
@@ -32,6 +51,21 @@ class JavaAdapter(LanguageAdapter):
         queries return empty until then.
         """
         return True
+
+    @property
+    def source_names_every_subtype(self) -> bool:
+        """A subclass, an anonymous class body or an enum constant body names its base; a lambda implements only
+        an interface, which is always asked about."""
+        return True
+
+    @property
+    def search_index_timeout(self) -> int | None:
+        """JDTLS indexes the classpath, the JDK included, on its first search.
+
+        Why: on JabRef that took 72-105s, longer than a request may take, so the first round of implementation queries
+        timed out and ended the run.
+        """
+        return _SEARCH_INDEX_TIMEOUT_SECONDS
 
     @property
     def language(self) -> str:
@@ -230,6 +264,39 @@ class JavaAdapter(LanguageAdapter):
             params.append("".join(current))
         return params
 
+    def lift_import_filters(self, project_root: Path) -> bool:
+        """Drop the inclusion filters the build import put on source folders.
+
+        Why: m2e applies the ``<includes>`` of a project's last ``compile`` execution to the whole
+        source folder, so one narrow recompile step leaves every other file outside the project and
+        calls into it unresolved. Why a restart: m2e rewrites ``.classpath`` on any change it sees.
+        Why only entries m2e marks ``maven.pomderived``: a hand-written filter is the project's own source set.
+        """
+        lifted = False
+        for classpath in project_root.rglob(".classpath"):
+            if not classpath.is_file():
+                continue
+            original = classpath.read_bytes()
+            unfiltered = _CLASSPATH_ENTRY.sub(self._without_inclusion_filter, original)
+            if unfiltered != original:
+                imported, _ = self._filtered_classpaths.get(classpath, (original, b""))
+                self._filtered_classpaths[classpath] = (imported, unfiltered)
+                classpath.write_bytes(unfiltered)
+                lifted = True
+        return lifted
+
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        try:
+            yield
+        finally:
+            self._restore_import_filters()
+
+    def get_lsp_init_options(self, ignore_manager: RepoIgnoreManager | None = None) -> dict:
+        """The settings at startup too: a Maven import runs before the first settings change, and with
+        ``<release>25</release>`` and no JDK 25 registered by then it reports the release as not found."""
+        return {"settings": self.get_workspace_settings()}
+
     def get_workspace_settings(self) -> dict | None:
         # JDTLS defaults these to "ignore"; raising to "warning" is required
         # for unused-code diagnostics.
@@ -240,7 +307,16 @@ class JavaAdapter(LanguageAdapter):
                     "org.eclipse.jdt.core.compiler.problem.unusedLocal": "warning",
                     "org.eclipse.jdt.core.compiler.problem.unusedPrivateMember": "warning",
                     "org.eclipse.jdt.core.compiler.problem.deadCode": "warning",
-                }
+                },
+                # A project's JDK types resolve only against a JDK at least as new as the release it targets, and
+                # JDTLS knows only the one it runs on unless told of the rest. JabRef targets Java 25.
+                "configuration": {
+                    "runtimes": [
+                        {"name": "JavaSE-1.8" if major == 8 else f"JavaSE-{major}", "path": str(home)}
+                        for major, home in sorted(java_runtimes().items())
+                        if major >= 8
+                    ]
+                },
             }
         }
 
@@ -258,8 +334,41 @@ class JavaAdapter(LanguageAdapter):
     def should_track_for_edges(self, symbol_kind: int) -> bool:
         return symbol_kind in (CALLABLE_KINDS | CLASS_LIKE_KINDS | {NodeType.VARIABLE, NodeType.CONSTANT})
 
+    def error_verdict(self, error: dict) -> ErrorVerdict:
+        """An internal error thrown from JDT's compiler or code assist leaves that one call site's edge out.
+
+        Why: it is a function of the source alone, so asking again crashes the same way. The first frame past the
+        JDK's own decides. A cancellation or interruption, a JVM error, or a crash in JDT LS's own code still fails.
+        """
+        data = str(error.get("data", ""))
+        if error.get("code") == LSP_INTERNAL_ERROR and re.search(
+            r"Caused by: java\.lang\.(?!InterruptedException)\w+Exception\b.*\n(?:\s*at java\.base/.*\n)*"
+            r"\s*at org\.eclipse\.jdt\.internal\.(?:compiler|codeassist)\.",
+            data,
+        ):
+            logger.warning(f"JDTLS crashed resolving a call site, leaving its edge out: {data}")
+            return ErrorVerdict.DECLINED
+        return ErrorVerdict.FAILURE
+
     def get_all_packages(self, source_files: list[Path], project_root: Path) -> set[str]:
         packages: set[str] = set()
         for f in source_files:
             packages.add(self.get_package_for_file(f, project_root))
         return packages
+
+    def _restore_import_filters(self) -> None:
+        for classpath, (imported, lifted) in self._filtered_classpaths.items():
+            try:
+                # Anything else is an edit made since, which outranks what the import wrote.
+                if classpath.is_file() and classpath.read_bytes() == lifted:
+                    classpath.write_bytes(imported)
+            except OSError:
+                logger.exception(f"Could not put back {classpath}; it keeps its source folder filters lifted")
+        self._filtered_classpaths.clear()
+
+    @staticmethod
+    def _without_inclusion_filter(entry: re.Match[bytes]) -> bytes:
+        tag, body = entry.group(1), entry.group(2)
+        if b'kind="src"' not in tag or b'name="maven.pomderived"' not in body:
+            return entry.group()
+        return _INCLUSION_FILTER.sub(b"", tag) + body

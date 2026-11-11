@@ -11,13 +11,14 @@
 - Builds layered abstractions with an LLM agent (OpenAI, Anthropic, Google Gemini, Ollama, and more)
 - Outputs Mermaid.js diagrams ready for docs, IDEs, and CI/CD pipelines
 
-**Supported languages:** Python · TypeScript · JavaScript · Java · Go · PHP
+**Supported languages:** Python · TypeScript · JavaScript · Java · Kotlin · Go · PHP
 
 ---
 
 ## Requirements
 
 - **Python 3.12 or 3.13** — other versions are currently not supported.
+- **Linux:** glibc 2.34 or newer (Ubuntu 22.04, Debian 12, RHEL 9 or later), for the Kotlin parser.
 
 ## Installation
 
@@ -37,7 +38,7 @@ pip install codeboarding --extra-index-url https://pip.codeboarding.org/simple/
 
 > Installing into the global Python environment with `pip` is not recommended — it can cause dependency conflicts and will fail if the system Python is not 3.12 or 3.13.
 
-Language server binaries are downloaded automatically on first use. To pre-install them explicitly (useful in CI or restricted environments):
+Each analysis downloads the language servers its repository's languages need, on first use. To pre-install all of them (useful in CI or restricted environments):
 
 ```bash
 codeboarding-setup

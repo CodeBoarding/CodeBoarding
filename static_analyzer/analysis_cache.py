@@ -29,12 +29,11 @@ from typing import Any
 
 from filelock import FileLock
 
-from constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
-from repo_utils.path_utils import to_absolute_path, to_relative_path
+from infra.constants import STATIC_ANALYSIS_PKL, STATIC_ANALYSIS_SHA
+from infra.repo_utils.path_utils import to_absolute_path, to_relative_path
 from static_analyzer.analysis_result import AnalysisData, InvalidatedAnalysis, InvalidatedEdge, StaticAnalysisResults
 from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
-from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +71,14 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v9: a call into a project of another solution root is an edge.
 # v10: every name is spelled from the repository root; C# keeps ``src`` and Java its source root.
 # v11: every language builds its call edges from definitions at the call site.
+# v12: a large TypeScript monorepo runs one server per tsconfig project, so a graph one out-of-memory
+# server left without edges is rebuilt; bases, implementations and edge-only declarations link across engines.
+# v13: a TypeScript call into a sibling workspace package resolves to its sources without an install or build.
+# v14: handlers, runtime type tests, and variant patterns contribute dependencies without invoking their targets.
+# v15: C++ compiler identities unify declarations and definitions; nodes retain declared names and owners.
+# v16: compiler-identity metadata is explicit; other languages retain their existing name resolution.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v11"
+_TAG_VERSION = "v16"
 
 
 class StaticAnalysisCache:
@@ -130,6 +135,10 @@ class StaticAnalysisCache:
     @property
     def lock_path(self) -> Path:
         return self.artifact_dir / STATIC_ANALYSIS_LOCK
+
+    def from_another_engine(self) -> bool:
+        """Whether a pkl is on disk whose tag names a version this build does not produce."""
+        return self.pkl_path.exists() and self._tag_version_is_stale()
 
     def read_tag_sha(self) -> str | None:
         """Return the source SHA the pkl was saved at, or None if absent/unparsable.

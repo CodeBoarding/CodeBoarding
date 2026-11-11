@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -190,6 +190,8 @@ class RustAdapter(LanguageAdapter):
         skipping it would silently break diagnostic collection.
         """
         return {
+            # Resolve on demand instead of eagerly retaining dependency-wide semantic caches.
+            "cachePriming": {"enable": False},
             "cargo": {
                 "buildScripts": {"enable": True},
                 "allTargets": True,

@@ -10,7 +10,7 @@
 
 ### Code Reuse & DRY Principle
 - [ ] **No duplicated logic:** Check for copy-pasted code blocks that could be extracted into shared functions/classes
-- [ ] **Existing utilities used:** Verify you're using existing helper functions from `utils.py`, `repo_utils.py`, or other shared modules
+- [ ] **Existing utilities used:** Verify you're using existing helper functions from `infra/utils.py`, `infra/repo_utils/`, or other shared modules
 - [ ] **Consistent patterns:** Follow existing architectural patterns (e.g., LSP client implementations, analysis pipeline stages)
 - [ ] **No leaky abstractions:** Implementation details shouldn't bleed through abstraction layers
 
@@ -265,7 +265,7 @@ def analyze():
 - [ ] **LSP client pattern:** New language servers follow `BaseLSPClient` pattern
 - [ ] **Analysis pipeline:** Changes fit into Scanner → Analyzer → Generator flow
 - [ ] **Configuration:** New settings added to `static_analysis_config.yml`
-- [ ] **Logging:** Use `logging_config.py` setup, not ad-hoc print statements
+- [ ] **Logging:** Use `infra/logging_config.py` setup, not ad-hoc print statements
 - [ ] **Error taxonomy:** New errors inherit from appropriate base exception
 
 ### File Organization
@@ -273,7 +273,7 @@ def analyze():
   - `agents/` - LLM agent implementations
   - `static_analyzer/` - Static analysis code
   - `output_generators/` - Output format generators
-  - `monitoring/` - Metrics and monitoring
+  - `infra/monitoring/` - Metrics and monitoring
 - [ ] **Module naming:** File names match contained functionality
 - [ ] **Test location:** Tests mirror source structure under `tests/`
 

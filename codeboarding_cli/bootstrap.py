@@ -3,13 +3,13 @@ import logging
 from pathlib import Path
 
 from agents.llm_config import configure_models, validate_api_key_provided
-from core import get_registries, load_plugins
+from health.plugins import get_registries, load_plugins
 from diagram_analysis.run_context import RunPaths
-from install import ensure_tools
-from logging_config import setup_logging
-from user_config import ensure_config_template, load_user_config
-from utils import CODEBOARDING_DIR_NAME
-from vscode_constants import update_config
+from infra.install import enable_on_demand_install, ensure_tools
+from infra.logging_config import setup_logging
+from infra.user_config import ensure_config_template, load_user_config
+from infra.utils import CODEBOARDING_DIR_NAME
+from infra.vscode_constants import update_config
 
 logger = logging.getLogger(__name__)
 
@@ -41,4 +41,6 @@ def bootstrap_environment(output_dir: Path, binary_location: Path | None) -> Non
         # repairs a deleted ~/.codeboarding/servers/nodeenv/ independently of the
         # fingerprint check. Pre-gating with needs_install() here would skip that
         # repair when binaries look current but the runtime directory was deleted.
-        ensure_tools(auto_install_npm=True, auto_install_vcpp=True)
+        # Only the base tools here: the analysis installs its languages' servers once it has found them.
+        ensure_tools(auto_install_npm=True, auto_install_vcpp=True, languages=())
+        enable_on_demand_install(auto_install_npm=True, auto_install_vcpp=True)

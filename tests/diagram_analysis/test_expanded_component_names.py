@@ -4,7 +4,7 @@ import unittest
 
 from agents.agent_responses import AnalysisInsights, Component, Relation
 from diagram_analysis.diagram_generator import distinguish_expanded_component_names
-from utils import sanitize
+from infra.utils import sanitize
 
 
 def _component(component_id: str, name: str) -> Component:

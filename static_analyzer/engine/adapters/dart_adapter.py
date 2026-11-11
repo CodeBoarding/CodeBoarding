@@ -6,10 +6,10 @@ from pathlib import Path
 
 import yaml
 
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from tool_registry.paths import dart_binary
+from infra.tool_registry.paths import dart_binary
 
 
 class DartAdapter(LanguageAdapter):

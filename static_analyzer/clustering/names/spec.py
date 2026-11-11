@@ -6,7 +6,7 @@ from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from clustering_ids import ROOT_SCOPE_ID, CodeBoardingClusterIds, ScopeId
+from infra.clustering_ids import ROOT_SCOPE_ID, CodeBoardingClusterIds, ScopeId
 
 Prefix = tuple[str, ...]
 

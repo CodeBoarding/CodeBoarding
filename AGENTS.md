@@ -14,7 +14,7 @@
 ### 3. Code Quality and Testing Standards
 - **Run tests with coverage requirements**: Execute `uv run pytest --cov=. --cov-report=term --cov-fail-under=80` to validate changes. The project enforces an 80% minimum code coverage threshold. The integration suite is not in this repo — it lives in the private `CodeBoarding-tests` repo and runs in CI (see `CONTRIBUTING.md` §5e).
 - **Format and lint before commits**: Run `uv run black .` (line length: 120) and `uv run mypy .` to ensure code quality. These are enforced in pre-commit hooks and GitHub CI/CD workflows.
-- **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `monitoring/`). Place new code in the appropriate directory and follow existing module patterns.
+- **Respect project structure**: Code is organized by functional domain (e.g., `agents/`, `static_analyzer/`, `output_generators/`, `infra/`). Place new code in the appropriate directory and follow existing module patterns.
 - **Public methods first, private below**: within a class or module, order all public methods above the `_`-prefixed ones so the API reads first when scrolling. Don't interleave them.
 - **Add imports at the top of the file**: avoid function or class level imports. Do not use `if TYPE_CHECKING` import blocks; keep runtime imports explicit and resolve cycles by moving shared types or decoupling modules instead.
 - **Avoid trivial pass-through methods**: don't add one-line functions or methods that only call another helper with fixed arguments. Inline the call, or give the helper a real domain responsibility that hides meaningful complexity.
@@ -30,7 +30,7 @@
 
 ### 5. Fail Fast — Never Silently Degrade on Unexpected State
 - **Raise, don't silently fall back**: when an operation cannot do what the caller asked — and doing something *else* would have large, surprising impact — raise a specific exception instead of quietly substituting different behavior. The caller decides how to recover.
-- **Incremental never silently becomes full**: if incremental analysis cannot proceed (no baseline, a baseline that predates content versioning, an unindexable/unparseable file, an empty or untrustworthy change set), raise (`BaselineUnavailableError` / `IncrementalCacheMissingError`) so the surface layer can prompt "run a full analysis first". Do NOT run a full analysis, return an empty-but-successful update, or mark every method deleted. A silent full run discards the existing depth/component IDs and misleads the user into thinking the incremental succeeded.
+- **Incremental never silently becomes full**: if incremental analysis cannot proceed (no baseline, a baseline that predates content versioning, an unindexable/unparseable file, an empty or untrustworthy change set), raise (`BaselineUnavailableError` / `IncrementalCacheMissingError`) so the surface layer can prompt "run a full analysis first". Do NOT run a full analysis, return an empty-but-successful update, or mark every method deleted. A silent full run discards the existing depth/component IDs and misleads the user into thinking the incremental succeeded. The one surface that recovers by itself is `codeboarding incremental` on `EngineChangedError`: an engine release reaches CI unasked with nobody there to answer a prompt, so it logs one warning, rebuilds in full at the baseline's depth and reports `mode: full`.
 - **Prefer a loud, specific error over a plausible-but-wrong result**: a missed change that the user never learns about is worse than a clear failure they can act on. Reserve graceful degradation for genuinely non-critical, clearly-logged paths.
 - **Never lose the trace**: to propagate an error, re-raise it with a bare `raise` (it keeps the original traceback) or wrap it with `raise NewError(...) from error`. Never `raise NewError(str(error))` without `from`, and never log `str(error)` and carry on: a handled error is logged with `logger.exception` so its traceback is recorded.
 
@@ -40,6 +40,6 @@
 - **Run pre-commit hooks locally**: Execute `git commit` with the pre-commit hooks enabled to catch formatting and type errors before pushing. This mirrors the CI/CD validation.
 
 ### 7. Output and Logging
-- **Logging is centralized**: Review `logging_config.py` for logging configuration. Structured logging is used throughout the project; integrate logs into this system rather than using ad-hoc print statements.
+- **Logging is centralized**: Review `infra/logging_config.py` for logging configuration. Structured logging is used throughout the project; integrate logs into this system rather than using ad-hoc print statements.
 - **Multiple output formats supported**: The project generates Markdown, HTML, MDX, and Sphinx documentation. When adding features, consider all output generators if they are affected.
-- **Monitor execution stats**: The `monitoring/` directory provides `StreamingStatsWriter` for tracking LLM usage and performance metrics. Use this for tracking long-running operations.
+- **Monitor execution stats**: The `infra/monitoring/` package provides `StreamingStatsWriter` for tracking LLM usage and performance metrics. Use this for tracking long-running operations.

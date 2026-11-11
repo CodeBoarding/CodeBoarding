@@ -27,7 +27,8 @@ from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.engine.adapters.csharp_adapter import CSharpAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
-from utils import CODEBOARDING_DIR_NAME
+from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
+from infra.utils import CODEBOARDING_DIR_NAME
 
 
 def _node(qname: str, file_path: str, line_start: int = 1) -> Node:
@@ -318,7 +319,7 @@ class TestGraphDeclarations(unittest.TestCase):
             )
         )
         client = MagicMock()
-        client.send_implementation_batch.side_effect = lambda queries: [
+        client.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": file_path.as_uri(), "range": {"start": {"line": 1, "character": 5}}}] for _ in queries
         ]
         declaration = ("/repo/pkg/base.php", 0, 0)
@@ -353,7 +354,7 @@ class TestGraphDeclarations(unittest.TestCase):
             )
         )
         client = MagicMock()
-        client.send_implementation_batch.side_effect = lambda queries: [
+        client.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": file_path.as_uri(), "range": {"start": {"line": 9, "character": 4}}}] for _ in queries
         ]
         declaration = ("/repo/pkg/base.py", 0, 0)
@@ -388,14 +389,17 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         partial_graph.add_edge("app.main", "lib.helper", call_sites=[{"file": str(app), "line": 2, "column": 5}])
         call = CallSite.from_lsp_position(str(app), 1, 4)
         elsewhere = ExternalCallSite("app.main", str(tmp_path / "vendor.py"), 3, 0, call)
+        logger_node = Node("app.logger", NodeType.CONSTANT, str(app), line_start=1, line_end=1, col_start=0)
+        warning = LSPDiagnostic(message="Supplementary analysis incomplete", source="codeboarding", severity=2)
         partial = {
             **_result(partial_graph, source_files=[str(app)]),
-            "diagnostics": {},
+            "diagnostics": {str(app): [warning]},
             "external_call_sites": [elsewhere],
+            "external_callers": [logger_node],
         }
 
         client = MagicMock()
-        client.get_collected_diagnostics.return_value = {}
+        client.get_collected_diagnostics.return_value = {str(app): []}
         ignore_manager = MagicMock()
         ignore_manager.should_ignore.return_value = False
 
@@ -413,6 +417,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
             ("app.main", "lib.helper")
         ]
         assert updated["external_call_sites"] == [elsewhere]
+        assert updated["external_callers"] == [logger_node]
+        assert updated["diagnostics"] == {str(app): [warning]}
         client.send_implementation_batch.assert_not_called()
 
 
@@ -471,7 +477,7 @@ class TestRestoringCachedEdges:
         client.send_type_definition_batch.side_effect = lambda queries: [
             [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
         ]
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+        client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
 
         inspector = SourceInspector()
         _restore_inbound_edges_via_definitions(

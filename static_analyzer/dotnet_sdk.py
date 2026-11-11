@@ -23,7 +23,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-from tool_registry import exe_suffix, user_data_dir
+from infra.tool_registry import exe_suffix, user_data_dir
 
 logger = logging.getLogger(__name__)
 

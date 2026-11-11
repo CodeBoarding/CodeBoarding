@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 
 from health.models import HealthCheckConfig
-from utils import CODEBOARDING_DIR_NAME
+from infra.utils import CODEBOARDING_DIR_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ HEALTHIGNORE_TEMPLATE = """# Health Check Exclusion Patterns
 #
 # Examples:
 # - Exclude all functions in evals: evals.*
-# - Exclude a specific function: utils.get_project_root
+# - Exclude a specific function: infra.utils.get_project_root
 # - Exclude by file path: */evals/*
 # - Exclude functions matching a pattern: *._*
 #

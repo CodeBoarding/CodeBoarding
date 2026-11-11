@@ -12,8 +12,8 @@ from agents.content_hash import (
     read_source_lines,
 )
 from agents.file_index_models import FileEntry
-from repo_utils.change_detector import ChangeSet
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.change_detector import ChangeSet
+from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 
 

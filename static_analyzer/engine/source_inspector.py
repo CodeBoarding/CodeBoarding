@@ -15,9 +15,12 @@ from tree_sitter import Parser, Point, Tree
 
 from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
 from static_analyzer.engine.models import CallSite
+from infra.tool_registry import kotlin_language
 
 import tree_sitter_c_sharp
 import tree_sitter_dart
+import tree_sitter_cpp
+import tree_sitter_cuda
 import tree_sitter_go
 import tree_sitter_java
 import tree_sitter_javascript
@@ -36,10 +39,12 @@ _LANGUAGE_FACTORY_BY_LANGUAGE: dict[Language, LanguageFactory] = {
     Language.JAVASCRIPT: tree_sitter_javascript.language,
     Language.GO: tree_sitter_go.language,
     Language.JAVA: tree_sitter_java.language,
+    Language.KOTLIN: kotlin_language,
     Language.PHP: tree_sitter_php.language_php,
     Language.RUST: tree_sitter_rust.language,
     Language.CSHARP: tree_sitter_c_sharp.language,
     Language.DART: tree_sitter_dart.language,
+    Language.CPP: tree_sitter_cpp.language,
 }
 _LANGUAGE_BY_SUFFIX: dict[str, LanguageFactory] = {
     suffix: _LANGUAGE_FACTORY_BY_LANGUAGE[language]
@@ -51,6 +56,8 @@ _LANGUAGE_BY_SUFFIX[".ts"] = tree_sitter_typescript.language_typescript
 _LANGUAGE_BY_SUFFIX[".mts"] = tree_sitter_typescript.language_typescript
 _LANGUAGE_BY_SUFFIX[".cts"] = tree_sitter_typescript.language_typescript
 _LANGUAGE_BY_SUFFIX[".tsx"] = tree_sitter_typescript.language_tsx
+_LANGUAGE_BY_SUFFIX[".cu"] = tree_sitter_cuda.language
+_LANGUAGE_BY_SUFFIX[".cuh"] = tree_sitter_cuda.language
 
 _CALL_NODE_TYPES = frozenset(
     {
@@ -65,18 +72,24 @@ _CALL_NODE_TYPES = frozenset(
         "explicit_constructor_invocation",
     }
 )
-_CONSTRUCTOR_NODE_TYPES = frozenset({"object_creation_expression", "new_expression"})
+# Kotlin's ``constructor_invocation`` is a supertype constructed in a class header: ``class Dog : Animal(1)``.
+_CONSTRUCTOR_NODE_TYPES = frozenset({"object_creation_expression", "new_expression", "constructor_invocation"})
+# Kotlin labels no part of a call, so the callee is its first named child.
+_UNLABELLED_CALL_NODE_TYPES = frozenset({"call_expression"})
 # C# target-typed ``new(...)``: no type name at the call site.
 _IMPLICIT_CONSTRUCTOR_NODE_TYPES = frozenset({"implicit_object_creation_expression"})
-# C# ``: this(...)`` / ``: base(...)`` constructor delegation.
-_CONSTRUCTOR_INITIALIZER_NODE_TYPES = frozenset({"constructor_initializer"})
+# C# ``: this(...)`` / ``: base(...)`` and Kotlin ``: this(...)`` / ``: super(...)`` constructor delegation.
+_CONSTRUCTOR_INITIALIZER_NODE_TYPES = frozenset({"constructor_initializer", "constructor_delegation_call"})
+_CONSTRUCTOR_DELEGATION_KEYWORDS = frozenset({"this", "base", "super"})
 # Applying an attribute runs its constructor.
 _ATTRIBUTE_NODE_TYPES = frozenset({"attribute"})
 # Braces holding ``Prop = value`` are an object initializer, not a collection one.
 _OBJECT_INITIALIZER_NODE_TYPES = frozenset({"assignment_expression"})
 # Loops whose ``right`` field is a value whose type gets enumerated.
 _ITERATION_NODE_TYPES = frozenset({"foreach_statement", "for_each_statement", "enhanced_for_statement"})
-_METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference"})
+_METHOD_REFERENCE_NODE_TYPES = frozenset({"method_reference", "callable_reference"})
+# Kotlin's ``this::speak`` is a navigation whose suffix opens with ``::`` rather than a callable reference.
+_NAVIGATION_SUFFIX_NODE_TYPES = frozenset({"navigation_suffix"})
 # Expanding a macro runs its body, and the module declaring it is a real dependency.
 _MACRO_INVOCATION_NODE_TYPES = frozenset({"macro_invocation"})
 # Rendering an element runs its component; the closing tag is the same element named twice.
@@ -89,7 +102,15 @@ _DECORATION_NODE_TYPES = frozenset({"decorator", "annotation", "marker_annotatio
 _DECORATOR_NAME_NODE_TYPES = frozenset({"identifier", "attribute", "member_expression"})
 # Values that are functions: ``const f = () => ...`` is as callable a target as a declared function.
 _FUNCTION_LITERAL_NODE_TYPES = frozenset(
-    {"arrow_function", "function_expression", "function", "generator_function", "lambda", "func_literal"}
+    {
+        "arrow_function",
+        "function_expression",
+        "function",
+        "generator_function",
+        "lambda",
+        "lambda_expression",
+        "func_literal",
+    }
 )
 # ``receiver.member``, in every grammar's spelling.
 _MEMBER_ACCESS_NODE_TYPES = frozenset(
@@ -100,10 +121,11 @@ _MEMBER_ACCESS_NODE_TYPES = frozenset(
         "field_access",  # Java
         "selector_expression",  # Go
         "field_expression",  # Rust
+        "navigation_expression",  # Kotlin
     }
 )
 # Receivers naming the enclosing class's base: a member named on one is not dispatched.
-_BASE_RECEIVER_NODE_TYPES = frozenset({"super", "base"})
+_BASE_RECEIVER_NODE_TYPES = frozenset({"super", "base", "super_expression"})
 # A member is written, not read, as the ``left`` of one of these.
 _ASSIGNMENT_NODE_TYPES = frozenset(
     {"assignment", "assignment_expression", "augmented_assignment", "augmented_assignment_expression"}
@@ -127,6 +149,7 @@ _CALLABLE_USAGE_ANCESTORS = frozenset({"argument_list", "arguments"})
 _NAME_NODE_TYPES = frozenset(
     {
         "identifier",
+        "simple_identifier",  # Kotlin
         "name",
         "property_identifier",
         "private_property_identifier",  # ECMAScript ``#member``
@@ -157,6 +180,7 @@ _VALUE_FIELD_BY_BINDING = {
     "field_definition": "value",  # JavaScript class field
     "public_field_definition": "value",  # TypeScript class field
     "var_spec": "value",  # Go
+    "init_declarator": "value",  # C++
 }
 # A binding, or an object literal's ``key: value``, can name a function literal.
 _FUNCTION_VALUE_HOLDER_NODE_TYPES = frozenset(_VALUE_FIELD_BY_BINDING) | {"pair"}
@@ -176,6 +200,54 @@ _NAME_SHAPED_NODE_TYPES = frozenset(
         "field_access",
         "selector_expression",
     }
+)
+# Grammar roles that inspect a type or variant at runtime, rather than construct it.
+_RUNTIME_TYPE_FIELDS = {
+    "except_clause": "value",
+    "catch_clause": "type",
+    "catch_declaration": "type",
+    "instanceof_expression": "right",
+    "type_assertion_expression": "type",
+    "type_case": "type",
+    "is_pattern_expression": "pattern",
+    "declaration_pattern": "type",
+    "type_pattern": "type",
+    "recursive_pattern": "type",
+    "let_condition": "pattern",
+    "let_declaration": "pattern",
+}
+_RUNTIME_TYPE_GROUPS = frozenset({"catch_type", "match_pattern", "type_test", "constant_pattern", "case_pattern"})
+# Why: Rust spells a pattern binding in lower case and a unit variant or constant in upper case.
+_LOWERCASE_BINDING_SUFFIXES = frozenset({".rs"})
+_TYPE_TEST_OPERATORS = frozenset({"instanceof", "is", "!is"})
+_RUNTIME_REFERENCE_WRAPPERS = frozenset(
+    {
+        "slice_type",
+        "slice_pattern",
+        "tuple",
+        "parenthesized_expression",
+        "type_list",
+        "catch_type",
+        "type_test",
+        "named_type",
+        "pointer_type",
+        "nullable_type",
+        "match_pattern",
+        "or_pattern",
+        "reference_pattern",
+        "tuple_struct_pattern",
+        "constant_pattern",
+        "negated_pattern",
+        "binary_pattern",
+        "parenthesized_pattern",
+        "tuple_pattern",
+        "case_pattern",
+        "union_pattern",
+        "list_pattern",
+    }
+)
+_RUNTIME_REFERENCE_NAMES = _NAME_SHAPED_NODE_TYPES | frozenset(
+    {"type_identifier", "name", "user_type", "scoped_type_identifier", "qualified_type"}
 )
 # Literals that hold a group of values, each of which can be a name: a dispatch table is
 # written as one of these and every callable in it is reached through it.
@@ -200,9 +272,41 @@ _VALUE_GROUP_NODE_TYPES = frozenset(
     }
 )
 _TYPE_DECLARATION_NODE_TYPES = frozenset(
-    {"class_declaration", "interface_declaration", "record_declaration", "struct_declaration"}
+    {
+        "class_declaration",
+        "interface_declaration",
+        "record_declaration",
+        "struct_declaration",
+        "object_declaration",
+        "class_specifier",
+        "struct_specifier",
+    }
 )
-_BASE_LIST_NODE_TYPES = frozenset({"base_list", "superclass", "super_interfaces", "extends_interfaces"})
+_BASE_LIST_NODE_TYPES = frozenset(
+    {"base_list", "superclass", "super_interfaces", "extends_interfaces", "base_class_clause"}
+)
+# Kotlin writes each supertype -- ``Animal``, ``Animal(1)``, ``Animal by impl`` -- as its own child of the
+# declaration, wrapped around one ``user_type``.
+_DELEGATION_SPECIFIER_NODE_TYPES = frozenset({"delegation_specifier"})
+# Kotlin declarations, whose grammar labels no name: the name is the first name written directly under them.
+_KOTLIN_NAMED_DECLARATION_NODE_TYPES = frozenset(
+    {"class_declaration", "object_declaration", "companion_object", "function_declaration", "type_alias"}
+)
+_KOTLIN_USER_TYPE_NODE_TYPES = frozenset({"user_type"})
+# Kotlin declarations the server names alike, told apart by their parameter types.
+_KOTLIN_FUNCTION_NODE_TYPES = frozenset({"function_declaration"})
+_KOTLIN_CONSTRUCTOR_NODE_TYPES = frozenset({"primary_constructor", "secondary_constructor"})
+_KOTLIN_PARAMETER_NODE_TYPES = frozenset({"parameter", "class_parameter"})
+# A primary constructor holds its parameters itself; a function or secondary constructor in a list.
+_KOTLIN_PARAMETER_LIST_NODE_TYPES = frozenset({"function_value_parameters"})
+# What a parameter writes besides its type.
+_KOTLIN_PARAMETER_PART_NODE_TYPES = frozenset({"simple_identifier", "modifiers", "binding_pattern_kind"})
+_ARGUMENT_HOLDER_NODE_TYPES = frozenset({"call_expression", "constructor_invocation", "constructor_delegation_call"})
+_KOTLIN_DOC_COMMENT_NODE_TYPES = frozenset({"multiline_comment"})
+_TYPE_ARGUMENTS = re.compile(r"<[^<>]*>")
+# A package segment is lower case; an outer type's name before a nested one is kept, so
+# ``PublicKeyCredentialEntry.Builder`` and ``PasswordCredentialEntry.Builder`` stay apart.
+_KOTLIN_PACKAGE_QUALIFIER = re.compile(r"\b[a-z_][\w`]*\.(?=[\w`])")
 # C# declarations csharp-ls reports as document symbols, and the LSP kind it gives each.
 _CSHARP_NAMESPACE_NODE_TYPES = frozenset({"namespace_declaration", "file_scoped_namespace_declaration"})
 _CSHARP_SYMBOL_KINDS: dict[str, int] = {
@@ -361,6 +465,16 @@ class ParsedSource:
 
 
 @dataclass(frozen=True)
+class KotlinDeclarations:
+    """What the Kotlin server's document symbols leave out, by the LSP position each symbol starts at."""
+
+    kinds: dict[tuple[int, int], NodeType]
+    """Interfaces, enums and enum entries, which the server reports as plain classes."""
+    signatures: dict[tuple[int, int], str]
+    """Each function and constructor's parameter types, ``(Int, String)``, an extension's receiver first."""
+
+
+@dataclass(frozen=True)
 class SourceUsageIndex:
     construction_start_positions: set[tuple[int, int]]
     # Each name bound to a function literal, to where the literal starts.
@@ -433,13 +547,13 @@ class SourceInspector:
         parsed = self._parse(file_path)
         if parsed is None:
             return ""
-        column = parsed.byte_column(line, character)
-        name = parsed.tree.root_node.named_descendant_for_point_range((line, column), (line, column))
+        row, column = line, parsed.byte_column(line, character)
+        name = parsed.tree.root_node.named_descendant_for_point_range((row, column), (row, column))
         declaration = name.parent if name is not None else None
         if (
             name is None
             or declaration is None
-            or name.start_point != (line, column)
+            or name.start_point != (row, column)
             or declaration.child_by_field_name("name") != name
             or (
                 declaration.child_by_field_name("parameters") is None
@@ -484,6 +598,63 @@ class SourceInspector:
             seen.add(pos)
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
+
+    def cpp_local_callables(self, file_path: Path) -> list[dict]:
+        """Source ranges for lambdas and friend definitions missing from clangd's document outline."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+        symbols = []
+        for node in self._walk(parsed.tree.root_node):
+            detail = ""
+            if node.type == "lambda_expression":
+                name_node = node
+                row, col = parsed.lsp_position(node.start_point)
+                name = f"lambda@{row + 1}:{col + 1}"
+            elif node.type == "function_definition" and node.parent and node.parent.type == "friend_declaration":
+                declarator = node.child_by_field_name("declarator")
+                if declarator is None:
+                    continue
+                name_node = declarator.child_by_field_name("declarator")
+                if name_node is None:
+                    continue
+                name = parsed.content[name_node.start_byte : name_node.end_byte].decode("utf8")
+                detail = parsed.content[declarator.start_byte : declarator.end_byte].decode("utf8")
+            else:
+                continue
+            start = parsed.lsp_position(node.start_point)
+            end = parsed.lsp_position(node.end_point)
+            selected = parsed.lsp_position(name_node.start_point)
+            symbols.append(
+                {
+                    "name": name,
+                    "kind": NodeType.FUNCTION,
+                    "detail": detail,
+                    "range": {
+                        "start": {"line": start[0], "character": start[1]},
+                        "end": {"line": end[0], "character": end[1]},
+                    },
+                    "selectionRange": {
+                        "start": {"line": selected[0], "character": selected[1]},
+                        "end": {"line": selected[0], "character": selected[1] + 1},
+                    },
+                }
+            )
+        return symbols
+
+    def cpp_has_automatic_storage(self, file_path: Path, line: int, character: int) -> bool:
+        """Whether a local declaration owns its object until scope exit, rather than static/thread storage."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return False
+        point = (line, parsed.byte_column(line, character))
+        node = parsed.tree.root_node.named_descendant_for_point_range(point, point)
+        while node is not None and node.type != "declaration":
+            node = node.parent
+        return node is not None and not any(
+            child.type == "storage_class_specifier" and child.text in {b"static", b"thread_local", b"extern"}
+            for child in node.children
+        )
 
     def find_collection_initializer_sites(self, file_path: Path) -> list[CallSite]:
         """Creations whose braces hold elements rather than property assignments.
@@ -542,6 +713,48 @@ class SourceInspector:
             sites.append(CallSite.from_lsp_position(file=str(file_path), line=position[0], column=position[1]))
         return sites
 
+    def identifier_at(self, file_path: Path, line: int, character: int) -> str | None:
+        """The name, or the ``this`` / ``super`` keyword, starting at a zero-based position."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return None
+        column = parsed.byte_column(line, character)
+        node = parsed.tree.root_node.descendant_for_point_range((line, column), (line, column))
+        if node is None or node.start_point != (line, column) or node.child_count:
+            return None
+        return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+    def call_argument_count(self, file_path: Path, line: int, character: int) -> int | None:
+        """How many arguments the call whose callee is at a zero-based position passes, a trailing lambda included.
+
+        Why: a server that answers a constructor call with its class leaves the overload to be picked by arity.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return None
+        row, column = line, parsed.byte_column(line, character)
+        node = parsed.tree.root_node.named_descendant_for_point_range((row, column), (row, column))
+        for _ in range(6):
+            if node is None or node.type in _ARGUMENT_HOLDER_NODE_TYPES:
+                break
+            node = node.parent
+        if node is None or node.type not in _ARGUMENT_HOLDER_NODE_TYPES:
+            return None
+        count, queue = 0, list(node.named_children)
+        while queue:
+            current = queue.pop(0)
+            if current.type == "value_arguments":
+                count += sum(1 for child in current.named_children if child.type == "value_argument")
+            elif (
+                current.type in ("annotated_lambda", "lambda_literal")
+                and current.parent is not None
+                and current.parent.type == "call_suffix"
+            ):
+                count += 1
+            elif current.type == "call_suffix":
+                queue.extend(current.named_children)
+        return count
+
     def declares_function_value(self, file_path: Path, line: int, character: int) -> bool:
         """Whether the declaration at this position is a name bound to a function literal.
 
@@ -574,12 +787,12 @@ class SourceInspector:
         parsed = self._parse(file_path)
         if parsed is None:
             return (line, character)
-        column = parsed.byte_column(line, character)
-        node = self._smallest_named_node_covering_range(parsed.tree.root_node, line, column, column)
+        row, column = line, parsed.byte_column(line, character)
+        node = self._smallest_named_node_covering_range(parsed.tree.root_node, row, column, column)
         while node is not None and node.type not in _DECORATION_NODE_TYPES:
             node = node.parent
         while node is not None and node.parent is not None:
-            declared = node.parent.child_by_field_name("name") or self._following_declaration_name(node)
+            declared = self._declared_name(node.parent) or self._following_declaration_name(node)
             if declared is not None:
                 return parsed.lsp_position(declared.start_point)
             node = node.parent
@@ -641,6 +854,42 @@ class SourceInspector:
                 sites.append(CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1]))
         return sites
 
+    def find_runtime_reference_sites(self, file_path: Path) -> list[CallSite]:
+        """Types and variants inspected by handlers, type tests, and patterns, without invoking them."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+        lowercase_bindings = file_path.suffix.lower() in _LOWERCASE_BINDING_SUFFIXES
+        positions: set[tuple[int, int]] = set()
+        for node in self._walk(parsed.tree.root_node):
+            field = _RUNTIME_TYPE_FIELDS.get(node.type)
+            if field is not None:
+                operands = node.children_by_field_name(field)
+                if not operands and node.type == "type_pattern":
+                    # Java's type pattern holds its type unlabelled, ahead of the binding.
+                    operands = node.named_children[:-1]
+            elif node.type in _RUNTIME_TYPE_GROUPS:
+                operands = [node]
+            elif node.type == "catch_block":
+                operands = [child for child in node.named_children if child.type == "user_type"]
+            elif node.type in {"binary_expression", "check_expression", "is_expression"} and any(
+                child.type in _TYPE_TEST_OPERATORS for child in node.children
+            ):
+                operands = node.named_children[-1:]
+            else:
+                continue
+            for operand in operands:
+                for name in self._runtime_reference_names(operand):
+                    if lowercase_bindings and name.type == "identifier" and not (name.text or b"")[:1].isupper():
+                        continue
+                    target = self._select_query_node(name)
+                    if target is not None:
+                        positions.add(parsed.lsp_position(target.start_point))
+        return [
+            CallSite.from_lsp_position(file=str(file_path), line=line, column=column)
+            for line, column in sorted(positions)
+        ]
+
     def find_member_sites(self, file_path: Path, names: Collection[str]) -> tuple[list[CallSite], list[CallSite]]:
         """Positions of the members read, and of the members written, under one of *names*.
 
@@ -700,6 +949,35 @@ class SourceInspector:
             return []
         return self._value_names(candidate) if candidate is not None else []
 
+    def _runtime_reference_names(self, node: TreeSitterNode) -> list[TreeSitterNode]:
+        """Names in a matching operand; definition resolution rejects any that are bindings."""
+        if node.type in _RUNTIME_REFERENCE_NAMES:
+            return [node]
+        if node.type == "as_pattern":
+            return self._runtime_reference_names(node.named_children[0])
+        if node.type == "dotted_name":
+            # A bare name in a Python case pattern is a capture and a dotted one a value; only a class pattern names a type.
+            return []
+        if node.type == "class_pattern":
+            return node.named_children[:1] + [
+                name for child in node.named_children[1:] for name in self._runtime_reference_names(child)
+            ]
+        if node.type == "keyword_pattern":
+            held = node.named_children[1:]
+        elif node.type == "field_pattern":
+            held = node.children_by_field_name("pattern")
+        elif node.type == "captured_pattern":
+            held = node.named_children[-1:]
+        elif node.type == "struct_pattern":
+            held = node.children_by_field_name("type")
+            # Nested variants are dependencies too, but field names and bindings are not.
+            held += [child for child in node.named_children if child.type.endswith("_pattern")]
+        elif node.type in _RUNTIME_REFERENCE_WRAPPERS:
+            held = [child for child in node.named_children if child != node.child_by_field_name("condition")]
+        else:
+            return []
+        return [name for child in held for name in self._runtime_reference_names(child)]
+
     def _value_names(self, value: TreeSitterNode) -> list[TreeSitterNode]:
         """The names this value is, or holds, that could denote something callable.
 
@@ -730,7 +1008,7 @@ class SourceInspector:
             return None
         for sibling in parent.named_children:
             if sibling.start_byte >= node.end_byte:
-                name = sibling.child_by_field_name("name")
+                name = SourceInspector._declared_name(sibling)
                 if name is not None:
                     return name
         return None
@@ -819,7 +1097,7 @@ class SourceInspector:
         setter_positions: set[tuple[int, int]] = set()
         overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
         for node in self._walk(parsed.tree.root_node):
-            binding = self._function_value_binding(node)
+            binding = self._function_value_binding(node, file_path)
             if binding is not None:
                 name, literal = binding
                 function_values[parsed.lsp_position(name.start_point)] = parsed.lsp_position(literal.start_point)
@@ -860,7 +1138,9 @@ class SourceInspector:
         self._usage_index_cache[file_key] = usage_index
         return usage_index
 
-    def _function_value_binding(self, node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode] | None:
+    def _function_value_binding(
+        self, node: TreeSitterNode, file_path: Path
+    ) -> tuple[TreeSitterNode, TreeSitterNode] | None:
         """The name a binding declares and the function literal it binds that name to, when it binds one."""
         if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
             return None
@@ -876,7 +1156,14 @@ class SourceInspector:
                 value = value.child_by_field_name(_VALUE_FIELD_BY_BINDING[value.type])
         if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
             return None
-        name = node.child_by_field_name("name") or node.child_by_field_name("key") or node.child_by_field_name("left")
+        if value.type == "lambda_expression" and file_path.suffix.lower() not in LANGUAGE_EXTENSIONS[Language.CPP]:
+            return None
+        name = (
+            node.child_by_field_name("name")
+            or node.child_by_field_name("key")
+            or node.child_by_field_name("left")
+            or node.child_by_field_name("declarator")
+        )
         if name is not None and name.type in _VALUE_GROUP_NODE_TYPES and len(name.named_children) == 1:
             name = name.named_children[0]
         # ``this.onMove = () => ...`` binds the member.
@@ -928,6 +1215,9 @@ class SourceInspector:
             previous = node.prev_named_sibling
             return previous is not None and previous.type == "super"
         access = node.child_by_field_name("function") or node
+        field = access.child_by_field_name("field")
+        if access.type == "qualified_identifier" or (field is not None and field.type == "qualified_identifier"):
+            return True
         receiver = next(
             (found for field in ("object", "scope", "expression") if (found := access.child_by_field_name(field))),
             # C# leaves ``base`` in ``base.M`` under no field.
@@ -948,8 +1238,9 @@ class SourceInspector:
         if factory is None:
             return None
         if suffix not in self._parser_by_suffix:
+            language = factory()
             parser = Parser()
-            parser.language = TreeSitterLanguage(factory())
+            parser.language = language if isinstance(language, TreeSitterLanguage) else TreeSitterLanguage(language)
             self._parser_by_suffix[suffix] = parser
         return self._parser_by_suffix[suffix]
 
@@ -993,8 +1284,16 @@ class SourceInspector:
                 or node.child_by_field_name("constructor")
                 or node.child_by_field_name("name")
             )
+            if function is None and node.type in _UNLABELLED_CALL_NODE_TYPES and node.named_children:
+                function = node.named_children[0]
+                # ``run(x) { ... }`` hands a trailing lambda to the call inside, already a site of its own.
+                if function.type in _UNLABELLED_CALL_NODE_TYPES:
+                    return None
             return self._select_query_node(function)
         if node.type in _CONSTRUCTOR_NODE_TYPES:
+            user_type = self._kotlin_user_type(node)
+            if user_type is not None:
+                return self._kotlin_type_name(user_type)
             for field_name in _CONSTRUCTOR_FIELD_NAMES:
                 target = self._select_query_node(node.child_by_field_name(field_name))
                 if target is not None:
@@ -1007,14 +1306,22 @@ class SourceInspector:
         if node.type in _CONSTRUCTOR_INITIALIZER_NODE_TYPES:
             # ``: this(...)`` / ``: base(...)`` — the keyword is what the server
             # resolves to the delegated constructor.
-            return next((child for child in node.children if child.type in ("this", "base")), None)
+            return next((child for child in node.children if child.type in _CONSTRUCTOR_DELEGATION_KEYWORDS), None)
         if node.type in _IMPLICIT_CONSTRUCTOR_NODE_TYPES:
             # Target-typed ``new(...)``: the type lives on the assignment target,
             # so the only thing to query is the keyword itself. The server knows
             # what it infers to and answers with the constructor.
             return next((child for child in node.children if child.type == "new"), None)
         if node.type in _METHOD_REFERENCE_NODE_TYPES:
+            # Kotlin's ``Dog::class`` is a class literal, not a reference to a callable.
+            if any(child.type == "class" for child in node.children):
+                return None
             return self._last_named_child_of_type(node, _NAME_NODE_TYPES)
+        if node.type in _MEMBER_ACCESS_NODE_TYPES and node.named_children:
+            suffix = node.named_children[-1]
+            if suffix.type in _NAVIGATION_SUFFIX_NODE_TYPES and any(child.type == "::" for child in suffix.children):
+                # ``this::class`` names no member, so its suffix holds no name.
+                return next((child for child in suffix.named_children if child.type in _NAME_NODE_TYPES), None)
         if node.type in _MACRO_INVOCATION_NODE_TYPES:
             return self._select_query_node(node.child_by_field_name("macro"))
         if node.type in _JSX_ELEMENT_NODE_TYPES:
@@ -1057,31 +1364,140 @@ class SourceInspector:
 
         declarations: list[tuple[str, list[str]]] = []
         for node in self._walk(parsed.tree.root_node):
+            owner = self._kotlin_enum_entry_owner(node)
+            if owner is not None:
+                entry, enum = owner
+                declarations.append((text(entry), [text(enum)]))
+                continue
             if node.type not in _TYPE_DECLARATION_NODE_TYPES:
                 continue
-            name_node = node.child_by_field_name("name")
+            name_node = self._declared_name(node)
             if name_node is None:
                 continue
-            bases = [
-                text(self._select_query_node(base) or base)
-                for child in node.children
-                if child.type in _BASE_LIST_NODE_TYPES
-                for base in self._base_type_nodes(child)
-            ]
+            bases = [text(self._select_query_node(base) or base) for base in self._base_type_nodes(node)]
             if bases:
                 declarations.append((text(name_node), bases))
         return declarations
 
-    @staticmethod
-    def _base_type_nodes(base_list: TreeSitterNode) -> list[TreeSitterNode]:
-        """The individual base types in a base list, past the wrappers grammars add."""
-        nodes: list[TreeSitterNode] = []
-        for base in base_list.named_children:
-            if base.type in _BASE_GROUP_NODE_TYPES:
-                nodes.extend(base.named_children)
+    def find_derived_type_names(self, file_path: Path) -> set[str]:
+        """Every type name something in the file derives from.
+
+        That is a declared type's bases, the type an anonymous class body extends, and the enum a Java enum constant
+        with a body subclasses. Why: a member is only ever implemented in a type that derives from its owner, so an
+        owner no file names here has no implementation to ask the server for.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return set()
+
+        def simple_name(node: TreeSitterNode) -> str:
+            # ``Outer<T>.@Nullable Factory<Map.Entry<K, V>>`` names ``Factory``: drop the type arguments, innermost
+            # first, then the qualifier, then any annotation written before the name.
+            written = parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+            while _TYPE_ARGUMENTS.search(written):
+                written = _TYPE_ARGUMENTS.sub("", written)
+            return written.rsplit(".", 1)[-1].split()[-1]
+
+        names: set[str] = set()
+        for node in self._walk(parsed.tree.root_node):
+            if node.type in _TYPE_DECLARATION_NODE_TYPES:
+                names.update(simple_name(base) for base in self._base_type_nodes(node))
+            if not any(child.type == "class_body" for child in node.named_children):
                 continue
-            nodes.append(base.child_by_field_name("type") or base)
+            if node.type == "object_creation_expression" and (created := node.child_by_field_name("type")):
+                names.add(simple_name(created))
+            elif node.type == "enum_constant" and node.parent is not None and node.parent.parent is not None:
+                enum = node.parent.parent.child_by_field_name("name")
+                if enum is not None:
+                    names.add(simple_name(enum))
+        return names
+
+    def find_base_type_sites(self, file_path: Path) -> list[tuple[tuple[int, int], list[tuple[int, int]]]]:
+        """Each type the file declares, by its name's position, with the positions naming its bases.
+
+        Why positions: a base is written by its simple name, which several types can share, so only a
+        definition query at the name tells which of them it is.
+        """
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return []
+
+        declarations: list[tuple[tuple[int, int], list[tuple[int, int]]]] = []
+        for node in self._walk(parsed.tree.root_node):
+            owner = self._kotlin_enum_entry_owner(node)
+            if owner is not None:
+                entry, enum = owner
+                declarations.append((parsed.lsp_position(entry.start_point), [parsed.lsp_position(enum.start_point)]))
+                continue
+            if node.type not in _TYPE_DECLARATION_NODE_TYPES:
+                continue
+            name_node = self._declared_name(node)
+            if name_node is None:
+                continue
+            bases = [
+                parsed.lsp_position((self._select_query_node(base) or base).start_point)
+                for base in self._base_type_nodes(node)
+            ]
+            if bases:
+                declarations.append((parsed.lsp_position(name_node.start_point), bases))
+        return declarations
+
+    @staticmethod
+    def _base_type_nodes(declaration: TreeSitterNode) -> list[TreeSitterNode]:
+        """The individual base types a type declaration names, past the wrappers grammars add."""
+        nodes: list[TreeSitterNode] = []
+        for child in declaration.children:
+            if child.type in _DELEGATION_SPECIFIER_NODE_TYPES:
+                user_type = SourceInspector._kotlin_user_type(child)
+                name = SourceInspector._kotlin_type_name(user_type) if user_type is not None else None
+                if name is not None:
+                    nodes.append(name)
+                continue
+            if child.type not in _BASE_LIST_NODE_TYPES:
+                continue
+            for base in child.named_children:
+                if base.type == "access_specifier":
+                    continue
+                if base.type in _BASE_GROUP_NODE_TYPES:
+                    nodes.extend(base.named_children)
+                else:
+                    nodes.append(base.child_by_field_name("type") or base)
         return nodes
+
+    @staticmethod
+    def _kotlin_enum_entry_owner(node: TreeSitterNode) -> tuple[TreeSitterNode, TreeSitterNode] | None:
+        """The names of a Kotlin enum entry with a body and of its enum, which that body subclasses."""
+        if node.type != "enum_entry" or not any(child.type == "class_body" for child in node.named_children):
+            return None
+        entry = next((child for child in node.named_children if child.type in _NAME_NODE_TYPES), None)
+        body = node.parent
+        enum = SourceInspector._declared_name(body.parent) if body is not None and body.parent is not None else None
+        return (entry, enum) if entry is not None and enum is not None else None
+
+    @staticmethod
+    def _declared_name(node: TreeSitterNode) -> TreeSitterNode | None:
+        """The name a declaration declares; Kotlin's grammar labels none, so there it is the first name under it."""
+        name = node.child_by_field_name("name")
+        if name is not None or node.type not in _KOTLIN_NAMED_DECLARATION_NODE_TYPES:
+            return name
+        return next((child for child in node.named_children if child.type in _NAME_NODE_TYPES), None)
+
+    @staticmethod
+    def _kotlin_type_name(user_type: TreeSitterNode) -> TreeSitterNode | None:
+        """The last segment of ``a.b.Base<T>``, which names the type; its arguments name other types."""
+        names = [child for child in user_type.named_children if child.type in _NAME_NODE_TYPES]
+        return names[-1] if names else None
+
+    @staticmethod
+    def _kotlin_user_type(node: TreeSitterNode) -> TreeSitterNode | None:
+        """The outermost ``user_type`` under *node*, searched breadth first."""
+        queue = list(node.named_children)
+        while queue:
+            current = queue.pop(0)
+            if current.type in _KOTLIN_USER_TYPE_NODE_TYPES:
+                return current
+            queue.extend(current.named_children)
+        return None
 
     def find_member_modifiers(self, file_path: Path) -> dict[tuple[str, str], frozenset[str]]:
         """C# modifiers on each ``(declaring type, member)`` the file declares.
@@ -1117,6 +1533,83 @@ class SourceInspector:
                     found.add("explicit")
                 modifiers[(type_name, text(member_name_node))] = frozenset(found)
         return modifiers
+
+    def kotlin_declarations(self, file_path: Path) -> KotlinDeclarations:
+        """Kinds and signatures of the declarations a Kotlin file makes.
+
+        Why: the server names overloads, and a class's constructors, all alike, so without
+        the parameter types the second declaration of a name replaces the first. A
+        constructor has no name of its own, so it is keyed where it starts, and also where
+        the KDoc above it starts, since the server counts that comment as part of it.
+        """
+        kinds: dict[tuple[int, int], NodeType] = {}
+        signatures: dict[tuple[int, int], str] = {}
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return KotlinDeclarations(kinds, signatures)
+
+        def text(node: TreeSitterNode) -> str:
+            return parsed.content[node.start_byte : node.end_byte].decode("utf8", "replace")
+
+        def render_type(node: TreeSitterNode) -> str:
+            # A function type's arrow is set aside first: its ``>`` would otherwise close a type argument.
+            rendered = " ".join(text(node).split()).replace("->", "\0")
+            while _TYPE_ARGUMENTS.search(rendered):
+                rendered = _TYPE_ARGUMENTS.sub("", rendered)
+            return _KOTLIN_PACKAGE_QUALIFIER.sub("", rendered).replace("\0", "->")
+
+        def parameter_types(node: TreeSitterNode, receiver: TreeSitterNode | None) -> str:
+            params = next(
+                (child for child in node.named_children if child.type in _KOTLIN_PARAMETER_LIST_NODE_TYPES), node
+            )
+            types = [render_type(receiver)] if receiver is not None else []
+            for param in params.named_children:
+                if param.type not in _KOTLIN_PARAMETER_NODE_TYPES:
+                    continue
+                declared = next(
+                    (child for child in param.named_children if child.type not in _KOTLIN_PARAMETER_PART_NODE_TYPES),
+                    None,
+                )
+                if declared is not None:
+                    types.append(render_type(declared))
+            return f"({', '.join(types)})"
+
+        for node in self._walk(parsed.tree.root_node):
+            if node.type in _KOTLIN_FUNCTION_NODE_TYPES:
+                name = self._declared_name(node)
+                if name is None:
+                    continue
+                # An extension's receiver is the type written before the name: ``fun List<T>.second()``.
+                receiver = next(
+                    (
+                        child
+                        for child in node.named_children
+                        if child.end_byte <= name.start_byte and child.type not in ("modifiers", "type_parameters")
+                    ),
+                    None,
+                )
+                signatures[parsed.lsp_position(name.start_point)] = parameter_types(node, receiver)
+            elif node.type in _KOTLIN_CONSTRUCTOR_NODE_TYPES:
+                signature = parameter_types(node, None)
+                signatures[parsed.lsp_position(node.start_point)] = signature
+                doc = node.prev_named_sibling
+                if doc is not None and doc.type in _KOTLIN_DOC_COMMENT_NODE_TYPES and text(doc).startswith("/**"):
+                    signatures[parsed.lsp_position(doc.start_point)] = signature
+            elif node.type == "class_declaration":
+                name = self._declared_name(node)
+                if name is None:
+                    continue
+                if any(child.type == "interface" for child in node.children):
+                    kinds[parsed.lsp_position(name.start_point)] = NodeType.INTERFACE
+                elif any(child.type == "enum" for child in node.children):
+                    kinds[parsed.lsp_position(name.start_point)] = NodeType.ENUM
+            elif node.type == "enum_entry":
+                name = next((child for child in node.named_children if child.type in _NAME_NODE_TYPES), None)
+                if name is not None:
+                    # An entry with a body subclasses its enum, so it is a class of its own.
+                    with_body = self._kotlin_enum_entry_owner(node) is not None
+                    kinds[parsed.lsp_position(name.start_point)] = NodeType.CLASS if with_body else NodeType.ENUM_MEMBER
+        return KotlinDeclarations(kinds, signatures)
 
     def find_document_symbols(self, file_path: Path) -> list[dict]:
         """C# document symbols read from the parse tree, shaped like csharp-ls reports them.

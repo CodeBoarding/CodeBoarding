@@ -15,7 +15,7 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry, MethodIndexEntry
 from agents.relation_edges import merge_relations_by_pair
-from repo_utils.path_utils import normalize_repo_path
+from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
 
@@ -528,7 +528,10 @@ def parse_unified_analysis(
     root_analysis.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
     _hydrate_component_methods_from_refs(root_analysis, methods_index)
     for sub in sub_analyses.values():
-        sub.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items()}
+        # Same shape a live scope gets from ``build_files_index``: only the files its components
+        # own. The root carries the whole index, so a save loses nothing.
+        owned = {group.file_path for component in sub.components for group in component.file_methods}
+        sub.files = {path: FileEntry().merge_from(entry) for path, entry in files_index.items() if path in owned}
         _hydrate_component_methods_from_refs(sub, methods_index)
 
     return root_analysis, sub_analyses

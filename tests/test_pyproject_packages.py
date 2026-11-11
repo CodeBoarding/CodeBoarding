@@ -28,17 +28,10 @@ def _declared_packages() -> set[str]:
     return set(data["tool"]["setuptools"]["packages"])
 
 
-def _declared_modules() -> set[str]:
-    """Return the modules listed in pyproject.toml [tool.setuptools] py-modules."""
-    pyproject_path = REPO_ROOT / "pyproject.toml"
-    with open(pyproject_path, "rb") as f:
-        data = tomllib.load(f)
-    return set(data["tool"]["setuptools"]["py-modules"])
-
-
 class TestPyprojectPackages(unittest.TestCase):
     def test_shared_clustering_ids_module_is_packaged(self):
-        self.assertIn("clustering_ids", _declared_modules())
+        self.assertIn("infra", _declared_packages())
+        self.assertTrue((REPO_ROOT / "infra" / "clustering_ids.py").is_file())
 
     def test_all_packages_declared_in_pyproject(self):
         on_disk = _find_packages_on_disk()

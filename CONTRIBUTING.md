@@ -29,6 +29,8 @@ CodeBoarding is an early-stage project, and we love contributors! :heart:
 
 ## 4) Development setup (for contributors)
 
+### Local setup
+
 For active contributors who want to modify the code:
 
 ```bash
@@ -46,6 +48,19 @@ The pre-commit hooks will automatically format your code with Black before each 
 
 For regular users who just want to run the analysis, use `uv sync --frozen` instead (see README).
 
+### Dev Containers / GitHub Codespaces
+
+CodeBoarding provides a development container for VS Code and GitHub Codespaces.
+
+- **VS Code:** with Docker and the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension installed, open the repository and run **Dev Containers: Reopen in Container**.
+- **GitHub Codespaces:** create a Codespace from the repository's **Code → Codespaces** menu.
+
+The container automatically installs the project's development dependencies, language servers, and pre-commit hooks. To run analyses, configure your LLM provider credentials as described in the [README](README.md#configuration).
+
+**Current limitations:** Full analysis is unavailable on ARM64; tests and development checks remain usable. Java, .NET, Go, and Rust toolchains are not bundled.
+
+See [`.devcontainer/README.md`](.devcontainer/README.md) for the local host-mount config, Claude Code and SSH setup, port forwarding, and CI details.
+
 ---
 
 ## 5) Adding a new language
@@ -60,12 +75,13 @@ Adding language support requires changes across several files. Use [PR #276 (Rus
 | `static_analyzer/engine/adapters/__init__.py` | Import the adapter and add it to `ADAPTER_REGISTRY`. |
 | `static_analyzer/config.py` | Add a value to the `Language` enum. Qualified names use the universal `.` delimiter defined in `ClusteringConfig.QUALIFIED_NAME_DELIMITER`. |
 | `static_analyzer/__init__.py` | Add a mapping in `_lang_to_adapter_name()` from the `ProgrammingLanguage` name to the adapter registry key. |
-| `vscode_constants.py` | Add an LSP server config entry to `VSCODE_CONFIG["lsp_servers"]` with the server name, command, languages, file extensions, and install command. |
-| `tool_registry/registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
+| `infra/vscode_constants.py` | Add an LSP server config entry to `VSCODE_CONFIG["lsp_servers"]` with the server name, command, languages, file extensions, and install command. |
+| `infra/tool_registry/registry.py` | Add a `ToolDependency` entry to `TOOL_REGISTRY` (see below). |
+| `static_analyzer/engine/source_inspector.py` + `pyproject.toml` | Add the language's `tree-sitter-<lang>` grammar: call sites are found in its parse tree and resolved through `textDocument/definition`. Check that its call, member-access and type-declaration node shapes are recognised. A grammar with no current wheel of its own can come from `tree-sitter-language-pack`, as Kotlin's does (`infra/tool_registry/grammars.py`); setup downloads it. |
 
 ### 5b) Registering the LSP server dependency
 
-The LSP server must be registered in `tool_registry/registry.py` so it gets installed automatically. The `ToolDependency` entry depends on how the server is distributed:
+The LSP server must be registered in `infra/tool_registry/registry.py` so it gets installed automatically. The `ToolDependency` entry depends on how the server is distributed:
 
 **npm package** (e.g. pyright, typescript-language-server) — no pipeline update needed:
 ```python
@@ -95,6 +111,27 @@ ToolDependency(
     archive_subdir="jdtls",
 )
 ```
+
+**Release archive with a launcher** (e.g. kotlin-lsp) — a zip or tarball per platform whose launcher is run from inside it:
+```python
+ToolDependency(
+    key="kotlin",
+    binary_name="intellij-server",
+    kind=ToolKind.ARCHIVE,
+    config_section=ConfigSection.LSP_SERVERS,
+    source=UpstreamToolSource(
+        tag="<version>",
+        url_template="https://example.com/{version}/{asset}",
+        asset_arch_overrides={("Linux", "x86_64"): "server-<version>.tar.gz", ...},
+        sha256={"server-<version>.tar.gz": "...", ...},
+    ),
+    archive_subdir="kotlin-lsp",
+    archive_entry="bin/intellij-server",
+    license_url=KOTLIN_LSP_LICENSE_URL,
+)
+```
+
+kotlin-lsp itself reads its version and checksums from `infra/tool_registry/kotlin-server-1.json`, because each build stops starting about 30 days after it was made. Installed Core reads that file from `main`, so do not move it. The nightly "Kotlin server" workflow opens a pull request for each new build, and merging that pull request publishes the build with no release.
 
 **Built from source** (e.g. gopls, tokei) — no upstream binaries, needs pipeline:
 ```python

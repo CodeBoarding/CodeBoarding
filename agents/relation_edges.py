@@ -4,8 +4,8 @@ from collections.abc import Callable, Collection
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
-from clustering_ids import is_self_or_descendant
-from repo_utils.path_utils import normalize_repo_path
+from infra.clustering_ids import is_self_or_descendant
+from infra.repo_utils.path_utils import normalize_repo_path
 
 
 def append_or_merge_relation(

@@ -8,7 +8,7 @@ from health.models import (
     Severity,
     StandardCheckSummary,
 )
-from repo_utils.ignore import RepoIgnoreManager
+from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.cfg import CallGraph
 
 logger = logging.getLogger(__name__)

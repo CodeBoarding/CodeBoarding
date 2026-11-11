@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from static_analyzer.engine.utils import uri_to_path
-from tool_registry.paths import is_wsl
+from infra.tool_registry.paths import is_wsl
 
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -27,28 +27,28 @@ class TestFileURIParsing(unittest.TestCase):
 
 
 class TestWSLDetection(unittest.TestCase):
-    @patch("tool_registry.paths.Path.read_text", return_value="Linux version 5.15.0 Microsoft")
-    @patch("tool_registry.paths.platform.release", return_value="5.15.0-generic")
-    @patch("tool_registry.paths.platform.system", return_value="Linux")
+    @patch("infra.tool_registry.paths.Path.read_text", return_value="Linux version 5.15.0 Microsoft")
+    @patch("infra.tool_registry.paths.platform.release", return_value="5.15.0-generic")
+    @patch("infra.tool_registry.paths.platform.system", return_value="Linux")
     def test_detects_proc_version_microsoft_marker(self, mock_system, mock_release, mock_read_text):
         self.assertTrue(is_wsl())
 
-    @patch("tool_registry.paths.Path.read_text", side_effect=OSError("missing /proc/version"))
-    @patch("tool_registry.paths.platform.release", return_value="5.15.90.1-microsoft-standard-WSL2")
-    @patch("tool_registry.paths.platform.system", return_value="Linux")
+    @patch("infra.tool_registry.paths.Path.read_text", side_effect=OSError("missing /proc/version"))
+    @patch("infra.tool_registry.paths.platform.release", return_value="5.15.90.1-microsoft-standard-WSL2")
+    @patch("infra.tool_registry.paths.platform.system", return_value="Linux")
     def test_detects_release_wsl_marker(self, mock_system, mock_release, mock_read_text):
         self.assertTrue(is_wsl())
         mock_read_text.assert_not_called()
 
-    @patch("tool_registry.paths.Path.read_text", return_value="Linux version 6.8.0 generic")
-    @patch("tool_registry.paths.platform.release", return_value="6.8.0-generic")
-    @patch("tool_registry.paths.platform.system", return_value="Linux")
+    @patch("infra.tool_registry.paths.Path.read_text", return_value="Linux version 6.8.0 generic")
+    @patch("infra.tool_registry.paths.platform.release", return_value="6.8.0-generic")
+    @patch("infra.tool_registry.paths.platform.system", return_value="Linux")
     def test_native_linux_is_not_wsl(self, mock_system, mock_release, mock_read_text):
         self.assertFalse(is_wsl())
 
-    @patch("tool_registry.paths.Path.read_text")
-    @patch("tool_registry.paths.platform.release", return_value="23.0.0")
-    @patch("tool_registry.paths.platform.system", return_value="Darwin")
+    @patch("infra.tool_registry.paths.Path.read_text")
+    @patch("infra.tool_registry.paths.platform.release", return_value="23.0.0")
+    @patch("infra.tool_registry.paths.platform.system", return_value="Darwin")
     def test_non_linux_is_not_wsl(self, mock_system, mock_release, mock_read_text):
         self.assertFalse(is_wsl())
         mock_read_text.assert_not_called()

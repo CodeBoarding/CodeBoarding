@@ -41,6 +41,7 @@ def _make_adapter() -> MagicMock:
     adapter = MagicMock()
     adapter.is_callable.side_effect = lambda k: k in (NodeType.FUNCTION, NodeType.METHOD)
     adapter.is_class_like.side_effect = lambda k: k == NodeType.CLASS
+    adapter.resolves_bases_by_definition = False
     return adapter
 
 
@@ -77,25 +78,25 @@ class TestBuildWithTypeHierarchy:
         assert "mod.Animal" in hierarchy["mod.Dog"]["superclasses"]
         assert "mod.Dog" in hierarchy["mod.Animal"]["subclasses"]
 
-    def test_builds_hierarchy_from_lsp_subtypes(self):
+    def test_subtypes_are_never_asked_for(self):
+        """Each class's supertypes give every link both ways; JDTLS spent half an hour of JabRef's run on subtypes."""
         adapter = _make_adapter()
         parent = _sym("Animal", "mod.Animal", NodeType.CLASS, start_line=0)
         child = _sym("Cat", "mod.Cat", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
-        lsp.type_hierarchy_prepare.side_effect = lambda fp, line, char: [{"name": "stub", "uri": fp.as_uri()}]
-        lsp.type_hierarchy_supertypes.return_value = []
-        lsp.type_hierarchy_subtypes.side_effect = lambda item: [
-            {"name": "Cat", "uri": MOD_PATH.as_uri(), "selectionRange": {"start": {"line": 10}}}
-        ]
+        lsp.type_hierarchy_prepare.side_effect = lambda fp, line, char: [{"name": "Cat" if line else "Animal"}]
+        lsp.type_hierarchy_supertypes.side_effect = lambda item: (
+            [{"name": "Animal", "uri": MOD_PATH.as_uri(), "selectionRange": {"start": {"line": 0}}}]
+            if item["name"] == "Cat"
+            else []
+        )
 
-        si = SourceInspector()
-        builder = HierarchyBuilder(lsp, st, si, adapter)
-        hierarchy = builder.build()
+        hierarchy = HierarchyBuilder(lsp, st, SourceInspector(), adapter).build()
 
-        assert "mod.Cat" in hierarchy["mod.Animal"]["subclasses"]
-        assert "mod.Animal" in hierarchy["mod.Cat"]["superclasses"]
+        lsp.type_hierarchy_subtypes.assert_not_called()
+        assert hierarchy["mod.Animal"]["subclasses"] == ["mod.Cat"]
 
     def test_no_duplicates_in_hierarchy(self):
         adapter = _make_adapter()
@@ -234,6 +235,21 @@ class TestBuildWithSourceInference:
         hierarchy = builder.build()
 
         assert "mod.Base" in hierarchy["mod.Child"]["superclasses"]
+
+    def test_a_base_outside_the_engine_is_kept_for_the_merge(self):
+        """A class extending another project's: no candidate here, but the name is what the merge links."""
+        adapter = _make_adapter()
+        child = _sym("Child", "mod.Child", NodeType.CLASS, fpath=MOD_PHP_PATH, start_line=5)
+        st = _setup_symbol_table(adapter, [child])
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.return_value = None
+        si = MagicMock(spec=SourceInspector)
+        si.get_source_line.side_effect = lambda fp, line: {5: "class Child extends Base {"}.get(line)
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["mod.Child"]["superclasses"] == []
+        assert hierarchy["mod.Child"]["declared_bases"] == ["Base"]
 
     def test_infers_php_implements(self):
         adapter = _make_adapter()
@@ -375,3 +391,77 @@ class TestResolveTypeHierarchyItem:
         }
         result = builder._resolve_type_hierarchy_item(item)
         assert result is None
+
+
+class TestResolveBasesByDefinition:
+    """Servers without typeHierarchy whose bases are resolved where the header names them (Kotlin)."""
+
+    KT = Path("/tmp/test_project/Zoo.kt")
+
+    def _adapter(self) -> MagicMock:
+        adapter = _make_adapter()
+        adapter.resolves_bases_by_definition = True
+        return adapter
+
+    def test_a_base_resolves_to_the_declaration_its_definition_names(self):
+        adapter = self._adapter()
+        animal = _sym("Animal", "zoo.Animal", NodeType.CLASS, self.KT, start_line=0, start_char=6)
+        other_animal = _sym("Animal", "farm.Animal", NodeType.CLASS, Path("/tmp/test_project/Farm.kt"), 0, 6)
+        dog = _sym("Dog", "zoo.Dog", NodeType.CLASS, self.KT, start_line=2, start_char=6)
+        st = _setup_symbol_table(adapter, [animal, other_animal, dog])
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")
+        lsp.send_definition_batch.return_value = [
+            [{"uri": self.KT.as_uri(), "range": {"start": {"line": 0, "character": 6}}}]
+        ]
+        si = MagicMock(spec=SourceInspector)
+        si.find_base_type_sites.side_effect = lambda fp: [((2, 6), [(2, 12)])] if fp == self.KT else []
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["zoo.Dog"]["superclasses"] == ["zoo.Animal"]
+        assert hierarchy["zoo.Animal"]["subclasses"] == ["zoo.Dog"]
+        assert hierarchy["farm.Animal"]["subclasses"] == [], "a same-named type elsewhere is not linked"
+
+    def test_a_base_written_as_a_constructor_call_links_the_class_declaring_it(self):
+        adapter = self._adapter()
+        animal = _sym("Animal", "zoo.Animal", NodeType.CLASS, self.KT, start_line=0, start_char=6)
+        constructor = _sym("Animal(String)", "zoo.Animal.Animal(String)", NodeType.CONSTRUCTOR, self.KT, 0, 12)
+        constructor.owner_qualified_name = "zoo.Animal"
+        dog = _sym("Dog", "zoo.Dog", NodeType.CLASS, self.KT, start_line=2, start_char=6)
+        # The unqualified alias sits at the constructor's location and names no owner.
+        alias = _sym("Animal(String)", "zoo.Animal(String)", NodeType.CONSTRUCTOR, self.KT, 0, 12)
+        st = _setup_symbol_table(adapter, [animal, dog, constructor])
+        st._symbols[alias.qualified_name] = alias
+        st._file_symbols[str(self.KT)].append(alias)
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")
+        lsp.send_definition_batch.return_value = [
+            [{"uri": self.KT.as_uri(), "range": {"start": {"line": 0, "character": 12}}}]
+        ]
+        si = MagicMock(spec=SourceInspector)
+        si.find_base_type_sites.return_value = [((2, 6), [(2, 12)])]
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["zoo.Dog"]["superclasses"] == ["zoo.Animal"]
+
+    def test_a_base_given_by_its_own_declaration_needs_no_query(self):
+        """An enum entry's body subclasses the enum it sits in."""
+        adapter = self._adapter()
+        mode = _sym("Mode", "zoo.Mode", NodeType.ENUM, self.KT, start_line=0, start_char=11)
+        off = _sym("OFF", "zoo.Mode.OFF", NodeType.CLASS, self.KT, start_line=2, start_char=2)
+        st = _setup_symbol_table(adapter, [mode, off])
+        adapter.is_class_like.side_effect = lambda k: k in (NodeType.CLASS, NodeType.ENUM)
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = MethodNotFoundError("not offered")
+        si = MagicMock(spec=SourceInspector)
+        si.find_base_type_sites.return_value = [((2, 2), [(0, 11)])]
+
+        hierarchy = HierarchyBuilder(lsp, st, si, adapter).build()
+
+        assert hierarchy["zoo.Mode.OFF"]["superclasses"] == ["zoo.Mode"]
+        lsp.send_definition_batch.assert_not_called()

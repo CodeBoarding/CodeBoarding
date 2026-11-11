@@ -1,0 +1,904 @@
+"""Tool installers: download, npm install, archive extract, embedded Node bootstrap.
+
+The only module in the package with filesystem side effects.
+"""
+
+import gzip
+import hashlib
+import json
+import logging
+import os
+import platform
+import shutil
+import stat
+import subprocess
+import sys
+import tarfile
+import time
+import zipfile
+from dataclasses import replace
+from pathlib import Path
+from typing import Any, cast
+
+import requests
+
+from .paths import (
+    embedded_node_path,
+    exe_suffix,
+    get_servers_dir,
+    node_version_tuple,
+    nodeenv_root_dir,
+    npm_subprocess_env,
+    platform_bin_dir,
+    preferred_npm_command,
+)
+from .registry import (
+    KOTLIN_LSP_PIN_URL,
+    PINNED_NODE_VERSION,
+    PLATFORM_SUFFIX,
+    TOOL_REGISTRY,
+    GitHubToolSource,
+    PackageManagerToolSource,
+    ProgressCallback,
+    ToolDependency,
+    ToolKind,
+    ToolSource,
+    UpstreamToolSource,
+    kotlin_lsp_build,
+    kotlin_lsp_source,
+)
+
+logger = logging.getLogger(__name__)
+
+PACKAGE_MANAGER_TOOL_STAMP = ".codeboarding-tool.json"
+# The version an archive with a launcher was extracted at, so a version bump replaces it.
+ARCHIVE_VERSION_STAMP = ".codeboarding-version"
+# Broken connections in a row that brought no new bytes before a download gives up.
+DOWNLOAD_MAX_FRUITLESS_ATTEMPTS = 5
+DOWNLOAD_PROGRESS_SECONDS = 30
+KOTLIN_LSP_PIN_TIMEOUT_SECONDS = 5
+
+
+# -- Download primitive -------------------------------------------------------
+
+
+def asset_url(source: ToolSource, asset_name: str) -> str:
+    """Construct the download URL for a tool asset."""
+    if isinstance(source, UpstreamToolSource):
+        return source.url_template.format(version=source.tag, build=source.build, asset=asset_name)
+    if isinstance(source, GitHubToolSource):
+        return f"https://github.com/{source.repo}/releases/download/{source.tag}/{asset_name}"
+    raise TypeError(f"Unknown source type: {type(source)}")
+
+
+def resolve_native_asset_name(source: GitHubToolSource, platform_suffix: str) -> str | None:
+    """Pick the correct release asset filename for this host's (OS, arch).
+
+    Architecture-aware sources (e.g. rust-analyzer) carry an
+    ``asset_arch_overrides`` dict keyed by ``(platform.system(), platform.machine())``;
+    when the current host has an entry there it wins over the templated name.
+
+    Returns ``None`` when the host is unsupported (no override and no
+    ``platform_suffix``) so the caller can log+skip rather than crash.
+    """
+    if source.asset_arch_overrides:
+        key = (platform.system(), platform.machine())
+        override = source.asset_arch_overrides.get(key)
+        if override:
+            return override
+        # Architecture-aware tool but this host's (system, machine) isn't
+        # listed — return None and let install_native_tools log a clear
+        # "unsupported architecture" warning instead of falling through to
+        # the templated name and downloading the wrong binary.
+        return None
+    if not platform_suffix:
+        return None
+    return source.asset_template.format(platform_suffix=platform_suffix)
+
+
+def _is_compressed_asset(asset_name: str) -> bool:
+    """True if the asset filename indicates it needs decompression."""
+    lower = asset_name.lower()
+    return lower.endswith(".gz") or lower.endswith(".zip")
+
+
+def _extract_compressed_binary(archive_path: Path, inner_path: str, target: Path) -> None:
+    """Atomically decompress *archive_path* (format inferred from suffix) into *target*.
+
+    ``.gz`` is a single gzipped binary. ``.zip`` extracts ``inner_path`` if
+    set, otherwise the only ``.exe`` member or — failing that — the only
+    member. Raises ``ValueError`` for unknown suffixes or ambiguous zips.
+
+    The decompressed bytes are written to a sibling ``<target>.extract``
+    temp file and then ``os.replace``-d into place so a crash mid-extract
+    cannot leave a half-written binary at *target*. The temp file is
+    cleaned up on any exception.
+    """
+    suffix = archive_path.suffix.lower()
+    if suffix not in (".gz", ".zip"):
+        raise ValueError(f"Unsupported archive suffix: {suffix!r}")
+
+    temp_target = target.with_name(target.name + ".extract")
+    try:
+        if suffix == ".gz":
+            with gzip.open(archive_path, "rb") as src, open(temp_target, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+        else:  # ".zip"
+            with zipfile.ZipFile(archive_path) as zf:
+                members = zf.namelist()
+                if inner_path:
+                    if inner_path not in members:
+                        raise ValueError(
+                            f"{archive_path.name}: archive_inner_path {inner_path!r} not found " f"(members: {members})"
+                        )
+                    chosen = inner_path
+                else:
+                    exe_members = [m for m in members if m.lower().endswith(".exe")]
+                    if len(exe_members) == 1:
+                        chosen = exe_members[0]
+                    elif len(members) == 1:
+                        chosen = members[0]
+                    else:
+                        raise ValueError(
+                            f"{archive_path.name}: cannot pick a binary automatically "
+                            f"(set archive_inner_path; members: {members})"
+                        )
+                with zf.open(chosen) as src, open(temp_target, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+        os.replace(temp_target, target)
+    except Exception:
+        temp_target.unlink(missing_ok=True)
+        raise
+
+
+def _download_resuming(url: str, temp_dest: Path) -> None:
+    """Download *url* to *temp_dest*, carrying on from the last byte each time the connection breaks.
+
+    Why: CloudFront closes an HTTP/1.1 download after about 6 seconds and ``requests`` has no HTTP/2, so a 360 MB
+    kotlin-lsp archive only arrives over one connection on a very fast link.
+    """
+    received = 0
+    fruitless_attempts = 0
+    last_progress = time.monotonic()
+    while True:
+        attempt_start = received
+        try:
+            headers = {"Range": f"bytes={received}-"} if received else None
+            response = requests.get(url, stream=True, timeout=300, allow_redirects=True, headers=headers)
+            response.raise_for_status()
+            if response.status_code != 206:
+                received = 0  # A host that ignores the range sends the whole file again.
+            with open(temp_dest, "ab" if received else "wb") as f:
+                for chunk in response.iter_content(chunk_size=32768):
+                    if chunk:
+                        f.write(chunk)
+                        received += len(chunk)
+            return
+        except (requests.exceptions.ChunkedEncodingError, requests.ConnectionError):
+            fruitless_attempts = 0 if received > attempt_start else fruitless_attempts + 1
+            if fruitless_attempts >= DOWNLOAD_MAX_FRUITLESS_ATTEMPTS:
+                raise
+            if time.monotonic() - last_progress >= DOWNLOAD_PROGRESS_SECONDS:
+                logger.info("%s: %d MB so far", temp_dest.name, received // 1_000_000)
+                last_progress = time.monotonic()
+
+
+def download_asset(url: str, destination: Path, expected_sha256: str | None = None) -> bool:
+    """Download *url* to *destination* via temp-file + rename. Verifies SHA256 if provided."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temp_dest = destination.with_suffix(destination.suffix + ".download")
+    try:
+        _download_resuming(url, temp_dest)
+        if temp_dest.stat().st_size == 0:
+            temp_dest.unlink(missing_ok=True)
+            return False
+        if expected_sha256:
+            actual = hashlib.sha256(temp_dest.read_bytes()).hexdigest()
+            if actual != expected_sha256:
+                temp_dest.unlink(missing_ok=True)
+                raise ValueError(f"SHA256 mismatch for {destination.name}: expected {expected_sha256}, got {actual}")
+        os.replace(temp_dest, destination)
+        return True
+    except Exception:
+        temp_dest.unlink(missing_ok=True)
+        raise
+
+
+# -- Native binary installer --------------------------------------------------
+
+
+def install_native_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
+    """Download native binaries from their configured sources.
+
+    Supports both pre-extracted binaries (default, e.g. ``tokei``,
+    ``gopls``) and compressed-binary assets (``rust-analyzer``); the
+    archive format is inferred from the asset filename suffix.
+    """
+    system = platform.system()
+    suffix = PLATFORM_SUFFIX.get(system)
+    try:
+        bin_dir = platform_bin_dir(target_dir)
+    except RuntimeError:
+        # ``platform_bin_dir`` raises on hosts not in ``_PLATFORM_BIN_SUBDIR``
+        # (e.g. FreeBSD). Log once and return — without a target directory
+        # we cannot install anything regardless of arch-override status.
+        logger.warning(
+            "Unsupported platform %s/%s; skipping native tool installation.",
+            system,
+            platform.machine(),
+        )
+        return
+    bin_dir.mkdir(parents=True, exist_ok=True)
+
+    downloadable = [d for d in deps if isinstance(d.source, GitHubToolSource)]
+    for i, dep in enumerate(downloadable, 1):
+        if on_progress:
+            on_progress(dep.binary_name, i, len(downloadable))
+        # Mirrored by ``has_required_tools`` so an unsupported host
+        # doesn't loop forever (install skips, check fails, repeat).
+        if not dep.is_available_on_host():
+            logger.warning(
+                "  %s: no release asset for this host (%s/%s); skipping",
+                dep.binary_name,
+                system,
+                platform.machine(),
+            )
+            continue
+        binary_path = bin_dir / f"{dep.binary_name}{exe_suffix()}"
+        if binary_path.exists():
+            # Repair a binary that exists but lost its exec bit (a crash before
+            # the post-download chmod, or a mode-dropping copy/restore) — cheap
+            # vs a re-download, and breaks the "skip forever" EACCES loop.
+            if system != "Windows" and not os.access(binary_path, os.X_OK):
+                try:
+                    os.chmod(binary_path, 0o755)
+                    logger.info("  %s: restored exec bit on existing binary", dep.binary_name)
+                except OSError:
+                    logger.warning(
+                        "  %s: present but not executable and chmod failed (%s); check ownership/mount",
+                        dep.binary_name,
+                        binary_path,
+                    )
+            logger.info("  %s: already installed, skipping", dep.binary_name)
+            continue
+        source = dep.source
+        assert isinstance(source, GitHubToolSource)
+        asset_name = resolve_native_asset_name(source, suffix or "")
+        if asset_name is None:
+            # Defensive: should be unreachable via is_available_on_host above.
+            logger.warning("  %s: resolve_native_asset_name returned None", dep.binary_name)
+            continue
+        url = asset_url(source, asset_name)
+        compressed = _is_compressed_asset(asset_name)
+        # Hash lookup precedence:
+        #   1. ``sha256[asset_name]`` — exact-asset pin (works for any asset
+        #      including compressed; one entry per arch override).
+        #   2. ``sha256[suffix]`` — per-platform pin used by tools we
+        #      republish ourselves (tokei, gopls); only consulted for
+        #      pre-extracted assets so a stale platform-keyed hash doesn't
+        #      get applied to a freshly compressed binary.
+        #   3. ``None`` — no pin, ``download_asset`` skips verification.
+        if asset_name in source.sha256:
+            expected_hash: str | None = source.sha256[asset_name]
+        elif not compressed:
+            expected_hash = source.sha256.get(suffix or "")
+        else:
+            expected_hash = None
+        try:
+            if compressed:
+                archive_path = bin_dir / asset_name
+                if not download_asset(url, archive_path, expected_sha256=expected_hash):
+                    logger.warning("  %s: download failed (empty file)", dep.binary_name)
+                    archive_path.unlink(missing_ok=True)
+                    continue
+                try:
+                    _extract_compressed_binary(archive_path, source.archive_inner_path, binary_path)
+                finally:
+                    archive_path.unlink(missing_ok=True)
+            else:
+                if not download_asset(url, binary_path, expected_sha256=expected_hash):
+                    logger.warning("  %s: download failed (empty file)", dep.binary_name)
+                    binary_path.unlink(missing_ok=True)
+                    continue
+            if system != "Windows":
+                os.chmod(binary_path, 0o755)
+            logger.info("  %s: downloaded successfully", dep.binary_name)
+        except Exception:
+            logger.exception("  %s: download failed", dep.binary_name)
+            binary_path.unlink(missing_ok=True)
+
+
+# -- Package-manager installer (dotnet tool, cargo install, ...) --------------
+
+
+def package_manager_tool_dir(target_dir: Path, dep: ToolDependency) -> Path:
+    """Managed install directory for a PACKAGE_MANAGER tool.
+
+    Layout: ``<target_dir>/bin/<platform>/pm-tools/<subdir>/``. Using a
+    per-tool subdir keeps multiple pm-tools from clobbering each other.
+    """
+    subdir = dep.archive_subdir or dep.key
+    return platform_bin_dir(target_dir) / "pm-tools" / subdir
+
+
+def package_manager_tool_fingerprint(dep: ToolDependency) -> str:
+    """Stable install fingerprint for one PACKAGE_MANAGER tool."""
+    source = dep.source
+    if not isinstance(source, PackageManagerToolSource):
+        return ""
+    return json.dumps(
+        {
+            "key": dep.key,
+            "binary": dep.binary_name,
+            "manager": source.manager_binary,
+            "tag": source.tag,
+            "install_args": list(source.install_args),
+        },
+        sort_keys=True,
+    )
+
+
+def package_manager_tool_is_current(target_dir: Path, dep: ToolDependency) -> bool:
+    """Return True when a PACKAGE_MANAGER tool binary and version stamp match."""
+    if not isinstance(dep.source, PackageManagerToolSource):
+        return False
+    try:
+        install_dir = package_manager_tool_dir(target_dir, dep)
+    except RuntimeError:
+        return False
+    binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
+    stamp_path = install_dir / PACKAGE_MANAGER_TOOL_STAMP
+    if not binary_path.exists() or not stamp_path.exists():
+        return False
+    try:
+        payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return payload.get("fingerprint") == package_manager_tool_fingerprint(dep)
+
+
+def _write_package_manager_tool_stamp(install_dir: Path, dep: ToolDependency) -> None:
+    stamp_path = install_dir / PACKAGE_MANAGER_TOOL_STAMP
+    tmp = stamp_path.with_name(stamp_path.name + ".tmp")
+    payload = {
+        "fingerprint": package_manager_tool_fingerprint(dep),
+    }
+    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    os.replace(tmp, stamp_path)
+
+
+def install_package_manager_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+    manager_overrides: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
+) -> None:
+    """Install each dep by invoking its declared package manager.
+
+    Warn-and-skip when the package manager binary is absent — the LSP
+    adapter's ``get_lsp_command`` surfaces the actionable error at
+    analysis time (mirrors the ``install_node_tools`` npm-missing path).
+    """
+    pm_deps = [d for d in deps if isinstance(d.source, PackageManagerToolSource)]
+    try:
+        pm_root = platform_bin_dir(target_dir) / "pm-tools"
+    except RuntimeError:
+        logger.warning(
+            "Unsupported platform %s/%s; skipping package-manager tool installation.",
+            platform.system(),
+            platform.machine(),
+        )
+        return
+    for i, dep in enumerate(pm_deps, 1):
+        if on_progress:
+            on_progress(dep.binary_name, i, len(pm_deps))
+        source = cast(PackageManagerToolSource, dep.source)
+        manager_binary = (manager_overrides or {}).get(source.manager_binary, source.manager_binary)
+        manager_available = (
+            Path(manager_binary).exists()
+            if Path(manager_binary).is_absolute()
+            else shutil.which(manager_binary) is not None
+        )
+        if not manager_available:
+            logger.warning(
+                "  %s: %s not found on PATH; skipping install. Users must install it before running analysis.",
+                dep.binary_name,
+                manager_binary,
+            )
+            continue
+        install_dir = pm_root / (dep.archive_subdir or dep.key)
+        binary_path = install_dir / f"{dep.binary_name}{exe_suffix()}"
+        if package_manager_tool_is_current(target_dir, dep):
+            logger.info("  %s: already installed, skipping", dep.binary_name)
+            continue
+        if install_dir.exists():
+            logger.info("  %s: install fingerprint changed, reinstalling", dep.binary_name)
+            shutil.rmtree(install_dir, ignore_errors=True)
+        install_dir.mkdir(parents=True, exist_ok=True)
+        args = [arg.format(tool_path=str(install_dir), tag=source.tag) for arg in source.install_args]
+        try:
+            result = subprocess.run(
+                [manager_binary, *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=600,
+                env=env,
+            )
+            if result.returncode != 0:
+                # A failed install can leave partial files that would
+                # make the next run skip install and report a
+                # stale binary as healthy.
+                shutil.rmtree(install_dir, ignore_errors=True)
+                logger.warning(
+                    "  %s: %s install failed (exit %d): %s",
+                    dep.binary_name,
+                    source.manager_binary,
+                    result.returncode,
+                    (result.stderr or result.stdout)[-500:],
+                )
+                continue
+            if not binary_path.exists():
+                shutil.rmtree(install_dir, ignore_errors=True)
+                logger.warning(
+                    "  %s: %s install reported success but %s is missing",
+                    dep.binary_name,
+                    source.manager_binary,
+                    binary_path,
+                )
+                continue
+            if platform.system() != "Windows":
+                os.chmod(binary_path, 0o755)
+            _write_package_manager_tool_stamp(install_dir, dep)
+            logger.info("  %s: installed via %s", dep.binary_name, source.manager_binary)
+        except subprocess.TimeoutExpired:
+            shutil.rmtree(install_dir, ignore_errors=True)
+            logger.warning("  %s: %s install timed out after 600s", dep.binary_name, source.manager_binary)
+        except OSError:
+            shutil.rmtree(install_dir, ignore_errors=True)
+            logger.exception("  %s: %s install could not be invoked", dep.binary_name, source.manager_binary)
+
+
+# -- Node / npm installer -----------------------------------------------------
+
+
+def install_node_tools(
+    target_dir: Path,
+    deps: list[ToolDependency],
+    on_progress: ProgressCallback | None = None,
+) -> None:
+    """Install Node.js tools via npm."""
+    npm_command = preferred_npm_command(target_dir)
+    if not npm_command:
+        logger.warning("npm not found. Skipping Node.js tool installation.")
+        return
+
+    # Collect all npm packages from all node deps
+    all_packages: list[str] = []
+    for dep in deps:
+        all_packages.extend(dep.npm_packages)
+
+    if not all_packages:
+        return
+
+    env = npm_subprocess_env(target_dir)
+    if on_progress:
+        on_progress("npm packages", 1, 1)
+    logger.info("Installing Node.js packages: %s", all_packages)
+    try:
+        if not (target_dir / "package.json").exists():
+            subprocess.run(
+                [*npm_command, "init", "-y"], cwd=target_dir, check=True, capture_output=True, text=True, env=env
+            )
+        subprocess.run(
+            [*npm_command, "install", *all_packages],
+            cwd=target_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        logger.info("Node.js packages installed successfully")
+    except subprocess.CalledProcessError:
+        logger.exception("Node.js package installation failed")
+    except Exception:
+        logger.exception("Node.js package installation failed")
+
+
+# -- Archive installer (JDTLS, kotlin-lsp) ------------------------------------
+
+
+def archive_launcher_path(target_dir: Path, dep: ToolDependency) -> Path | None:
+    """The launcher an extracted archive is run through, or None for one the adapter launches itself."""
+    if not dep.archive_entry:
+        return None
+    return target_dir / "bin" / dep.archive_subdir / f"{dep.archive_entry}{exe_suffix()}"
+
+
+def _latest_kotlin_lsp_pin() -> UpstreamToolSource | None:
+    """The kotlin-lsp pin on main, or None when it cannot be read or is not a valid pin."""
+    try:
+        response = requests.get(KOTLIN_LSP_PIN_URL, timeout=KOTLIN_LSP_PIN_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        return kotlin_lsp_source(response.json())
+    except (requests.RequestException, ValueError) as error:
+        logger.warning("Could not read the current kotlin-lsp pin, staying on the local one: %s", error)
+        return None
+
+
+def _usable_kotlin_lsp_build(target_dir: Path, dep: ToolDependency) -> str | None:
+    """The build on disk, when its launcher is there and it is at least as new as the wheel's pin."""
+    launcher = archive_launcher_path(target_dir, dep)
+    version = _read_stamp(target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP)
+    if launcher is None or not launcher.is_file() or dep.source is None:
+        return None
+    try:
+        return version if kotlin_lsp_build(version) >= kotlin_lsp_build(dep.source.tag) else None
+    except ValueError:
+        return None
+
+
+def current_tool(dep: ToolDependency, target_dir: Path | None = None) -> ToolDependency:
+    """*dep* as it should be installed now, which ``TOOL_REGISTRY`` cannot say for kotlin-lsp: its pin moves on main.
+
+    The newer of main's pin and the wheel's, so a checkout ahead of main (a bump's own CI) runs its own. A newer build
+    on main moves the machine up, and main moving back moves it back, which is how a bad build is undone. When main
+    cannot be read, the machine keeps its build, or takes the wheel's pin if that is older.
+
+    ``required_tools`` calls this where it selects the tools, so everything after it works on the dep it is given.
+    """
+    if dep.key != "kotlin" or not isinstance(dep.source, UpstreamToolSource):
+        return dep
+    latest = _latest_kotlin_lsp_pin()
+    if latest is not None:
+        return replace(dep, source=max(dep.source, latest, key=lambda source: kotlin_lsp_build(source.tag)))
+    # Only ever stands for a build already on disk, so nothing downloads it without its checksum.
+    installed = _usable_kotlin_lsp_build(target_dir or get_servers_dir(), dep)
+    return replace(dep, source=replace(dep.source, tag=installed)) if installed else dep
+
+
+def _archive_tool_is_extracted(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether an archive tool is extracted in full, at any version: its launcher, or JDTLS's ``plugins/``."""
+    launcher = archive_launcher_path(target_dir, dep)
+    if launcher is not None:
+        return launcher.is_file()
+    return (target_dir / "bin" / dep.archive_subdir / "plugins").is_dir()
+
+
+def archive_tool_is_installed(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether an archive tool is extracted in full at the pinned version.
+
+    Why the stamp for JDTLS too: with ``plugins/`` alone, an install from before a pin bump counted as current
+    forever, and kept analysing with a server too old to know the project's Java version.
+    """
+    stamp = target_dir / "bin" / dep.archive_subdir / ARCHIVE_VERSION_STAMP
+    return (
+        _archive_tool_is_extracted(target_dir, dep)
+        and dep.source is not None
+        and _read_stamp(stamp) == archive_stamp(dep.source)
+    )
+
+
+def archive_stamp(source: ToolSource) -> str:
+    """What an install of *source* writes into its stamp: the tag, and the build where the pin names one.
+
+    Why the build: JDTLS pins snapshots, and a bump can change only the build.
+    """
+    if isinstance(source, UpstreamToolSource) and source.build:
+        return f"{source.tag}-{source.build}"
+    return source.tag
+
+
+def archive_tool_is_usable(target_dir: Path, dep: ToolDependency) -> bool:
+    """Whether a run can start an archive tool as it is on disk.
+
+    kotlin-lsp and JDTLS do not have to be at the latest pin for that, which also keeps a build that a failed update
+    left in place. This asks on every run, whatever its languages, so it must not read main's pin.
+    """
+    if dep.key == "kotlin":
+        return _usable_kotlin_lsp_build(target_dir, dep) is not None
+    if archive_launcher_path(target_dir, dep) is None:
+        return _archive_tool_is_extracted(target_dir, dep)
+    return archive_tool_is_installed(target_dir, dep)
+
+
+def install_archive_tool(
+    target_dir: Path,
+    dep: ToolDependency,
+    on_progress: ProgressCallback | None = None,
+) -> None:
+    """Download and extract an archive tool, a ``.tar.gz`` or a zip (``.zip``, ``.sit``)."""
+    assert dep.source, f"{dep.key}: source required for archive tools"
+    assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
+
+    if on_progress:
+        on_progress(dep.key, 1, 1)
+
+    extract_dir = target_dir / "bin" / dep.archive_subdir
+    if archive_tool_is_installed(target_dir, dep):
+        logger.info("%s already installed", dep.key)
+        return
+
+    logger.info("Downloading %s...", dep.key)
+    if dep.license_url:
+        notice = f"{dep.binary_name} ({dep.key}) is distributed under its own terms: {dep.license_url}"
+        logger.info(notice)
+        print(notice, file=sys.stderr, flush=True)
+    asset_name = ""
+    expected_hash: str | None = None
+    if isinstance(dep.source, (GitHubToolSource, UpstreamToolSource)):
+        overrides = dep.source.asset_arch_overrides
+        asset_name = overrides.get((platform.system(), platform.machine()), "") if overrides else ""
+        if overrides and not asset_name:
+            logger.warning("%s has no build for %s/%s", dep.key, platform.system(), platform.machine())
+            return
+        if isinstance(dep.source, GitHubToolSource) and not asset_name:
+            asset_name = dep.source.asset_template
+        expected_hash = dep.source.sha256.get(asset_name)
+    url = asset_url(dep.source, asset_name)
+    is_zip = url.lower().endswith((".zip", ".sit"))
+    archive_path = target_dir / "bin" / f"{dep.archive_subdir}{'.zip' if is_zip else '.tar.gz'}"
+    # Extracted beside the destination and moved into place whole, so an interrupted install
+    # leaves nothing that looks installed.
+    staging = target_dir / "bin" / f"{dep.archive_subdir}.partial"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        if not download_asset(url, archive_path, expected_sha256=expected_hash):
+            logger.warning("%s download failed (empty file)", dep.key)
+            shutil.rmtree(staging, ignore_errors=True)
+            return
+
+        if is_zip:
+            _extract_zip(archive_path, staging)
+        else:
+            with tarfile.open(archive_path, "r:gz") as tar:
+                tar.extractall(path=staging, filter="tar")
+        archive_path.unlink()
+        root = _single_root(staging)
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        os.replace(root, extract_dir)
+        shutil.rmtree(staging, ignore_errors=True)
+        (extract_dir / ARCHIVE_VERSION_STAMP).write_text(archive_stamp(dep.source))
+        logger.info("%s installed successfully", dep.key)
+    except Exception:
+        logger.exception("%s installation failed", dep.key)
+        archive_path.unlink(missing_ok=True)
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def _read_stamp(stamp: Path) -> str | None:
+    try:
+        return stamp.read_text().strip()
+    except OSError:
+        return None
+
+
+def _single_root(directory: Path) -> Path:
+    """The archive's own top-level folder when it has exactly one, else *directory* itself."""
+    entries = list(directory.iterdir())
+    return entries[0] if len(entries) == 1 and entries[0].is_dir() else directory
+
+
+def _extract_zip(archive_path: Path, destination: Path) -> None:
+    """Extract a zip keeping each member's Unix mode and symlinks, which ``ZipFile.extractall`` drops.
+
+    Why: a bundled Java runtime needs its executables marked so, and links to its own files.
+    """
+    root = destination.resolve()
+    with zipfile.ZipFile(archive_path) as zf:
+        for info in zf.infolist():
+            target = (destination / info.filename).resolve()
+            if not target.is_relative_to(root):
+                raise ValueError(f"zip member escapes the destination: {info.filename}")
+            mode = info.external_attr >> 16
+            if stat.S_ISLNK(mode):
+                link = zf.read(info).decode()
+                if not (target.parent / link).resolve().is_relative_to(root):
+                    raise ValueError(f"zip symlink escapes the destination: {info.filename} -> {link}")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.unlink(missing_ok=True)
+                os.symlink(link, target)
+                continue
+            zf.extract(info, destination)
+            if mode and not info.is_dir() and platform.system() != "Windows":
+                os.chmod(target, stat.S_IMODE(mode))
+
+
+# -- Top-level install_tools orchestrator -------------------------------------
+
+
+def install_tools(target_dir: Path) -> None:
+    """Download and install all registered tools to target_dir.
+
+    Layout:
+        <target_dir>/bin/<platform>/   — native binaries
+        <target_dir>/bin/<subdir>/     — archive extractions (e.g. jdtls)
+        <target_dir>/node_modules/     — Node-based tools
+    """
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    native_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NATIVE]
+    node_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.NODE]
+    archive_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.ARCHIVE]
+    pm_deps = [d for d in TOOL_REGISTRY if d.kind is ToolKind.PACKAGE_MANAGER]
+
+    if native_deps:
+        install_native_tools(target_dir, native_deps)
+    if node_deps:
+        install_node_tools(target_dir, node_deps)
+    for dep in archive_deps:
+        install_archive_tool(target_dir, dep)
+    if pm_deps:
+        install_package_manager_tools(target_dir, pm_deps)
+
+
+# -- Embedded Node.js runtime bootstrap ---------------------------------------
+
+
+# Version sentinel written after a successful bootstrap. Contains
+# PINNED_NODE_VERSION; a mismatch or absence triggers wipe + reinstall.
+NODEENV_VERSION_STAMP = ".codeboarding-node-version"
+
+
+def embedded_node_is_healthy(base_dir: Path) -> bool:
+    """Return True only if the embedded Node binary is genuinely usable.
+
+    Stricter than ``embedded_node_path()``'s existence check: rejects
+    zero-byte files, non-executable Unix binaries, and missing version
+    sentinels (partial installs from an interrupted previous run).
+    """
+    node_path_str = embedded_node_path(base_dir)
+    if not node_path_str:
+        return False
+
+    node_path = Path(node_path_str)
+    try:
+        if node_path.stat().st_size == 0:
+            return False
+    except OSError:
+        return False
+
+    # Unix only: Windows doesn't use the executable bit.
+    if platform.system() != "Windows" and not os.access(node_path, os.X_OK):
+        return False
+
+    stamp = nodeenv_root_dir(base_dir) / NODEENV_VERSION_STAMP
+    try:
+        return stamp.read_text().strip() == PINNED_NODE_VERSION
+    except OSError:
+        return False
+
+
+def initialize_nodeenv_globals(nodeenv_module: Any, args: Any) -> None:
+    """Replicate the module-global init that nodeenv.main() does before
+    calling create_environment().
+
+    nodeenv's ``src_base_url`` defaults to None; calling ``create_environment()``
+    in-process (needed inside the frozen wrapper) without this helper produces
+    URLs like ``"None/v20.18.1/..."``. Mirrors nodeenv.main()'s init block for
+    the prebuilt / non-mirror path.
+    """
+    nodeenv_module.ignore_ssl_certs = getattr(args, "ignore_ssl_certs", False)
+
+    src_domain: str | None = None
+    mirror = getattr(args, "mirror", None)
+    if mirror:
+        if "://" in mirror:
+            nodeenv_module.src_base_url = mirror
+            return
+        src_domain = mirror
+    elif nodeenv_needs_unofficial_builds(nodeenv_module):
+        src_domain = "unofficial-builds.nodejs.org"
+    else:
+        src_domain = "nodejs.org"
+
+    nodeenv_module.src_base_url = f"https://{src_domain}/download/release"
+
+
+def nodeenv_needs_unofficial_builds(nodeenv_module: Any) -> bool:
+    """Return True for musl/riscv64 hosts (nodeenv.main()'s unofficial-builds branch).
+
+    Returns False if a future nodeenv release removes either helper — the
+    caller then falls through to nodejs.org, the conservative default.
+    """
+    is_musl = getattr(nodeenv_module, "is_x86_64_musl", None)
+    is_rv64 = getattr(nodeenv_module, "is_riscv64", None)
+    try:
+        if callable(is_musl) and is_musl():
+            return True
+        if callable(is_rv64) and is_rv64():
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def install_embedded_node(
+    base_dir: Path,
+    on_progress: ProgressCallback | None = None,
+) -> bool:
+    """Download a pinned Node.js runtime into ``<base_dir>/nodeenv/``.
+
+    Idempotent; wipes and reinstalls on unhealthy state.
+    """
+    if embedded_node_is_healthy(base_dir):
+        return True
+
+    env_dir = nodeenv_root_dir(base_dir)
+
+    # Wipe stale state — create_environment() sys.exits on a pre-existing dir.
+    if env_dir.exists():
+        logger.info("Removing stale/partial embedded Node.js install at %s", env_dir)
+        try:
+            shutil.rmtree(env_dir)
+        except OSError:
+            logger.exception("Failed to remove stale embedded Node.js directory; cannot recover")
+            return False
+
+    try:
+        # Function-level: may be missing in PyInstaller-frozen binaries.
+        import nodeenv
+    except ImportError:
+        logger.exception("nodeenv package is not available; cannot bootstrap Node.js runtime")
+        return False
+
+    if on_progress:
+        on_progress(f"node-{PINNED_NODE_VERSION}", 1, 1)
+
+    env_dir.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        # Use make_parser().parse_args(list) directly — nodeenv.parse_args()
+        # reads sys.argv, which leaks pytest flags and is wrong in the frozen wrapper.
+        parser = nodeenv.make_parser()
+        args = parser.parse_args(["--prebuilt", "--node", PINNED_NODE_VERSION, str(env_dir)])
+        # Skip nodeenv's config_file probing — it looks at tox.ini / ~/.nodeenvrc
+        # which are meaningless here and harmful in a frozen binary without a real HOME.
+        args.config_file = []
+        # Defensive — keep the source-build path unreachable across nodeenv versions.
+        args.prebuilt = True
+
+        # Replicate nodeenv.main()'s module-global init — create_environment()
+        # reads nodeenv.src_base_url (defaults to None) when building download URLs.
+        initialize_nodeenv_globals(nodeenv, args)
+
+        nodeenv.create_environment(str(env_dir), args)
+    except SystemExit:
+        # Should be unreachable (we wipe env_dir above), but catch to defend
+        # against a race with a concurrent install without the file lock.
+        logger.exception("nodeenv.create_environment() called sys.exit — unexpected pre-existing state")
+        return False
+    except Exception:
+        logger.exception("Failed to install embedded Node.js runtime via nodeenv")
+        return False
+
+    # Verify before stamping — if nodeenv succeeded but left a bad binary,
+    # skip the sentinel so the next run retries.
+    node_path_str = embedded_node_path(base_dir)
+    if not node_path_str or Path(node_path_str).stat().st_size == 0:
+        logger.error("nodeenv.create_environment() completed but node binary is missing or empty")
+        return False
+
+    # Stamp atomically via tmp-file swap so a crash mid-write can't leave a partial sentinel.
+    stamp = env_dir / NODEENV_VERSION_STAMP
+    tmp_stamp = env_dir / f"{NODEENV_VERSION_STAMP}.tmp"
+    try:
+        tmp_stamp.write_text(PINNED_NODE_VERSION)
+        os.replace(tmp_stamp, stamp)
+    except OSError:
+        logger.exception("Failed to write Node.js version stamp; next run will reinstall")
+        return False
+
+    # a previous probe of a broken binary at this same path may have
+    # cached None in node_version_tuple's LRU. Without clearing, subsequent
+    # preferred_node_path() calls in the same process would skip the freshly
+    # installed runtime and fall through to system PATH — ENOENT on Node-less machines.
+    node_version_tuple.cache_clear()
+
+    return True

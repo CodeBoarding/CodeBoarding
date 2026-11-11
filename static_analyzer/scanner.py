@@ -6,9 +6,10 @@ import subprocess
 from pathlib import Path
 
 from static_analyzer.programming_language import ProgrammingLanguage, ProgrammingLanguageBuilder
-from telemetry.events import track_tech_stack
-from tool_registry.paths import is_wsl
-from utils import get_config
+from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.monitoring.telemetry.events import track_tech_stack
+from infra.tool_registry.paths import is_wsl
+from infra.utils import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,6 @@ class ProjectScanner:
         total_code = tokei_data.get("Total", {}).get("code", 0)
         if not total_code:
             logger.warning("No total code count found in Tokei output")
-            return []
 
         programming_languages: list[ProgrammingLanguage] = []
         all_files: list[str] = []
@@ -138,7 +138,7 @@ class ProjectScanner:
             if code_count == 0:
                 continue
 
-            percentage = code_count / total_code * 100
+            percentage = code_count / total_code * 100 if total_code else 0
 
             # Extract suffixes from reports
             suffixes = set()
@@ -155,6 +155,20 @@ class ProjectScanner:
             logger.debug(f"Found: {pl}")
             if pl.is_supported_lang():
                 programming_languages.append(pl)
+
+        # Tokei does not recognize .cuh; retain header-only CUDA projects without inventing LOC counts.
+        if not any(language.lsp_server_key == "cpp" for language in programming_languages):
+            ignore = RepoIgnoreManager(self.repo_location)
+            for root, directories, files in self.repo_location.walk():
+                directories[:] = [name for name in directories if not ignore.should_ignore(root / name)]
+                headers = [
+                    root / name for name in files if name.endswith(".cuh") and not ignore.should_ignore(root / name)
+                ]
+                if headers:
+                    language = builder.build("CUDA", 0, 0, {".cuh"})
+                    if language.is_supported_lang():
+                        programming_languages.append(language)
+                    break
 
         self.all_text_files = all_files
         track_tech_stack(self.repo_location, total_code, programming_languages)

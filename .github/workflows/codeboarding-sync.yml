@@ -36,6 +36,12 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      issues: read         # read the issues that report problems
+      pull-requests: read  # read which pull requests fix them
+      actions: read        # read architecture warnings from review runs
     timeout-minutes: 60
     steps:
       - uses: CodeBoarding/CodeBoarding-action@v1
@@ -47,3 +53,4 @@ jobs:
           # a message naming this secret if CODEBOARDING_LICENSE is not set.
           llm: license
           license_key: ${{ secrets.CODEBOARDING_LICENSE }}
+          problem_history: 'true'

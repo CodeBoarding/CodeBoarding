@@ -9,7 +9,7 @@ merged, they are resolved here the way the engine resolves its own.
 Linking asks the language server nothing. Where it runs:
 
 - Full build: ``StaticAnalyzer._absorb_and_link``, after every engine merged. The owning
-  servers may already be down, so implementations a linked call is still owed are not asked.
+  servers may already be down, so the implementations a linked call is owed come from the merged INHERITS edges.
 - Warm start: the partial build resolves against the unchanged declarations itself, so only its
   answers in other engines' files reach here, at that same final merge.
 """
@@ -34,7 +34,7 @@ from static_analyzer.graph_definitions import (
     targets_for,
     targets_through,
 )
-from static_analyzer.internal_references import is_self_or_container_edge
+from static_analyzer.internal_references import is_self_or_container_edge, parent_qualified_name
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ def link_external_call_sites(
     reached: set[tuple[str, str, int, int]] = set()
     dispatched: dict[str, list[tuple[Node, CallSite]]] = {}
     for site in sorted(sites, key=lambda site: site.kind == RECEIVER):
-        caller = call_graph.nodes.get(site.caller)
+        caller = index.node(site.caller)
         if caller is None:
             continue
         if site.kind == OVERRIDE:
@@ -80,7 +80,8 @@ def link_external_call_sites(
             unresolved.append(site)
             continue
         reached.add(written)
-        edges.extend(_add_edges(call_graph, caller, targets.nodes, site.call_site))
+        implementations = [] if adapter.expands_virtual_dispatch else _implementations(index, targets)
+        edges.extend(_add_edges(call_graph, caller, targets.nodes + implementations, site.call_site))
 
     for qualified_name, calls in dispatched.items():
         dispatched_from = call_graph.nodes.get(qualified_name)
@@ -116,6 +117,32 @@ def record_package_imports(
             dst_info["imported_by"].sort()
 
 
+def _implementations(index: GraphIndex, targets: CallTargets) -> list[Node]:
+    """The members of the same name on every subtype a dispatched call reaches, by the merged INHERITS edges.
+
+    Why: an engine asks its server for implementations only of calls into its own files.
+    """
+    dispatched = set(targets.implementations)
+    found: list[Node] = []
+    for node in targets.nodes:
+        if (node.file_path, node.line_start - 1, node.col_start) not in dispatched:
+            continue
+        owner = parent_qualified_name(node.fully_qualified_name)
+        member = node.fully_qualified_name[len(owner) + 1 :]
+        seen: set[str] = set()
+        frontier = list(index.derived.get(owner, []))
+        while frontier:
+            subtype = frontier.pop().fully_qualified_name
+            if subtype in seen:
+                continue
+            seen.add(subtype)
+            implementation = index.call_graph.nodes.get(f"{subtype}.{member}")
+            if implementation is not None:
+                found.append(implementation)
+            frontier.extend(index.derived.get(subtype, []))
+    return found
+
+
 def _targets(
     index: GraphIndex, inspector: SourceInspector, site: ExternalCallSite, adapter: LanguageAdapter
 ) -> CallTargets:
@@ -127,7 +154,10 @@ def _targets(
 
 
 def _add_edges(call_graph: CallGraph, caller: Node, targets: list[Node], call_site: CallSite) -> list[tuple[str, str]]:
-    """The edges from *caller* to *targets* this call site adds, the way the engine rejects its own."""
+    """The edges from *caller* to *targets* this call site adds, the way the engine rejects its own.
+
+    An end the graph holds no node for is a declaration an engine keeps only as an edge's end, which the edge adds.
+    """
     location = {"file": call_site.file, "line": call_site.line, "column": call_site.column}
     added: list[tuple[str, str]] = []
     for destination in targets:
@@ -135,6 +165,9 @@ def _add_edges(call_graph: CallGraph, caller: Node, targets: list[Node], call_si
             continue
         if (destination.file_path, destination.line_start) == (caller.file_path, caller.line_start):
             continue
+        for end in (caller, destination):
+            if not call_graph.has_node(end.fully_qualified_name):
+                call_graph.add_node(end)
         before = len(call_graph.edges)
         call_graph.add_edge(caller.fully_qualified_name, destination.fully_qualified_name, call_sites=[location])
         if len(call_graph.edges) > before:

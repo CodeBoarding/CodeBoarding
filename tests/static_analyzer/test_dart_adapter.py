@@ -4,13 +4,13 @@ from unittest.mock import patch
 
 import pytest
 
-import install
+from infra import install
 from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.source_inspector import SourceInspector
-from tool_registry.manifest import has_required_tools, resolve_config_from_path
-from tool_registry.paths import dart_binary
-from tool_registry.registry import TOOL_REGISTRY
+from infra.tool_registry.manifest import has_required_tools, resolve_config_from_path
+from infra.tool_registry.paths import dart_binary
+from infra.tool_registry.registry import TOOL_REGISTRY
 
 
 @pytest.mark.parametrize("system,suffix", [("Linux", ""), ("Darwin", ""), ("Windows", ".exe")])
@@ -21,9 +21,9 @@ def test_prefers_flutter_sdk_over_unrelated_dart(tmp_path: Path, system: str, su
     bundled.touch()
     bundled.chmod(0o755)
     with (
-        patch("tool_registry.paths.platform.system", return_value=system),
+        patch("infra.tool_registry.paths.platform.system", return_value=system),
         patch(
-            "tool_registry.paths.shutil.which",
+            "infra.tool_registry.paths.shutil.which",
             side_effect=lambda name: str(flutter) if name == "flutter" else "/other/dart",
         ),
     ):
@@ -31,9 +31,11 @@ def test_prefers_flutter_sdk_over_unrelated_dart(tmp_path: Path, system: str, su
 
 
 def test_standalone_sdk_and_missing_sdk(tmp_path: Path):
-    with patch("tool_registry.paths.shutil.which", side_effect=lambda name: "/sdk/dart" if name == "dart" else None):
+    with patch(
+        "infra.tool_registry.paths.shutil.which", side_effect=lambda name: "/sdk/dart" if name == "dart" else None
+    ):
         assert DartAdapter().get_lsp_command(tmp_path) == ["/sdk/dart", "language-server"]
-    with patch("tool_registry.paths.shutil.which", return_value=None):
+    with patch("infra.tool_registry.paths.shutil.which", return_value=None):
         with pytest.raises(RuntimeError, match="Dart SDK not found"):
             DartAdapter().get_lsp_command(tmp_path)
 
@@ -41,7 +43,9 @@ def test_standalone_sdk_and_missing_sdk(tmp_path: Path):
 def test_windows_dart_wrapper_requires_bundled_executable(tmp_path: Path):
     wrapper = tmp_path / "bin" / "dart.bat"
     binary = wrapper.parent / "cache" / "dart-sdk" / "bin" / "dart.exe"
-    with patch("tool_registry.paths.shutil.which", side_effect=lambda name: str(wrapper) if name == "dart" else None):
+    with patch(
+        "infra.tool_registry.paths.shutil.which", side_effect=lambda name: str(wrapper) if name == "dart" else None
+    ):
         assert dart_binary() is None
         binary.parent.mkdir(parents=True)
         binary.touch()
@@ -52,16 +56,15 @@ def test_windows_dart_wrapper_requires_bundled_executable(tmp_path: Path):
 def test_sdk_setup_reports_missing_without_reinstall_loop(tmp_path: Path):
     dart = next(dep for dep in TOOL_REGISTRY if dep.key == "dart")
     with (
-        patch("tool_registry.manifest.TOOL_REGISTRY", [dart]),
-        patch("tool_registry.paths.shutil.which", return_value=None),
-        patch("install.TOOL_REGISTRY", [dart]),
+        patch("infra.tool_registry.paths.shutil.which", return_value=None),
+        patch("infra.install.TOOL_REGISTRY", [dart]),
     ):
-        assert has_required_tools(tmp_path)
+        assert has_required_tools(tmp_path, [dart])
         check = install._language_checks_from_registry(tmp_path)[0]
         available, reason = check.evaluate(npm_available=False)
         assert not available
         assert reason and "Flutter SDK" in reason
-    with patch("tool_registry.manifest.dart_binary", return_value="/sdk/dart"):
+    with patch("infra.tool_registry.manifest.dart_binary", return_value="/sdk/dart"):
         assert resolve_config_from_path()["lsp_servers"]["dart"]["command"] == ["/sdk/dart", "language-server"]
 
 

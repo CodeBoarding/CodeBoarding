@@ -45,6 +45,7 @@ def _spawn_with_env(tmp_path: Path, env: dict[str, str]) -> MagicMock:
     adapter = MagicMock(name="CSharpAdapter")
     adapter.language = "CSharp"
     adapter.get_lsp_default_timeout.return_value = 120
+    adapter.get_lsp_startup_timeout.return_value = 600
     adapter.get_lsp_command.return_value = ["csharp-ls"]
     adapter.get_lsp_init_options.return_value = {}
     adapter.get_lsp_env.return_value = {}
@@ -72,3 +73,8 @@ class TestOverrideReachesTheSpawnedClient:
         client_cls = _spawn_with_env(tmp_path, {})
 
         assert client_cls.call_args.kwargs["default_timeout"] == 120
+
+    def test_the_adapter_sets_the_startup_timeout_whatever_the_override(self, tmp_path):
+        client_cls = _spawn_with_env(tmp_path, {LSP_REQUEST_TIMEOUT_ENV_VAR: "900"})
+
+        assert client_cls.call_args.kwargs["startup_timeout"] == 600

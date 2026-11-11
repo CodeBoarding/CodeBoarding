@@ -143,6 +143,13 @@ class TestStaticAnalysisResults(unittest.TestCase):
         self.assertIn("ClassA", retrieved)
         self.assertIn("ClassB", retrieved)
 
+    def test_a_class_two_engines_saw_keeps_both_engines_links(self):
+        self.results.add_class_hierarchy(Language.TYPESCRIPT, {"Base": {"subclasses": ["A"], "file_path": "b.ts"}})
+        self.results.add_class_hierarchy(
+            Language.TYPESCRIPT, [{"Base": {"subclasses": ["B", "A"], "file_path": "b.ts"}}]
+        )
+        self.assertEqual(self.results.get_hierarchy(Language.TYPESCRIPT)["Base"]["subclasses"], ["A", "B"])
+
     def test_cfg_merge_multiple_projects(self):
         cfg1 = CallGraph()
         node1 = Node("project1.func1", NodeType.FUNCTION, "project1/file.py", 1, 5)
@@ -193,6 +200,14 @@ class TestStaticAnalysisResults(unittest.TestCase):
         self.assertEqual(len(retrieved), 2)
         self.assertIn("pkg1", retrieved)
         self.assertIn("pkg2", retrieved)
+
+    def test_a_package_two_engines_saw_keeps_both_engines_imports(self):
+        self.results.add_package_dependencies(Language.TYPESCRIPT, {"ui": {"imports": ["core"], "imported_by": []}})
+        self.results.add_package_dependencies(Language.TYPESCRIPT, {"ui": {"imports": ["api"], "imported_by": ["app"]}})
+        self.assertEqual(
+            self.results.get_package_dependencies(Language.TYPESCRIPT)["ui"],
+            {"imports": ["core", "api"], "imported_by": ["app"]},
+        )
 
     def test_references_merge_multiple_projects(self):
         node1 = Node("project1.Class.method", NodeType.METHOD, "project1/file.py", 1, 5)

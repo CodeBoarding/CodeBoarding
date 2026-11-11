@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from utils import (
+from infra.utils import (
     CFGGenerationError,
     create_temp_repo_folder,
     get_config,
@@ -47,13 +47,13 @@ class TestUtils(unittest.TestCase):
             "lsp_servers": {"python": {"command": ["/fake/pyright", "--stdio"]}},
             "tools": {"tokei": {"command": ["/fake/tokei", "-o", "json"]}},
         }
-        with patch("tool_registry.build_config", return_value=fake_config):
+        with patch("infra.tool_registry.build_config", return_value=fake_config):
             result = get_config("lsp_servers")
             self.assertIn("python", result)
 
     def test_get_config_missing_key_raises(self):
         fake_config: dict[str, dict[str, dict]] = {"lsp_servers": {}, "tools": {}}
-        with patch("tool_registry.build_config", return_value=fake_config):
+        with patch("infra.tool_registry.build_config", return_value=fake_config):
             with self.assertRaises(KeyError) as ctx:
                 get_config("nonexistent_key")
             self.assertIn("not found in configuration", str(ctx.exception))

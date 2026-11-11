@@ -1,0 +1,11 @@
+{
+  "version": "271.2085.0",
+  "sha256": {
+    "kotlin-server-271.2085.0.tar.gz": "e398e799027f41749ea33faa57470307d13d40f910961858c7e30adbd778ae08",
+    "kotlin-server-271.2085.0-aarch64.tar.gz": "877aee612a17dab48144466282a6414ec58ab428a10b97c7e13edd9b6b3dc96e",
+    "kotlin-server-271.2085.0.sit": "68457ab1825331e3eac85191b7c32737cbd8993867f5a9c50dfe012c5509e8f7",
+    "kotlin-server-271.2085.0-aarch64.sit": "2d22388f58be6f4dfa7a8f18c1e231871164dcacc16e407559029d7232816b4a",
+    "kotlin-server-271.2085.0.win.zip": "da210a7d84a06f855b8b7b04c5bd54936d270e79f3ea13a9c6ddc2f1046b2a98",
+    "kotlin-server-271.2085.0-aarch64.win.zip": "7cce2ebb1a28e2500e2093015f9f862f39c99c2a626073272604c57bb57ec23b"
+  }
+}

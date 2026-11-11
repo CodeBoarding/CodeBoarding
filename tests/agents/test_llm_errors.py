@@ -3,15 +3,22 @@
 import os
 from unittest.mock import patch
 
+import botocore.exceptions
+import httpx
+import openai
 import pytest
 
 from agents.llm_config import CODEBOARDING_KEY_TAIL, OIDC_RELAY_PLACEHOLDER_KEY, current_provider_key_context
 from agents.llm_errors import (
     LLMAuthError,
+    LLMQuotaError,
     ScopeContextTooLargeError,
     detect_auth_error,
+    is_quota_exhausted,
+    is_transient_llm_error,
     llm_failure_properties,
     raise_if_auth_error,
+    retry_after_seconds,
 )
 
 
@@ -160,6 +167,21 @@ class TestHostedCredentials:
         assert "id-token: write" in str(result)
         assert "Verify the key" not in str(result)
 
+    def test_a_403_shows_the_providers_reason_not_a_key_hint(self):
+        """Why: OpenRouter refused single requests with a 403 while the same hosted key served the rest, and the
+        hint to grant `id-token: write` hid the reason."""
+        result = detect_auth_error(
+            _FakeStatusError(
+                "Error code: 403 - {'error': {'message': 'Input flagged by moderation'}}", status_code=403
+            ),
+            provider="openrouter",
+            key_tail=CODEBOARDING_KEY_TAIL,
+        )
+        assert result is not None
+        assert "HTTP 403" in str(result)
+        assert "Input flagged by moderation" in str(result)
+        assert "id-token" not in str(result)
+
 
 class TestCurrentProviderKeyContext:
     def test_masks_all_but_last_four(self):
@@ -202,9 +224,54 @@ def test_llm_failure_properties_tells_quota_apart(error: Exception, error_type: 
     with patch("agents.llm_errors.current_provider_key_context", return_value=("openai", "1234")):
         props = llm_failure_properties(error)
 
+    assert is_quota_exhausted(error) == (error_type == "quota")
+    assert "error_code" not in props
+
     assert props["error_type"] == error_type
     assert props["error_provider"] == "openai"
     assert props["error_status_code"] == getattr(error, "status_code", None)
+
+
+@pytest.mark.parametrize("hosted", [False, True])
+@pytest.mark.parametrize(
+    "status,body,codeboarding_quota",
+    [
+        (402, {"type": "gha_proxy", "message": "Resource exhausted: token limit reached"}, True),
+        (402, {"message": "Insufficient upstream credits"}, False),
+        (402, {"type": "provider", "message": "Resource exhausted: token limit reached"}, False),
+        (402, {"type": "gha_proxy", "message": "Insufficient upstream credits"}, False),
+        (429, {"code": "insufficient_quota", "message": "Balance empty"}, False),
+    ],
+)
+def test_quota_error_owns_quota_guidance(hosted, status, body, codeboarding_quota):
+    error = openai.APIStatusError(
+        body["message"],
+        response=httpx.Response(status, request=httpx.Request("POST", "https://proxy.example/chat/completions")),
+        body=body,
+    )
+    key_tail = CODEBOARDING_KEY_TAIL if hosted else "1234"
+    with patch("agents.llm_errors.current_provider_key_context", return_value=("openrouter", key_tail)):
+        quota_error = LLMQuotaError(error)
+
+    assert quota_error.is_codeboarding_quota == codeboarding_quota
+    assert quota_error.telemetry_properties["error_message"] == str(error)
+    assert quota_error.telemetry_properties.get("error_code") == (
+        "free_credits_exhausted" if codeboarding_quota else None
+    )
+    message = str(quota_error)
+    if codeboarding_quota:
+        assert "https://codeboarding.org/pricing" in message
+        assert "weekly reset" in message
+        assert "service issue" not in message
+    elif hosted:
+        assert "CodeBoarding service issue" in message
+        assert "try again later or contact CodeBoarding support" in message
+        assert "Add credits" not in message
+        assert "https://codeboarding.org/pricing" not in message
+    else:
+        assert "Add credits or raise the quota for this provider" in message
+        assert "service issue" not in message
+        assert "https://codeboarding.org/pricing" not in message
 
 
 class TestOversizedPromptTelemetry:
@@ -222,3 +289,102 @@ class TestOversizedPromptTelemetry:
 
     def test_quota_still_wins(self):
         assert llm_failure_properties(_FakeStatusError("Resource exhausted", status_code=402))["error_type"] == "quota"
+
+
+_REQUEST = httpx.Request("POST", "https://proxy.example/v1/chat/completions")
+
+
+def _openai_status_error(cls: type[openai.APIStatusError], status: int, body: dict, headers: dict | None = None):
+    response = httpx.Response(status, headers=headers or {}, request=_REQUEST)
+    return cls(f"Error code: {status} - {body}", response=response, body=body)
+
+
+def _bedrock_error(code: str, status: int) -> botocore.exceptions.ClientError:
+    response = {"Error": {"Code": code, "Message": code}, "ResponseMetadata": {"HTTPStatusCode": status}}
+    return botocore.exceptions.ClientError(response, "Converse")  # type: ignore[arg-type]
+
+
+class TestTransientLLMError:
+    """Why: one throttled call from the hosted proxy used to fail a whole run; a permanent failure must not be retried."""
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            _openai_status_error(
+                openai.RateLimitError,
+                429,
+                {"Reason": "ConcurrentInvocationLimitExceeded", "Type": "User", "message": "Rate Exceeded."},
+            ),
+            _openai_status_error(
+                openai.InternalServerError, 502, {"error": {"message": "Upstream request failed.", "type": "gha_proxy"}}
+            ),
+            _FakeStatusError("Service Unavailable", status_code=503),
+            _FakeStatusError("Request Timeout", status_code=408),
+            _FakeGoogleError("429 Resource has been exhausted (e.g. check quota).", code=429),
+            openai.APIConnectionError(request=_REQUEST),
+            openai.APITimeoutError(request=_REQUEST),
+            httpx.ConnectError("connection refused"),
+            TimeoutError("provider did not answer"),
+            _bedrock_error("ThrottlingException", 429),
+            _bedrock_error("ServiceUnavailableException", 503),
+            botocore.exceptions.EndpointConnectionError(endpoint_url="https://bedrock-runtime.us-east-1.amazonaws.com"),
+            botocore.exceptions.ReadTimeoutError(endpoint_url="https://bedrock-runtime.us-east-1.amazonaws.com"),
+        ],
+    )
+    def test_retries_throttling_server_errors_and_lost_connections(self, error: Exception):
+        assert is_transient_llm_error(error)
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            _openai_status_error(
+                openai.RateLimitError, 429, {"error": {"code": "insufficient_quota", "type": "insufficient_quota"}}
+            ),
+            # The quota code only on the exception, not in its message.
+            openai.RateLimitError(
+                "You exceeded your current quota.",
+                response=httpx.Response(429, request=_REQUEST),
+                body={"code": "insufficient_quota"},
+            ),
+            _bedrock_error("ValidationException", 400),
+            _FakeStatusError("Resource exhausted: token limit reached", status_code=402),
+            _openai_status_error(openai.AuthenticationError, 401, {"error": {"message": "invalid api key"}}),
+            _FakeStatusError("permission denied", status_code=403),
+            _openai_status_error(openai.BadRequestError, 400, {"error": {"message": "invalid tool schema"}}),
+            _FakeStatusError("not found", status_code=404),
+            ValueError("planner returned malformed JSON"),
+        ],
+    )
+    def test_never_retries_auth_quota_or_request_errors(self, error: Exception):
+        assert not is_transient_llm_error(error)
+
+    def test_reads_retry_after_seconds(self):
+        error = _openai_status_error(openai.RateLimitError, 429, {}, headers={"Retry-After": "7"})
+        assert retry_after_seconds(error) == 7.0
+
+    def test_reads_retry_after_ms(self):
+        error = _openai_status_error(openai.RateLimitError, 429, {}, headers={"retry-after-ms": "1500"})
+        assert retry_after_seconds(error) == 1.5
+
+    def test_reads_retry_after_http_date(self):
+        error = _openai_status_error(
+            openai.RateLimitError, 429, {}, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}
+        )
+        with patch("agents.llm_errors.time.time", return_value=1792567660.0):  # 07:27:40 GMT that day
+            assert retry_after_seconds(error) == 20.0
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            _openai_status_error(openai.RateLimitError, 429, {}),
+            _openai_status_error(
+                openai.RateLimitError, 429, {}, headers={"Retry-After": "Wed, 21 Oct 2026 07:27:00 GMT"}
+            ),
+            _openai_status_error(openai.RateLimitError, 429, {}, headers={"Retry-After": "soon"}),
+            _FakeStatusError("Rate limit reached", status_code=429),
+            _bedrock_error("ThrottlingException", 429),
+        ],
+    )
+    def test_no_retry_after_when_absent_unreadable_or_past(self, error: Exception):
+        with patch("agents.llm_errors.time.time", return_value=1792567660.0):
+            assert retry_after_seconds(error) is None

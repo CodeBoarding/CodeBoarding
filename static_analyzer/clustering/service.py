@@ -8,8 +8,8 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
-from clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
-from repo_utils.path_utils import normalize_repo_path
+from infra.clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
+from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.cfg.edge import EdgeKind

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component
 from agents.file_index_models import FileMethodGroup, MethodEntry
-from clustering_ids import ROOT_SCOPE_ID
+from infra.clustering_ids import ROOT_SCOPE_ID
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.cfg.edge import EdgeKind, ReferenceEdge
