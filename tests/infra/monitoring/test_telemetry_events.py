@@ -181,6 +181,38 @@ def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog)
     assert props["quality_status"] == "warning"
 
 
+@pytest.mark.parametrize("errors,quality", [([0, 0, 0], "ok"), ([0, 2, 5], "warning")])
+def test_lsp_analysis_result_reports_parser_quality(captured, monkeypatch, errors, quality):
+    monkeypatch.setenv("CODEBOARDING_PROJECT_ID", "project-123")
+    track_lsp_result(
+        language="cpp",
+        loc=100,
+        status="success",
+        duration_ms=20,
+        analysis={
+            "call_graph": SimpleNamespace(nodes={"caller": 1, "callee": 2}, edges=[1]),
+            "source_files": ["private.cpp"],
+            "parsed_file_errors": dict(zip(["private.cpp", "private.h", "other.h"], errors)),
+            "parse_error_samples": (
+                {"private.h": [{"syntax_trace": ["translation_unit", "ERROR"]}] * 25} if quality == "warning" else {}
+            ),
+        },
+        diagnostics={},
+    )
+    props = props_for(captured, "lsp_analysis_result")
+    assert props["project_id"] == "project-123"
+    assert props["parsed_file_count"] == 3
+    assert props["parse_error_file_count"] == (2 if quality == "warning" else 0)
+    assert props["parse_error_node_count"] == (7 if quality == "warning" else 0)
+    assert props["quality_status"] == quality
+    assert props["status"] == "success"
+    assert len(props["parse_error_samples"]) == (20 if quality == "warning" else 0)
+    if quality == "warning":
+        assert props["parse_error_samples"][0] == {"syntax_trace": ["translation_unit", "ERROR"], "file_index": 0}
+    assert "private" not in str(props)
+    assert "parsed_file_errors" not in props
+
+
 def test_track_analysis_env_run_id_overrides_self(captured, monkeypatch):
     """CODEBOARDING_RUN_ID (VSCode correlation id) wins over self.run_id."""
     monkeypatch.setenv("CODEBOARDING_RUN_ID", "vscode-run")

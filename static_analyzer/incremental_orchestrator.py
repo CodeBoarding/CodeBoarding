@@ -64,7 +64,7 @@ def update_cfg_for_changed_files(
     tagged with the *current* source SHA.
     """
     if not changed_files:
-        return cached_analysis
+        return {**cached_analysis, "parsed_file_errors": {}, "parse_error_samples": {}}
 
     existing_files = {f for f in changed_files if f.exists()}
     deleted_files = {f for f in changed_files if not f.exists()}
@@ -120,6 +120,14 @@ def update_cfg_for_changed_files(
     # What still lies outside is another engine's, for the final merge to link.
     updated["external_call_sites"] = new_analysis["external_call_sites"]
     updated["external_callers"] = new_analysis["external_callers"]
+    updated["parsed_file_errors"] = {
+        **new_analysis.get("parsed_file_errors", {}),
+        **source_inspector.parsed_file_errors,
+    }
+    updated["parse_error_samples"] = {
+        **new_analysis.get("parse_error_samples", {}),
+        **source_inspector.parse_error_samples,
+    }
     return updated
 
 

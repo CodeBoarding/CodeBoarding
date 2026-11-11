@@ -7,6 +7,7 @@ import re
 from collections import OrderedDict
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from tree_sitter import Language as TreeSitterLanguage
@@ -30,6 +31,8 @@ import tree_sitter_typescript
 
 logger = logging.getLogger(__name__)
 
+MAX_PARSE_ERROR_SAMPLES = 20
+MAX_PARSE_ERRORS_PER_FILE = 3
 
 LanguageFactory = Callable[[], object]
 
@@ -496,8 +499,9 @@ class SourceInspector:
         self._trees_evicted = 0
         self._parser_by_suffix: dict[str, Parser] = {}
         self._usage_index_cache: dict[str, SourceUsageIndex] = {}
-        # Files already warned about, so a re-parse after eviction does not warn again.
-        self._parse_error_files: dict[str, int] = {}
+        # Retained across tree eviction; paths stay local.
+        self.parsed_file_errors: dict[str, int] = {}
+        self.parse_error_samples: dict[str, list[dict]] = {}
 
     def cache_stats(self) -> dict[str, int]:
         """Retained per-file cache sizes, for the memory checkpoint log."""
@@ -1036,20 +1040,27 @@ class SourceInspector:
         if parser is None:
             return None
 
-        parsed = ParsedSource(content=content, tree=self._parse_tree(parser, content, file_path.suffix.lower()))
-        if parsed.tree.root_node.has_error and file_key not in self._parse_error_files:
-            errors = _error_node_count(parsed.tree)
-            self._parse_error_files[file_key] = errors
-            # Why not fatal: syntax newer than the bundled grammar should cost the calls inside
-            # the error, not the whole run; the warning keeps that loss visible.
-            logger.warning("Parsed %s with %d error node(s); calls inside them are not seen", file_path, errors)
+        suffix = file_path.suffix.lower()
+        tree, original_errors, retry_errors = self._parse_tree(parser, content, suffix)
+        parsed = ParsedSource(content=content, tree=tree)
+        if file_key not in self.parsed_file_errors:
+            errors = min(original_errors, retry_errors) if retry_errors is not None else original_errors
+            self.parsed_file_errors[file_key] = errors
+            if errors:
+                # Why not fatal: syntax newer than the grammar costs calls inside the error, not the whole run.
+                logger.warning("Parsed %s with %d error node(s); calls inside them are not seen", file_path, errors)
+                remaining = MAX_PARSE_ERROR_SAMPLES - sum(len(samples) for samples in self.parse_error_samples.values())
+                if remaining > 0:
+                    self.parse_error_samples[file_key] = self._sample_parse_errors(
+                        tree, suffix, original_errors, retry_errors, min(remaining, MAX_PARSE_ERRORS_PER_FILE)
+                    )
         self._parsed_cache[file_key] = parsed
         self._parsed_nodes += parsed.tree.root_node.descendant_count
         self._evict_trees()
         return parsed
 
     @staticmethod
-    def _parse_tree(parser: Parser, content: bytes, suffix: str) -> Tree:
+    def _parse_tree(parser: Parser, content: bytes, suffix: str) -> tuple[Tree, int, int | None]:
         """Parse *content*, retrying with conditional-compilation lines blanked.
 
         Why: a member body split across a ``#if`` — C#'s default-interface
@@ -1061,17 +1072,68 @@ class SourceInspector:
         up with what the language server was told about.
         """
         tree = parser.parse(content)
+        original_errors = _error_node_count(tree) if tree.root_node.has_error else 0
         if not tree.root_node.has_error or suffix not in _PREPROCESSOR_SUFFIXES:
-            return tree
+            return tree, original_errors, None
         blanked = _DIRECTIVE_LINE.sub(lambda m: b" " * len(m.group(0)), content)
         if blanked == content:
-            return tree
+            return tree, original_errors, None
         retried = parser.parse(blanked)
+        retry_errors = _error_node_count(retried)
         # Fewer errors wins rather than zero errors: blanking leaves both arms of
         # an ``#if``/``#else`` in place, so a file can improve enormously and
         # still not parse cleanly. Serilog's ILogger goes from 310 error nodes
         # and 18 invocations to 2 and 96.
-        return retried if _error_node_count(retried) < _error_node_count(tree) else tree
+        return retried if retry_errors < original_errors else tree, original_errors, retry_errors
+
+    @staticmethod
+    def _sample_parse_errors(
+        tree: Tree, suffix: str, original_errors: int, retry_errors: int | None, limit: int
+    ) -> list[dict]:
+        """Capture bounded syntax traces without source text, identifiers, or paths."""
+        factory = _LANGUAGE_BY_SUFFIX[suffix]
+        grammar = (
+            "tree-sitter-language-pack"
+            if factory is kotlin_language
+            else factory.__module__.split(".")[0].replace("_", "-")
+        )
+        versions = {}
+        for package in ("tree-sitter", grammar):
+            try:
+                versions[package] = version(package)
+            except PackageNotFoundError:
+                versions[package] = "unknown"
+        samples: list[dict] = []
+        stack = [tree.root_node]
+        while stack and len(samples) < limit:
+            node = stack.pop()
+            if node.type == "ERROR" or node.is_missing:
+                ancestry: list[str] = []
+                ancestor: TreeSitterNode | None = node
+                while ancestor is not None and len(ancestry) < 12:
+                    ancestry.append(ancestor.type)
+                    ancestor = ancestor.parent
+                samples.append(
+                    {
+                        "file_extension": suffix,
+                        "kind": "missing" if node.is_missing else "error",
+                        "node_type": node.type,
+                        "start_line": node.start_point.row + 1,
+                        "start_byte_column": node.start_point.column + 1,
+                        "end_line": node.end_point.row + 1,
+                        "end_byte_column": node.end_point.column + 1,
+                        "syntax_trace": list(reversed(ancestry)),
+                        "trace_truncated": ancestor is not None,
+                        "original_error_count": original_errors,
+                        "retry_error_count": retry_errors,
+                        "recovery_applied": retry_errors is not None and retry_errors < original_errors,
+                        "grammar": grammar,
+                        "grammar_version": versions[grammar],
+                        "tree_sitter_version": versions["tree-sitter"],
+                    }
+                )
+            stack.extend(reversed(node.children))
+        return samples
 
     def _evict_trees(self) -> None:
         """Drop least-recently-parsed trees until the node budget is met."""

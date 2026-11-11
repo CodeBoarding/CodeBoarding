@@ -92,6 +92,20 @@ def _empty_result(source_files: list[str] | None = None) -> LanguageAnalysisResu
     return LanguageAnalysisResult(source_files=source_files or [])
 
 
+def test_preserves_parser_quality():
+    adapter = _make_adapter()
+    result = convert_to_codeboarding_format(
+        SymbolTable(adapter),
+        LanguageAnalysisResult(
+            parsed_file_errors={"broken.py": 2, "clean.py": 0},
+            parse_error_samples={"broken.py": [{"syntax_trace": ["module", "ERROR"]}]},
+        ),
+        adapter,
+    )
+    assert result["parsed_file_errors"] == {"broken.py": 2, "clean.py": 0}
+    assert result["parse_error_samples"] == {"broken.py": [{"syntax_trace": ["module", "ERROR"]}]}
+
+
 # ---------------------------------------------------------------------------
 # _map_symbol_kind
 # ---------------------------------------------------------------------------

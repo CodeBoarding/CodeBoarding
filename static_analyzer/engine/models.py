@@ -132,6 +132,8 @@ class LanguageAnalysisResult:
     source_files: list[str] = field(default_factory=list)
     external_call_sites: list[ExternalCallSite] = field(default_factory=list)
     diagnostics: FileDiagnosticsMap = field(default_factory=dict)
+    parsed_file_errors: dict[str, int] = field(default_factory=dict)
+    parse_error_samples: dict[str, list[dict]] = field(default_factory=dict)
     # Non-call relationship edges completing the graph for clustering. Each entry
     # is (source_qname, target_qname). type_references: code names a type (param,
     # return, annotation, cast); import_edges: module A imports symbol/module B.

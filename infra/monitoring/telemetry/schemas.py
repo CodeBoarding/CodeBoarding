@@ -34,6 +34,11 @@ class LspAnalysisResult(BaseModel):
     reference_count: int = 0
     diagnostic_file_count: int = 0
     diagnostic_count: int = 0
+    parsed_file_count: int = 0
+    parse_error_file_count: int = 0
+    parse_error_node_count: int = 0
+    parse_error_samples: list[dict] = []
+    project_id: str | None = None
     quality_status: str = "ok"
     zero_nodes_with_loc: bool = False
     zero_edges_with_loc: bool = False
