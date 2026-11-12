@@ -27,6 +27,7 @@ from agents.scope_analysis_agent import (
     ScopeAnalysisResult,
     ScopeComponentSemantics,
     ScopeInputBudget,
+    ScopeNameValidation,
 )
 from agents.tools import MethodCallsTool, ReadFileTool
 from static_analyzer.analysis_result import StaticAnalysisResults
@@ -112,9 +113,17 @@ def _final(name: str, call_id: str = "final") -> AIMessage:
     )
 
 
-class TestScopeNames(unittest.TestCase):
-    """A new ``billing_jobs/`` directory shipped as a component named after it."""
+class RecordsBoundTools(ToolCallingFakeModel):
+    """Remembers the tool names each model call was offered."""
 
+    bound: list[list[str]] = []
+
+    def bind_tools(self, tools: Sequence[Any], *, tool_choice: str | None = None, **kwargs: Any) -> Any:
+        self.bound.append([getattr(tool, "name", "") for tool in tools])
+        return self
+
+
+class TestScopeNames(unittest.TestCase):
     def _analyze(
         self, *names: str, locked: frozenset[str] = frozenset()
     ) -> tuple[ScopeAnalysisResult, RequestRecorder]:
@@ -127,7 +136,13 @@ class TestScopeNames(unittest.TestCase):
         assert result is not None
         return result, recorder
 
-    def test_an_identifier_name_is_asked_for_again(self):
+    def test_an_identifier_the_repair_can_write_as_words_costs_no_second_call(self):
+        result, recorder = self._analyze("invoice_generation_jobs")
+
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+        self.assertEqual(len(recorder.requests), 1)
+
+    def test_a_directory_name_is_asked_for_again(self):
         result, recorder = self._analyze("billing_jobs", "Invoice Generation Jobs")
 
         self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
@@ -139,10 +154,16 @@ class TestScopeNames(unittest.TestCase):
 
         self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
 
-    def test_a_second_identifier_leaves_the_group_unnamed(self):
-        result, _ = self._analyze("billing_jobs", "billingJobs")
+    def test_a_lone_lowercase_word_is_asked_for_again(self):
+        result, _ = self._analyze("billing", "Invoice Generation Jobs")
 
-        self.assertEqual(result.components[0].name, "")
+        self.assertEqual(result.components[0].name, "Invoice Generation Jobs")
+
+    def test_a_second_bad_answer_leaves_the_first(self):
+        result, recorder = self._analyze("billing_jobs", "billingJobs")
+
+        self.assertEqual(result.components[0].name, "billing_jobs")
+        self.assertEqual(len(recorder.requests), 2)
 
     def test_a_natural_name_costs_no_second_call(self):
         result, recorder = self._analyze("Invoice Generation Jobs")
@@ -154,6 +175,80 @@ class TestScopeNames(unittest.TestCase):
         _, recorder = self._analyze("billing_jobs", locked=frozenset({"1"}))
 
         self.assertEqual(len(recorder.requests), 1)
+
+    def test_the_re_ask_offers_no_repository_tools(self):
+        static_analysis, scope, analysis = _inputs("billing_jobs/handler.py")
+        model = RecordsBoundTools(
+            responses=[_final("billing_jobs", "first"), _final("Invoice Generation Jobs", "second")]
+        )
+        model.bound.clear()
+
+        ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        self.assertIn("readFile", model.bound[0])
+        self.assertNotIn("readFile", model.bound[1])
+
+    @patch.object(ReadFileTool, "_run", return_value="source")
+    def test_the_re_ask_shares_the_runs_call_budgets(self, read_file):
+        static_analysis, scope, analysis = _inputs("billing_jobs/handler.py")
+        reads = [
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "readFile",
+                        "args": {"file_path": "billing_jobs/handler.py", "line_number": 1},
+                        "id": f"read-{index}",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+            for index in range(MAX_SCOPE_TOOL_CALLS + 1)
+        ]
+        model = ToolCallingFakeModel(
+            responses=[*reads, _final("billing_jobs", "first"), _final("Invoice Jobs", "second")]
+        )
+
+        result = ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        assert result is not None
+        self.assertEqual(result.components[0].name, "Invoice Jobs")
+        self.assertEqual(read_file.call_count, MAX_SCOPE_TOOL_CALLS)
+
+    @patch("agents.scope_analysis_agent.ScopeInputBudget.count_tokens")
+    def test_a_re_ask_over_the_context_keeps_the_first_answer(self, count_tokens):
+        count_tokens.side_effect = lambda request: 10**9 if len(request.messages) > 1 else 1
+        static_analysis, scope, analysis = _inputs("billing_jobs/handler.py")
+        model = ToolCallingFakeModel(responses=[_final("billing_jobs")])
+
+        result = ScopeAnalysisAgent(Path("/repo"), static_analysis, model).analyze(scope, analysis, {"1"})
+
+        assert result is not None
+        self.assertEqual(result.components[0].name, "billing_jobs")
+        self.assertEqual(result.description, "scope")
+
+    def test_a_partial_re_ask_replaces_only_the_rejected_names(self):
+        def named(*pairs: tuple[str, str]) -> ScopeAnalysisResult:
+            return ScopeAnalysisResult(
+                components=[
+                    ScopeComponentSemantics(group_id=group_id, name=name, description="kept")
+                    for group_id, name in pairs
+                ]
+            )
+
+        validation = ScopeNameValidation(frozenset(), {"1", "2"})
+        first = named(("1", "billing"), ("2", "Order Intake"))
+
+        asked = validation.after_model({"structured_response": first}, None)
+        update = validation.after_model({"structured_response": named(("1", "Invoice Generation"))}, None)
+
+        assert asked is not None and update is not None
+        self.assertEqual(asked["jump_to"], "model")
+
+        self.assertEqual(
+            [component.name for component in update["structured_response"].components],
+            ["Invoice Generation", "Order Intake"],
+        )
 
 
 class TestScopeInputBudget(unittest.TestCase):

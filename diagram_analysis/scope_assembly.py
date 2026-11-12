@@ -5,6 +5,7 @@ from collections.abc import Callable, Collection
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge
+from agents.component_names import humanize, is_natural_name, placeholder_name, unique_name
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.content_hash import SourceCache
 from agents.relation_edges import (
@@ -24,7 +25,6 @@ from static_analyzer import StaticAnalysisFatalError
 from static_analyzer.cfg import Edge
 from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.clustering import ClusterGroup, ClusterScopeResult, GroupConnection
-from static_analyzer.clustering.names.tokens import is_natural_name
 from diagram_analysis.reference_resolver import StaticReferenceResolver
 
 logger = logging.getLogger(__name__)
@@ -45,11 +45,10 @@ class ScopeAssembler:
             )
 
         components: list[Component] = []
-        taken: set[str] = set()
         for group in scope.groups:
             components.append(
                 Component(
-                    name=group.unique_name(taken),
+                    name=placeholder_name(group.group_id),
                     description=self._fallback_description(scope, group, self.repo_dir),
                     key_entities=[],
                     source_cluster_ids=CodeBoardingClusterIds.from_graph_ids(set(group.cluster_ids)),
@@ -109,37 +108,34 @@ class ScopeAssembler:
         components) are taken before any proposal, so a child is never named after its parent.
         """
         components = {component.component_id: component for component in analysis.components}
-        groups_by_id = {group.group_id: group for group in scope.groups}
         semantics_by_id = {item.group_id: item for item in result.components if item.group_id in components}
         ordered_ids = [group.group_id for group in scope.groups if group.group_id in editable_group_ids]
 
         # Names are allocated against the final set, not the current one: a swap between two
         # siblings is valid, while a name already held by a component that cannot move is not.
-        proposals = {
-            group_id: semantics_by_id[group_id].name.strip()
+        written = {
+            group_id: humanize(semantics_by_id[group_id].name.strip())
             for group_id in ordered_ids
-            if group_id in semantics_by_id
-            and group_id not in locked_name_ids
-            and is_natural_name(semantics_by_id[group_id].name.strip())
+            if group_id in semantics_by_id and group_id not in locked_name_ids
         }
-        # A directory or identifier name is not kept just because the model gave no better one:
-        # it is replaced by the rule name written as words.
-        fallbacks = {
+        proposals = {group_id: name for group_id, name in written.items() if is_natural_name(name)}
+        # An identifier the model did not replace is carried as words, never as code.
+        carried_identifiers = [
             group_id
             for group_id in ordered_ids
             if group_id not in proposals
             and group_id not in locked_name_ids
             and group_id in components
             and not is_natural_name(components[group_id].name)
-        }
+        ]
         taken = {
             component.name
             for group_id, component in components.items()
-            if group_id not in proposals and group_id not in fallbacks
+            if group_id not in proposals and group_id not in carried_identifiers
         }
         taken.update(reserved_names)
-        for group_id in fallbacks:
-            components[group_id].name = groups_by_id[group_id].unique_name(taken)
+        for group_id in carried_identifiers:
+            components[group_id].name = unique_name(humanize(components[group_id].name), group_id, taken)
         named: set[str] = set()
         for group_id in ordered_ids:
             component = components.get(group_id)
@@ -149,9 +145,9 @@ class ScopeAssembler:
             if proposed not in taken:
                 component.name = proposed
                 named.add(group_id)
-            elif component.name in taken:
-                # Its previous name went to an accepted proposal; fall back to the rule name.
-                component.name = groups_by_id[group_id].unique_name(taken)
+            elif component.name in taken or not is_natural_name(component.name):
+                # No usable name to keep, so the model's own answer stands, made unique.
+                component.name = unique_name(proposed, group_id, taken)
                 continue
             taken.add(component.name)
 

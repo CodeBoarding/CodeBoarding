@@ -22,9 +22,8 @@ def _component(component_id: str, name: str) -> Component:
     return Component(name=name, description=name, key_entities=[], component_id=component_id)
 
 
-def _scope(*pairs: tuple[str, str], names: dict[str, str] | None = None, absolute: bool = False) -> ClusterScopeResult:
+def _scope(*pairs: tuple[str, str], absolute: bool = False) -> ClusterScopeResult:
     symbols = {"1": "a.run", "2": "b.load", "3": "c.save"}
-    names = names or {}
     graph = CallGraph(language="python")
     for index, (group_id, qualified_name) in enumerate(symbols.items(), start=1):
         path = f"/repo/src/{group_id}.py" if absolute else f"src/{group_id}.py"
@@ -35,7 +34,6 @@ def _scope(*pairs: tuple[str, str], names: dict[str, str] | None = None, absolut
         groups=[
             ClusterGroup(
                 group_id=group_id,
-                name=names.get(group_id, ""),
                 cluster_ids=[int(group_id)],
                 symbol_members_by_language={"python": {qualified_name}},
             )
@@ -178,7 +176,7 @@ class TestScopeAssembler(unittest.TestCase):
         self.assertNotIn("/repo", analysis.components[0].description)
 
     def test_a_proposal_cannot_take_an_enclosing_components_name(self) -> None:
-        scope = _scope(names={"1": "engine", "2": "adapters"})
+        scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)
         result = ScopeAnalysisResult(
@@ -194,12 +192,11 @@ class TestScopeAssembler(unittest.TestCase):
             analysis, scope, result, {"1", "2"}, set(), _resolver(scope), reserved_names=("Static Analysis Engine",)
         )
 
-        self.assertEqual([c.name for c in analysis.components], ["Engine", "Adapters", "Component 3"])
+        self.assertEqual([c.name for c in analysis.components], ["Static Analysis Engine 1", "Adapters", "Component 3"])
         self.assertEqual(unnamed, frozenset({"1"}))
 
-    def test_an_identifier_proposal_is_refused_and_the_rule_name_ships_as_words(self) -> None:
-        """The model named root boxes after their directories."""
-        scope = _scope(names={"1": "infrastructure", "2": "order_handlers", "3": "payment_gateway"})
+    def test_an_identifier_proposal_ships_as_words(self) -> None:
+        scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)
         result = ScopeAnalysisResult(
@@ -215,47 +212,36 @@ class TestScopeAssembler(unittest.TestCase):
         self.assertEqual(
             [c.name for c in analysis.components], ["Infrastructure", "Order Handlers", "Payment Provider Client"]
         )
-        self.assertEqual(unnamed, frozenset({"1", "2"}))
+        self.assertEqual(unnamed, frozenset())
 
-    def test_an_identifier_name_carried_from_the_baseline_does_not_survive_a_run(self) -> None:
-        """CodeBoarding-action: ``action_scripts`` came back on every PR from 16 Sep to 12 Oct."""
-        scope = _scope(names={"1": "scripts"})
+    def test_an_identifier_carried_from_the_baseline_is_written_as_words(self) -> None:
+        scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)
         analysis.components[0].name = "action_scripts"
 
         assembler.apply_semantics(analysis, scope, ScopeAnalysisResult(components=[]), {"1"}, set(), _resolver(scope))
 
-        self.assertEqual(analysis.components[0].name, "Scripts")
+        self.assertEqual(analysis.components[0].name, "Action Scripts")
 
-    def test_names_components_from_the_clustering_rule_that_claimed_them(self) -> None:
-        scope = _scope(names={"1": "Ingestion", "2": "Storage"})
+    def test_a_group_the_model_did_not_name_keeps_its_placeholder_and_is_reported(self) -> None:
+        scope = _scope()
+        assembler = ScopeAssembler(Path("/repo"))
+        analysis = assembler.build(scope)
 
-        analysis = ScopeAssembler(Path("/repo")).build(scope)
-
-        self.assertEqual(
-            [component.name for component in analysis.components],
-            ["Ingestion", "Storage", "Component 3"],
+        unnamed = assembler.apply_semantics(
+            analysis, scope, ScopeAnalysisResult(components=[]), {"1"}, set(), _resolver(scope)
         )
 
-    def test_disambiguates_two_groups_claiming_the_same_rule_name(self) -> None:
-        scope = _scope(names={"1": "Storage", "2": "Storage"})
+        self.assertEqual(analysis.components[0].name, "Component 1")
+        self.assertEqual(unnamed, frozenset({"1"}))
 
-        analysis = ScopeAssembler(Path("/repo")).build(scope)
-
-        self.assertEqual(
-            [component.name for component in analysis.components],
-            ["Storage", "Storage 2", "Component 3"],
-        )
-
-    def test_keeps_suffixing_until_the_name_is_free(self) -> None:
-        scope = _scope(names={"1": "Storage", "2": "Storage 3", "3": "Storage"})
-
-        analysis = ScopeAssembler(Path("/repo")).build(scope)
+    def test_every_component_holds_a_placeholder_until_it_is_named(self) -> None:
+        analysis = ScopeAssembler(Path("/repo")).build(_scope())
 
         self.assertEqual(
             [component.name for component in analysis.components],
-            ["Storage", "Storage 3", "Storage 3 2"],
+            ["Component 1", "Component 2", "Component 3"],
         )
 
     def test_keeps_existing_key_entities_when_semantics_omit_them(self) -> None:
@@ -285,9 +271,10 @@ class TestScopeAssembler(unittest.TestCase):
         self.assertEqual(analysis.components[0].key_entities, [])
 
     def test_names_are_allocated_against_final_siblings_so_a_swap_is_valid(self) -> None:
-        scope = _scope(names={"1": "API", "2": "Storage"})
+        scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)
+        analysis.components[0].name, analysis.components[1].name = "API", "Storage"
         result = ScopeAnalysisResult(
             components=[
                 ScopeComponentSemantics(group_id="1", name="Storage", description="Stores."),
@@ -300,8 +287,8 @@ class TestScopeAssembler(unittest.TestCase):
         self.assertEqual([component.name for component in analysis.components[:2]], ["Storage", "Persistence"])
         self.assertEqual(unnamed, frozenset())
 
-    def test_a_losing_duplicate_proposal_falls_back_to_its_rule_name_and_is_reported(self) -> None:
-        scope = _scope(names={"1": "API", "2": "Storage", "3": "Cache"})
+    def test_a_losing_duplicate_proposal_is_made_unique_and_reported(self) -> None:
+        scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)
         result = ScopeAnalysisResult(
@@ -314,13 +301,14 @@ class TestScopeAssembler(unittest.TestCase):
 
         unnamed = assembler.apply_semantics(analysis, scope, result, {"1", "2", "3"}, set(), _resolver(scope))
 
-        self.assertEqual([component.name for component in analysis.components], ["Storage", "Storage 2", "Cache"])
+        self.assertEqual([component.name for component in analysis.components], ["Storage", "Storage 2", "Component 3"])
         self.assertEqual(unnamed, frozenset({"2", "3"}))
 
     def test_a_proposal_cannot_take_a_name_held_by_a_group_that_cannot_move(self) -> None:
-        scope = _scope(names={"1": "API", "2": "Storage"})
+        scope = _scope()
         assembler = ScopeAssembler(Path("/repo"))
         analysis = assembler.build(scope)
+        analysis.components[0].name, analysis.components[1].name = "API", "Storage"
         result = ScopeAnalysisResult(
             components=[ScopeComponentSemantics(group_id="1", name="Storage", description="Stores.")],
         )
