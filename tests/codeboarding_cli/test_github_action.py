@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,8 @@ from codeboarding_cli.github_action import (
     generate_rst,
 )
 from infra.utils import CODEBOARDING_DIR_NAME
+
+LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
 UNIFIED_ANALYSIS_JSON = {
     "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1, "format_version": "v1"},
@@ -465,6 +468,14 @@ class TestResolveDepthCap(unittest.TestCase):
                 json.dump(analysis, f)
 
             self.assertEqual(_resolve_depth_cap(temp_path), 4)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_a_baseline_in_an_older_format_still_gives_its_depth_cap(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            shutil.copy(LEGACY_ANALYSIS, temp_path / "analysis.json")
+
+            self.assertEqual(_resolve_depth_cap(temp_path), 2)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_realized_depth_is_not_a_configuration_fallback(self):

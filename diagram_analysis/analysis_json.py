@@ -325,9 +325,7 @@ def parse_unified_analysis(
         (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component_id
         to its nested AnalysisInsights.
     """
-    version = (data.get("metadata") or {}).get("format_version")
-    if version != ANALYSIS_FORMAT_VERSION:
-        raise AnalysisFormatError(version, ANALYSIS_FORMAT_VERSION)
+    require_format_version(data.get("metadata") or {})
     reader = _DocumentReader(data)
     root_analysis = reader.analysis(data.get("description", ""), data["components"], data["components_relations"], "")
     if reader.missing:
@@ -341,6 +339,13 @@ def parse_unified_analysis(
         sub.files = {path: FileEntry().merge_from(entry) for path, entry in reader.files.items() if path in owned}
 
     return root_analysis, reader.sub_analyses
+
+
+def require_format_version(metadata: dict) -> None:
+    """Raise ``AnalysisFormatError`` unless *metadata* is from a document in the format this Core reads."""
+    version = metadata.get("format_version")
+    if version != ANALYSIS_FORMAT_VERSION:
+        raise AnalysisFormatError(version, ANALYSIS_FORMAT_VERSION)
 
 
 def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> dict[str, str]:

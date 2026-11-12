@@ -1,5 +1,6 @@
 import json
 import logging
+import shutil
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
@@ -13,6 +14,8 @@ from diagram_analysis.io_utils import save_analysis, write_fingerprint
 from codeboarding_cli.main import main
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.scanner import ProjectScanner
+
+LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
 
 @pytest.fixture
@@ -56,6 +59,20 @@ def test_incremental_llm_failure_crashes_instead_of_asking_for_a_full_run(
         main(["incremental", "--local", str(tmp_path)])
 
     assert "requiresFullAnalysis" not in capsys.readouterr().out
+
+
+def test_a_baseline_in_an_older_format_asks_for_a_full_run(tmp_path: Path, capsys) -> None:
+    """Why: the Action answers ``requiresFullAnalysis`` with a full run; anything else fails its job."""
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir()
+    shutil.copy(LEGACY_ANALYSIS, output_dir / "analysis.json")
+
+    with patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"):
+        main(["incremental", "--local", str(tmp_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["requiresFullAnalysis"] is True
+    assert "predates format versioning" in payload["error"]
 
 
 @pytest.fixture

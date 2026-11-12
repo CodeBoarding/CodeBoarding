@@ -1,3 +1,4 @@
+import shutil
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,10 +10,13 @@ from codeboarding_workflows.analysis import (
     run_full,
     run_incremental,
     run_incremental_workflow,
+    run_partial,
 )
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from infra.repo_utils.change_detector import ChangeSet
+
+LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
 
 @pytest.fixture
@@ -34,7 +38,10 @@ def patched(tmp_path: Path):
             )
         )
         stack.enter_context(
-            patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value={"depth_level": 1})
+            patch(
+                "codeboarding_workflows.analysis.load_analysis_metadata",
+                return_value={"depth_level": 1, "format_version": "v1"},
+            )
         )
         yield gen_cls, workflow, detect
 
@@ -97,6 +104,44 @@ def test_run_incremental_no_baseline_raises(tmp_path: Path, patched) -> None:
     with patch("codeboarding_workflows.analysis.load_analysis_metadata", return_value=None):
         with pytest.raises(BaselineUnavailableError, match="No baseline"):
             _invoke(tmp_path)
+
+
+def test_run_incremental_refuses_a_baseline_in_an_older_format(tmp_path: Path) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    shutil.copy(LEGACY_ANALYSIS, output_dir / "analysis.json")
+
+    with patch("codeboarding_workflows.analysis.DiagramGenerator") as gen_cls:
+        with pytest.raises(BaselineUnavailableError, match="predates format versioning"):
+            _invoke(tmp_path)
+
+    gen_cls.assert_not_called()
+
+
+def test_run_partial_refuses_a_baseline_in_an_older_format(tmp_path: Path) -> None:
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+    shutil.copy(LEGACY_ANALYSIS, output_dir / "analysis.json")
+
+    with patch("codeboarding_workflows.analysis.DiagramGenerator") as gen_cls:
+        with pytest.raises(BaselineUnavailableError, match="predates format versioning"):
+            run_partial(
+                RunPaths(repo_path=tmp_path, output_dir=output_dir, project_name="proj"),
+                RunContext(run_id="rid", log_path="logs/run.log"),
+                component_id="1",
+            )
+
+    gen_cls.assert_not_called()
+
+
+def test_run_incremental_workflow_runs_in_full_over_a_baseline_in_an_older_format(tmp_path: Path) -> None:
+    shutil.copy(LEGACY_ANALYSIS, tmp_path / "analysis.json")
+    generator = MagicMock(output_dir=tmp_path)
+
+    run_incremental_workflow(generator)
+
+    generator.generate_analysis.assert_called_once_with()
+    generator.generate_analysis_incremental.assert_not_called()
 
 
 def _fail_after_a_progress_save(analysis_path: Path):

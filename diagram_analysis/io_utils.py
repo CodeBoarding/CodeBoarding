@@ -30,6 +30,7 @@ from diagram_analysis.analysis_json import (
     build_unified_analysis_json,
     parse_unified_analysis,
 )
+from diagram_analysis.exceptions import UnreadableAnalysisError
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
 from infra.utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
@@ -62,33 +63,28 @@ class _AnalysisFileStore:
         self._lock = FileLock(output_dir / f"{ANALYSIS_FILENAME}.lock", timeout=30)
 
     def read(self) -> tuple[AnalysisInsights, dict[str, AnalysisInsights], dict] | None:
-        """Load the unified ``analysis.json`` from disk.
+        """``(root_analysis, sub_analyses, raw_data)`` from ``analysis.json``, or ``None`` only when it is absent.
 
-        Returns ``(root_analysis, sub_analyses_dict, raw_data)`` or ``None``
-        if the file does not exist or cannot be parsed.
+        Raises ``UnreadableAnalysisError`` when the file is there but this Core cannot read it.
         """
+        data = self.read_document()
+        if data is None:
+            return None
+        root_analysis, sub_analyses = parse_unified_analysis(data)
+        return root_analysis, sub_analyses, data
+
+    def read_document(self) -> dict | None:
+        """The decoded ``analysis.json`` in whichever format wrote it; ``None`` only when it is absent."""
         with self._lock:
             if not self._analysis_path.exists():
                 return None
-
-            try:
-                with open(self._analysis_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-
-                root_analysis, sub_analyses = parse_unified_analysis(data)
-                return (root_analysis, sub_analyses, data)
-            except Exception as e:
-                logger.error(f"Failed to load unified analysis: {e}")
-                return None
-
-    def read_root(self) -> AnalysisInsights | None:
-        """Load just the root analysis."""
-        result = self.read()
-        return result[0] if result else None
-
-    def exists(self) -> bool:
-        """True when a parseable ``analysis.json`` is present on disk."""
-        return self.read_root() is not None
+            raw = self._analysis_path.read_bytes()
+        try:
+            return json.loads(raw)
+        except ValueError as error:
+            raise UnreadableAnalysisError(
+                f"{self._analysis_path} is not valid JSON; run a full analysis to rewrite it"
+            ) from error
 
     def write(
         self,
@@ -151,20 +147,17 @@ class _AnalysisFileStore:
             }
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
-        # Preserve existing metadata fields from disk when not explicitly provided
-        if (
-            sub_analyses is None
-            or file_coverage_summary is None
-            or not repo_name
-            or depth_cap is None
-            or tree_spec is None
-        ):
+        # Preserve existing sub-analyses and metadata fields from disk when not explicitly provided.
+        if sub_analyses is None:
             existing = self.read()
             if existing:
-                _, existing_subs, existing_data = existing
-                if sub_analyses is None:
-                    sub_analyses = existing_subs
-                metadata = existing_data.get("metadata", {})
+                sub_analyses = existing[1]
+        if file_coverage_summary is None or not repo_name or depth_cap is None or tree_spec is None:
+            # Why: the metadata block reads in any format, so a full run replacing an older analysis.json
+            # still keeps them across its progress saves.
+            document = self.read_document()
+            if document:
+                metadata = document.get("metadata") or {}
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
                 if tree_spec is None:
@@ -255,16 +248,17 @@ def _get_store(output_dir: Path) -> _AnalysisFileStore:
 
 
 def analysis_exists(output_dir: Path) -> bool:
-    """True when output_dir holds a parseable ``analysis.json``."""
+    """True when ``analysis.json`` is present; raises ``UnreadableAnalysisError`` when this Core cannot read it."""
     if not (output_dir / ANALYSIS_FILENAME).is_file():
         return False
-    return _get_store(output_dir).exists()
+    return _get_store(output_dir).read() is not None
 
 
 def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]] | None:
     """Load both the root analysis and all sub-analyses from the unified analysis.json file.
 
-    Returns ``(root_analysis, sub_analyses)`` or ``None`` if the file does not exist.
+    Returns ``(root_analysis, sub_analyses)`` or ``None`` if the file does not exist, and raises
+    ``UnreadableAnalysisError`` when this Core cannot read it.
     Sub-analyses maps component_id to its nested AnalysisInsights, covering all depth levels.
     """
     result = _get_store(output_dir).read()
@@ -296,11 +290,12 @@ def load_expandable_component_ids(output_dir: Path) -> set[str]:
 
 
 def load_analysis_metadata(output_dir: Path) -> dict | None:
-    """Load raw metadata from the unified analysis file."""
-    result = _get_store(output_dir).read()
-    if result is None:
-        return None
-    return result[2].get("metadata")
+    """The raw metadata of ``analysis.json`` in any format, or ``None`` when there is no file.
+
+    Why: the block is the same in every format, so a baseline this Core cannot parse still gives its depth cap.
+    """
+    document = _get_store(output_dir).read_document()
+    return None if document is None else document.get("metadata") or {}
 
 
 def write_text_atomic(path: Path, text: str) -> None:

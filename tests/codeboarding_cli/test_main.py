@@ -97,7 +97,7 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash", "format_version": "v1"}
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -167,7 +167,12 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 2, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {
+            "depth_level": 1,
+            "depth_cap": 2,
+            "source_tree_hash": "source-hash",
+            "format_version": "v1",
+        }
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -238,8 +243,11 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir.mkdir()
 
             cases = (
-                ({"depth_level": 2}, "Run a full analysis first"),
-                ({"depth_level": 2, "source_tree_hash": "baseline-hash"}, "Run incremental analysis"),
+                ({"depth_level": 2, "format_version": "v1"}, "Run a full analysis first"),
+                (
+                    {"depth_level": 2, "source_tree_hash": "baseline-hash", "format_version": "v1"},
+                    "Run incremental analysis",
+                ),
             )
             for metadata, expected_message in cases:
                 with self.subTest(metadata=metadata):
@@ -317,9 +325,9 @@ class TestIncrementalDepthSource(unittest.TestCase):
             output_dir.mkdir()
 
             for metadata, expected_cap in (
-                ({"depth_level": 1, "depth_cap": 4}, 4),
-                ({"depth_level": 1}, 1),
-                ({}, 3),
+                ({"depth_level": 1, "depth_cap": 4, "format_version": "v1"}, 4),
+                ({"depth_level": 1, "format_version": "v1"}, 1),
+                ({"format_version": "v1"}, 3),
             ):
                 with self.subTest(metadata=metadata):
                     mock_load_metadata.return_value = metadata
@@ -405,7 +413,12 @@ class TestLocalSource(unittest.TestCase):
             description="",
             key_entities=[],
         )
-        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {
+            "depth_level": 1,
+            "depth_cap": 1,
+            "source_tree_hash": "source-hash",
+            "format_version": "v1",
+        }
         root_analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
         mock_load_full.return_value = (root_analysis, {})
         mock_generator_class.return_value.process_component.return_value = ("target", None, [])

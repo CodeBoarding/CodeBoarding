@@ -65,7 +65,11 @@ class SymbolIdCollisionError(RuntimeError):
         self.keys = (first_key, second_key)
 
 
-class AnalysisFormatError(ValueError):
+class UnreadableAnalysisError(ValueError):
+    """Raised when an analysis.json exists but this Core cannot read it."""
+
+
+class AnalysisFormatError(UnreadableAnalysisError):
     """Raised when an analysis.json document is not in the format this Core reads."""
 
     def __init__(self, found: str | None, expected: str):
