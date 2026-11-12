@@ -117,11 +117,12 @@ def track_lsp_result(
     diagnostic_count = sum(len(items) for items in diagnostics.values()) if diagnostics else 0
     parsed_file_errors = analysis.get("parsed_file_errors", {})
     parse_error_file_count = sum(count > 0 for count in parsed_file_errors.values())
+    parser_degraded = parse_error_file_count > 0 and parse_error_file_count * 100 >= len(parsed_file_errors) * 5
 
     zero_nodes_with_loc = loc > 0 and node_count == 0
     zero_edges_with_loc = loc > 0 and edge_count == 0
     missing_summary = missing_call_graph or missing_source_files
-    degraded = zero_edges_with_loc or missing_summary or parse_error_file_count > 0
+    degraded = zero_edges_with_loc or missing_summary or parser_degraded
     quality_status = "error" if zero_nodes_with_loc else "warning" if degraded else "ok"
 
     issues = []
@@ -133,7 +134,7 @@ def track_lsp_result(
         issues.append("missing call graph")
     if missing_source_files:
         issues.append("missing source files")
-    if parse_error_file_count:
+    if parser_degraded:
         issues.append(f"parse errors in {parse_error_file_count} files")
     if zero_nodes_with_loc:
         logger.error("LSP analysis result for %s is unhealthy: %s", language, ", ".join(issues))

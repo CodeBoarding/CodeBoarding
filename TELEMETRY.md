@@ -123,8 +123,11 @@ Property meanings:
   error/missing nodes, on `lsp_analysis_result`. Re-parses after cache eviction do
   not inflate counts. Incremental passes measure only files parsed during that
   pass, including callers checked while restoring edges, not the cached project.
-  Remaining parse errors make `quality_status` at least `warning`. These counts
-  measure parser health, not the number of calls lost.
+  Parser errors make `quality_status` at least `warning` when at least 5% of
+  the files parsed in that technology's analysis pass have errors. Technologies
+  are evaluated separately, never averaged across the repository. Counts and
+  samples are still sent below 5%; existing graph-quality rules are unchanged.
+  These counts measure parser health, not the number of calls lost.
 - `parse_error_samples` — at most 20 structural samples per language-pass event,
   sampled from at most three errors per file per inspector. Each includes the
   file extension, error/missing-token kind, node type, one-based line and UTF-8
@@ -134,10 +137,13 @@ Property meanings:
   tree-sitter and grammar package versions, original error count, retry error
   count (`null` when no retry ran), and whether preprocessing recovery was
   applied. A `file_index` groups samples within an event without sending paths;
-  it is not a stable file identifier. Sampling follows first encounter order,
-  not random or severity-weighted selection. Samples contain no source excerpts,
-  symbol names, repository identities or file paths. Use these traces to
-  identify recurring syntax failures; exact reproduction still requires the
+  it is not a stable file identifier. Files follow first encounter order; within
+  each file, sampling follows deterministic left-to-right depth-first order,
+  skipping outer `ERROR` nodes with error or missing-token descendants in favor
+  of innermost errors. Missing tokens remain eligible, as do whole-file errors
+  with no error/missing descendants. Selection is not random or severity-weighted.
+  Samples contain no source excerpts, symbol names, repository identities or
+  file paths. Use these traces to identify recurring syntax failures; exact reproduction still requires the
   corresponding source or a user-provided minimal example.
 - `method`, `is_notification`, `has_workspace` — which MCP call was made, and
   whether a workspace was open. No arguments or results.

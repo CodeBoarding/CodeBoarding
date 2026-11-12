@@ -1107,7 +1107,12 @@ class SourceInspector:
         stack = [tree.root_node]
         while stack and len(samples) < limit:
             node = stack.pop()
-            if node.type == "ERROR" or node.is_missing:
+            children = node.children
+            # Tree-sitter caches subtree error flags; inspect only immediate children.
+            has_error_descendant = any(
+                child.has_error or child.type == "ERROR" or child.is_missing for child in children
+            )
+            if node.is_missing or (node.type == "ERROR" and not has_error_descendant):
                 ancestry: list[str] = []
                 ancestor: TreeSitterNode | None = node
                 while ancestor is not None and len(ancestry) < 12:
@@ -1132,7 +1137,7 @@ class SourceInspector:
                         "tree_sitter_version": versions["tree-sitter"],
                     }
                 )
-            stack.extend(reversed(node.children))
+            stack.extend(reversed(children))
         return samples
 
     def _evict_trees(self) -> None:

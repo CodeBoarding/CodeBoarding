@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -673,6 +674,61 @@ def test_parse_error_samples_are_bounded_without_truncating_counts(tmp_path: Pat
     assert sum(si.parsed_file_errors.values()) == 50
     assert sum(len(samples) for samples in si.parse_error_samples.values()) == 20
     assert max(len(samples) for samples in si.parse_error_samples.values()) == 3
+
+
+@pytest.mark.parametrize("limit", [0, 1, 3])
+def test_parse_error_samples_prefer_innermost_errors(tmp_path: Path, limit: int):
+    path = tmp_path / "broken.py"
+    path.write_text("def private_name(\n a = !\n b = !\n c = !\n")
+    si = SourceInspector()
+    parsed = si._parse(path)
+    assert parsed is not None
+    assert si.parsed_file_errors[str(path)] == 7
+
+    samples = si._sample_parse_errors(parsed.tree, ".py", 7, None, limit)
+
+    assert [(s["start_line"], s["start_byte_column"]) for s in samples] == [(2, 6), (3, 6), (4, 6)][:limit]
+    assert all(s["end_byte_column"] == 7 for s in samples)
+    assert all(s["kind"] == "error" and s["original_error_count"] == 7 for s in samples)
+    if samples:
+        assert samples[0]["syntax_trace"] == ["module", "ERROR", "ERROR", "ERROR", "ERROR"]
+        assert samples[0]["trace_truncated"] is False
+    assert "private_name" not in str(samples)
+    assert si._sample_parse_errors(parsed.tree, ".py", 7, None, limit) == samples
+
+
+def test_parse_error_samples_keep_whole_file_leaf_error(tmp_path: Path):
+    path = tmp_path / "broken.py"
+    path.write_text("def private_name(")
+    si = SourceInspector()
+    si.find_call_sites(path)
+
+    samples = si.parse_error_samples[str(path)]
+    assert len(samples) == 1
+    assert samples[0]["syntax_trace"] == ["module", "ERROR"]
+    assert (samples[0]["start_byte_column"], samples[0]["end_byte_column"]) == (1, 18)
+
+
+def test_parse_error_samples_prefer_missing_descendant():
+    outer = Mock(type="ERROR", is_missing=False)
+    parameters = Mock(type="parameters", is_missing=False, has_error=True)
+    missing = Mock(type=")", is_missing=True, has_error=True, children=[])
+    outer.parent = None
+    parameters.parent = outer
+    missing.parent = parameters
+    missing.start_point.row = missing.end_point.row = 0
+    missing.start_point.column = missing.end_point.column = 12
+    outer.start_point = missing.start_point
+    outer.end_point = missing.end_point
+    outer.children = [parameters]
+    parameters.children = [missing]
+
+    samples = SourceInspector._sample_parse_errors(Mock(root_node=outer), ".py", 2, None, 1)
+
+    assert len(samples) == 1
+    assert samples[0]["kind"] == "missing"
+    assert samples[0]["syntax_trace"] == ["ERROR", "parameters", ")"]
+    assert samples[0]["start_byte_column"] == samples[0]["end_byte_column"] == 13
 
 
 class TestMethodGroupValuePositions:

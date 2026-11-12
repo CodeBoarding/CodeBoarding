@@ -257,6 +257,39 @@ def test_lsp_analysis_result_reports_parser_quality(captured, errors, quality):
     assert "parsed_file_errors" not in props
 
 
+@pytest.mark.parametrize(
+    "parsed,affected,quality", [(0, 0, "ok"), (100, 4, "ok"), (100, 5, "warning"), (100, 6, "warning")]
+)
+def test_parser_warning_threshold_per_technology(captured, caplog, parsed, affected, quality):
+    for language, errors in (
+        ("python", {str(i): 0 for i in range(1000)}),
+        ("cpp", {str(i): 10 if i < affected else 0 for i in range(parsed)}),
+    ):
+        track_lsp_result(
+            repo_path=Path("/repo"),
+            language=language,
+            loc=100,
+            status="success",
+            duration_ms=1,
+            analysis={
+                "call_graph": SimpleNamespace(nodes={"a": 1, "b": 2}, edges=[1]),
+                "source_files": ["a", "b"],
+                "parsed_file_errors": errors,
+                "parse_error_samples": {"a": [{"kind": "error"}]} if affected and language == "cpp" else {},
+            },
+            diagnostics={},
+        )
+
+    python, cpp = [props for event, props in captured.events if event == "lsp_analysis_result"]
+    assert python["quality_status"] == "ok"
+    assert cpp["quality_status"] == quality
+    assert cpp["parsed_file_count"] == parsed
+    assert cpp["parse_error_file_count"] == affected
+    assert cpp["parse_error_node_count"] == affected * 10
+    assert bool(cpp["parse_error_samples"]) == bool(affected)
+    assert ("is degraded" in caplog.text) == (quality == "warning")
+
+
 def test_track_analysis_env_run_id_overrides_self(captured, monkeypatch):
     """CODEBOARDING_RUN_ID (VSCode correlation id) wins over self.run_id."""
     monkeypatch.setenv("CODEBOARDING_RUN_ID", "vscode-run")
