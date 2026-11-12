@@ -13,6 +13,7 @@ from codeboarding_workflows.sources import local_source, onboarding_materials_ex
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from infra.repo_utils.change_detector import ChangeSet
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
@@ -102,7 +103,7 @@ class TestPartialUpdate(unittest.TestCase):
             "depth_level": 1,
             "depth_cap": 1,
             "source_tree_hash": "source-hash",
-            "format_version": "v1",
+            "format_version": ANALYSIS_FORMAT_VERSION,
         }
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -177,7 +178,7 @@ class TestPartialUpdate(unittest.TestCase):
             "depth_level": 1,
             "depth_cap": 2,
             "source_tree_hash": "source-hash",
-            "format_version": "v1",
+            "format_version": ANALYSIS_FORMAT_VERSION,
         }
         from agents.agent_responses import AnalysisInsights, Component
 
@@ -249,9 +250,9 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir.mkdir()
 
             cases = (
-                ({"depth_level": 2, "format_version": "v1"}, "Run a full analysis first"),
+                ({"depth_level": 2, "format_version": ANALYSIS_FORMAT_VERSION}, "Run a full analysis first"),
                 (
-                    {"depth_level": 2, "source_tree_hash": "baseline-hash", "format_version": "v1"},
+                    {"depth_level": 2, "source_tree_hash": "baseline-hash", "format_version": ANALYSIS_FORMAT_VERSION},
                     "Run incremental analysis",
                 ),
             )
@@ -331,7 +332,11 @@ class TestIncrementalDepthSource(unittest.TestCase):
             output_dir.mkdir()
 
             # The configured cap, not the realized depth.
-            mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 4, "format_version": "v1"}
+            mock_load_metadata.return_value = {
+                "depth_level": 1,
+                "depth_cap": 4,
+                "format_version": ANALYSIS_FORMAT_VERSION,
+            }
             run_incremental(
                 RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
                 RunContext(run_id="r", log_path="l"),
@@ -418,7 +423,7 @@ class TestLocalSource(unittest.TestCase):
             "depth_level": 1,
             "depth_cap": 1,
             "source_tree_hash": "source-hash",
-            "format_version": "v1",
+            "format_version": ANALYSIS_FORMAT_VERSION,
         }
         root_analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
         mock_load_full.return_value = (root_analysis, {})

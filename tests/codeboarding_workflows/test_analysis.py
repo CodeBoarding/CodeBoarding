@@ -29,6 +29,7 @@ from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from infra.repo_utils.change_detector import ChangeSet
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 
 LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
@@ -57,7 +58,7 @@ def patched(tmp_path: Path):
         stack.enter_context(
             patch(
                 "codeboarding_workflows.analysis.load_analysis_metadata",
-                return_value={"depth_level": 1, "depth_cap": 1, "format_version": "v1"},
+                return_value={"depth_level": 1, "depth_cap": 1, "format_version": ANALYSIS_FORMAT_VERSION},
             )
         )
         yield gen_cls, baseline, detect
@@ -155,20 +156,22 @@ def test_run_incremental_refuses_a_baseline_whose_body_is_unreadable(tmp_path: P
     """Why: the format check reads only metadata; a broken body must still ask for a full run, not start one."""
     output_dir = tmp_path / "out"
     output_dir.mkdir()
-    (output_dir / "analysis.json").write_text(json.dumps({"metadata": {"format_version": "v1", "depth_cap": 1}}))
+    (output_dir / "analysis.json").write_text(
+        json.dumps({"metadata": {"format_version": ANALYSIS_FORMAT_VERSION, "depth_cap": 1}})
+    )
 
     with (
         patch("codeboarding_workflows.analysis.DiagramGenerator") as gen_cls,
         patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint", return_value=ChangeSet(files=[])),
     ):
-        with pytest.raises(BaselineUnavailableError, match="not a valid 'v1' document"):
+        with pytest.raises(BaselineUnavailableError, match=f"not a valid {ANALYSIS_FORMAT_VERSION!r} document"):
             _invoke(tmp_path)
 
     gen_cls.return_value.generate_analysis.assert_not_called()
 
 
 def test_run_incremental_workflow_runs_in_full_over_a_baseline_whose_body_is_unreadable(tmp_path: Path) -> None:
-    (tmp_path / "analysis.json").write_text(json.dumps({"metadata": {"format_version": "v1"}}))
+    (tmp_path / "analysis.json").write_text(json.dumps({"metadata": {"format_version": ANALYSIS_FORMAT_VERSION}}))
     generator = MagicMock(output_dir=tmp_path)
 
     run_incremental_workflow(generator)

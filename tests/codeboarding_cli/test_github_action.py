@@ -18,6 +18,7 @@ from codeboarding_cli.github_action import (
     generate_mdx,
     generate_rst,
 )
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 from infra.utils import CODEBOARDING_DIR_NAME
 from tests.codeboarding_workflows.test_analysis import assert_holds_the_saved_tree, saving_generator
 
@@ -446,7 +447,7 @@ class TestResolveDepthCap(unittest.TestCase):
                 "repo_name": "test",
                 "depth_level": 1,
                 "depth_cap": 4,
-                "format_version": "v1",
+                "format_version": ANALYSIS_FORMAT_VERSION,
             }
             analysis = {**UNIFIED_ANALYSIS_JSON, "metadata": metadata}
             with open(temp_path / "analysis.json", "w") as f:
