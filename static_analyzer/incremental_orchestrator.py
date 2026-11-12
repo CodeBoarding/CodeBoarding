@@ -20,6 +20,7 @@ from static_analyzer.analysis_cache import (
 )
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import Language
+from static_analyzer.engine.adapters.cpp_adapter import CppAdapter
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
@@ -188,6 +189,15 @@ def _restore_inbound_edges_via_definitions(
     confirmed: dict[tuple[str, str], list[dict[str, str | int]]] = {}
     unproven: dict[tuple[str, int, int], list[tuple[tuple[str, str], dict[str, str | int]]]] = {}
     for method, entries in by_request.items():
+        if isinstance(adapter, CppAdapter) and method == "definition":
+            constrained = [entry for entry in entries if "[constraints:" in entry[0][1]]
+            queries = [(Path(site.file), site.lsp_line, site.lsp_column) for _, _, site, _ in constrained]
+            for (edge, site, _, _), names in zip(
+                constrained, adapter.constrained_call_targets(engine_client, source_inspector, queries)
+            ):
+                if edge[1] in names:
+                    confirmed.setdefault(edge, []).append(site)
+            entries = [entry for entry in entries if "[constraints:" not in entry[0][1]]
         send = (
             engine_client.send_type_definition_batch
             if method == "type_definition"
