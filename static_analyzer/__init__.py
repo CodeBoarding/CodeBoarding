@@ -62,8 +62,6 @@ class EngineConfig:
     excluded_roots: list[Path] = field(default_factory=list)
     # Configs a full pass or full re-analysis runs in its place, each on a server of its own.
     split: list["EngineConfig"] = field(default_factory=list)
-    # Retain the options sent at startup for adapter hooks on the running server.
-    init_options: dict = field(default_factory=dict)
 
 
 TYPESCRIPT_SPLIT_MIN_FILES = 1000
@@ -506,7 +504,6 @@ class StaticAnalyzer:
         # Servers run N at a time share the memory budget; one at a time, or resident, each may use all of it.
         heap = per_engine_memory_budget(self._server_slots) - SERVER_NON_HEAP_BYTES
         init_options = {**adapter.get_lsp_init_options(self.ignore_manager), **adapter.get_lsp_heap_options(heap)}
-        engine_config.init_options = init_options
         extra_env = adapter.get_lsp_env(project_path, engine_config.source_files)
         # Node-based LSPs spawn child ``node`` processes by name; on
         # a Node-less host the embedded runtime's dir must be on PATH.
@@ -1102,7 +1099,7 @@ class StaticAnalyzer:
         adapter = engine_config.adapter
         cache_diags: dict = analysis.get("diagnostics") or {}
         t_wait = time.monotonic()
-        adapter.wait_for_diagnostics(engine_client, engine_config.project_path, engine_config.init_options)
+        adapter.wait_for_diagnostics(engine_client, engine_config.project_path)
         logger.debug(f"wait_for_diagnostics for {adapter.language}: {time.monotonic() - t_wait:.1f}s")
         live_diags = engine_client.get_collected_diagnostics()
         merged_diags: dict = dict(cache_diags)

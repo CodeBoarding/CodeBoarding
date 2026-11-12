@@ -31,10 +31,11 @@ def test_diagnostic_wait_requires_only_scheduled_workspace_checks(tmp_path: Path
             client._handle_notification("$/progress", {"token": "rust-analyzer/flycheck/0", "value": {"kind": "end"}})
 
     with (
+        patch.object(RustAdapter, "get_lsp_init_options", return_value=options),
         patch("static_analyzer.engine.lsp_client.time.monotonic", side_effect=lambda: clock),
         patch("static_analyzer.engine.lsp_client.time.sleep", side_effect=advance),
     ):
-        RustAdapter().wait_for_diagnostics(client, tmp_path, options)
+        RustAdapter().wait_for_diagnostics(client, tmp_path)
     assert (clock >= 5) == (manifest == "Cargo.toml" or override)
 
 

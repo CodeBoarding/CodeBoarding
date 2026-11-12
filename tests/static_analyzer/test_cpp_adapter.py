@@ -89,7 +89,7 @@ def test_cpp_retains_parse_diagnostics(severity: int, caplog: pytest.LogCaptureF
     client.get_collected_diagnostics.return_value = {
         "kernel.cu": [LSPDiagnostic(message="CUDA header is unavailable", severity=severity)]
     }
-    CppAdapter().wait_for_diagnostics(client, Path.cwd(), {})
+    CppAdapter().wait_for_diagnostics(client, Path.cwd())
     assert client.get_collected_diagnostics()["kernel.cu"][0].severity == severity
     if severity == 1:
         assert "analysis may be incomplete" in caplog.text

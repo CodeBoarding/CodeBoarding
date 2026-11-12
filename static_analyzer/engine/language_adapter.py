@@ -238,7 +238,7 @@ class LanguageAdapter(ABC):
         """If True, a non-empty project producing zero symbols is fatal."""
         return False
 
-    def wait_for_diagnostics(self, client: LSPClient, project_root: Path, init_options: dict) -> None:
+    def wait_for_diagnostics(self, client: LSPClient, project_root: Path) -> None:
         """Block until the LSP server is done publishing diagnostics for didOpen'd files.
 
         Default no-op: most LSPs (pyright, gopls, intelephense, JDTLS,
