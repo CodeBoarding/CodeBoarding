@@ -135,6 +135,8 @@ class CallGraphBuilder:
             source_files=abs_files,
             external_call_sites=ctx.external_call_sites,
             diagnostics=ctx.diagnostics,
+            parsed_file_errors=self._source_inspector.parsed_file_errors,
+            parse_error_samples=self._source_inspector.parse_error_samples,
         )
 
     def _probe_timeout(self, total_files: int) -> int:

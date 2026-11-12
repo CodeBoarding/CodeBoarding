@@ -821,6 +821,7 @@ class StaticAnalyzer:
                 adapter = engine_config.adapter
                 logger.exception(f"Error during engine analysis for {adapter.language} in {engine_config.project_path}")
                 track_lsp_result(
+                    repo_path=self.repository_path,
                     language=adapter.language_enum.value,
                     loc=self._loc_for_adapter(adapter),
                     status="error",
@@ -905,6 +906,7 @@ class StaticAnalyzer:
         logger.info(f"Engine analysis for {adapter.language} completed in {time.monotonic() - t_start:.1f}s")
         for analysis in analyses:
             track_lsp_result(
+                repo_path=self.repository_path,
                 language=adapter.language_enum.value,
                 loc=self._loc_for_adapter(adapter),
                 status="success",
@@ -998,6 +1000,7 @@ class StaticAnalyzer:
                 if resident_client is None:
                     engine_client.shutdown()
             track_lsp_result(
+                repo_path=self.repository_path,
                 language=adapter.language_enum.value,
                 loc=self._loc_for_adapter(adapter),
                 status="success",

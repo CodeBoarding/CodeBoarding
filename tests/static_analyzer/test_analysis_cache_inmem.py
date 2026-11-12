@@ -382,6 +382,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         cached_graph = CallGraph(language="python")
         cached_graph.add_node(Node("lib.helper", NodeType.FUNCTION, str(lib), line_start=1, line_end=2, col_start=4))
         cached = _result(cached_graph, source_files=[str(lib), str(app)])
+        cached["parsed_file_errors"] = {str(lib): 10, str(app): 5}
+        cached["parse_error_samples"] = {str(lib): [{"kind": "error"}]}
 
         partial_graph = CallGraph(language="python")
         partial_graph.add_node(Node("app.main", NodeType.FUNCTION, str(app), line_start=1, line_end=2, col_start=4))
@@ -394,6 +396,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         partial = {
             **_result(partial_graph, source_files=[str(app)]),
             "diagnostics": {str(app): [warning]},
+            "parsed_file_errors": {str(app): 2},
+            "parse_error_samples": {str(app): [{"kind": "missing"}]},
             "external_call_sites": [elsewhere],
             "external_callers": [logger_node],
         }
@@ -419,6 +423,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         assert updated["external_call_sites"] == [elsewhere]
         assert updated["external_callers"] == [logger_node]
         assert updated["diagnostics"] == {str(app): [warning]}
+        assert updated["parsed_file_errors"] == {str(app): 2}
+        assert updated["parse_error_samples"] == {str(app): [{"kind": "missing"}]}
         client.send_implementation_batch.assert_not_called()
 
 

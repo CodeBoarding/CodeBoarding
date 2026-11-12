@@ -15,6 +15,7 @@ class LanguageStat(BaseModel):
 
 class RepoScanned(BaseModel):
     version: str
+    repo: str
     total_loc: int
     language_count: int
     languages: list[LanguageStat]
@@ -24,6 +25,7 @@ class RepoScanned(BaseModel):
 
 class LspAnalysisResult(BaseModel):
     version: str
+    repo: str
     language: str
     loc: int
     status: str
@@ -34,6 +36,10 @@ class LspAnalysisResult(BaseModel):
     reference_count: int = 0
     diagnostic_file_count: int = 0
     diagnostic_count: int = 0
+    parsed_file_count: int = 0
+    parse_error_file_count: int = 0
+    parse_error_node_count: int = 0
+    parse_error_samples: list[dict] = []
     quality_status: str = "ok"
     zero_nodes_with_loc: bool = False
     zero_edges_with_loc: bool = False

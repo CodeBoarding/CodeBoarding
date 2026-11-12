@@ -2,6 +2,7 @@
 
 import re
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -637,6 +638,99 @@ class TestTreeCacheEviction:
         assert len(si.find_call_sites(f)) == 200
 
 
+def test_parse_error_counts_survive_eviction_without_duplicates(tmp_path: Path, caplog):
+    broken = tmp_path / "broken.py"
+    broken.write_text("def broken(:\n    call()\n")
+    clean = tmp_path / "clean.py"
+    clean.write_text("call()\n")
+    si = SourceInspector(tree_node_budget=1)
+    si.find_call_sites(broken)
+    assert si.parsed_file_errors == {str(broken): 1}
+    si.find_call_sites(clean)
+    si.find_call_sites(broken)
+    assert si.parsed_file_errors == {str(broken): 1, str(clean): 0}
+    assert caplog.text.count("error node(s)") == 1
+    samples = si.parse_error_samples[str(broken)]
+    assert len(samples) == 1
+    sample = samples[0]
+    assert sample["syntax_trace"] == ["module", "function_definition", "parameters", ")"]
+    assert sample["kind"] == "missing"
+    assert (sample["start_line"], sample["start_byte_column"]) == (1, 12)
+    assert sample["grammar"] == "tree-sitter-python"
+    assert sample["grammar_version"] != "unknown"
+    assert sample["tree_sitter_version"] != "unknown"
+    assert sample["original_error_count"] == 1
+    assert sample["retry_error_count"] is None
+    assert sample["recovery_applied"] is False
+    assert "broken" not in str(samples)
+
+
+def test_parse_error_samples_are_bounded_without_truncating_counts(tmp_path: Path):
+    si = SourceInspector()
+    for i in range(10):
+        path = tmp_path / f"broken{i}.py"
+        path.write_text("def broken(:\n    call()\n" * 5)
+        si.find_call_sites(path)
+    assert sum(si.parsed_file_errors.values()) == 50
+    assert sum(len(samples) for samples in si.parse_error_samples.values()) == 20
+    assert max(len(samples) for samples in si.parse_error_samples.values()) == 3
+
+
+@pytest.mark.parametrize("limit", [0, 1, 3])
+def test_parse_error_samples_prefer_innermost_errors(tmp_path: Path, limit: int):
+    path = tmp_path / "broken.py"
+    path.write_text("def private_name(\n a = !\n b = !\n c = !\n")
+    si = SourceInspector()
+    parsed = si._parse(path)
+    assert parsed is not None
+    assert si.parsed_file_errors[str(path)] == 7
+
+    samples = si._sample_parse_errors(parsed.tree, ".py", 7, None, limit)
+
+    assert [(s["start_line"], s["start_byte_column"]) for s in samples] == [(2, 6), (3, 6), (4, 6)][:limit]
+    assert all(s["end_byte_column"] == 7 for s in samples)
+    assert all(s["kind"] == "error" and s["original_error_count"] == 7 for s in samples)
+    if samples:
+        assert samples[0]["syntax_trace"] == ["module", "ERROR", "ERROR", "ERROR", "ERROR"]
+        assert samples[0]["trace_truncated"] is False
+    assert "private_name" not in str(samples)
+    assert si._sample_parse_errors(parsed.tree, ".py", 7, None, limit) == samples
+
+
+def test_parse_error_samples_keep_whole_file_leaf_error(tmp_path: Path):
+    path = tmp_path / "broken.py"
+    path.write_text("def private_name(")
+    si = SourceInspector()
+    si.find_call_sites(path)
+
+    samples = si.parse_error_samples[str(path)]
+    assert len(samples) == 1
+    assert samples[0]["syntax_trace"] == ["module", "ERROR"]
+    assert (samples[0]["start_byte_column"], samples[0]["end_byte_column"]) == (1, 18)
+
+
+def test_parse_error_samples_prefer_missing_descendant():
+    outer = Mock(type="ERROR", is_missing=False)
+    parameters = Mock(type="parameters", is_missing=False, has_error=True)
+    missing = Mock(type=")", is_missing=True, has_error=True, children=[])
+    outer.parent = None
+    parameters.parent = outer
+    missing.parent = parameters
+    missing.start_point.row = missing.end_point.row = 0
+    missing.start_point.column = missing.end_point.column = 12
+    outer.start_point = missing.start_point
+    outer.end_point = missing.end_point
+    outer.children = [parameters]
+    parameters.children = [missing]
+
+    samples = SourceInspector._sample_parse_errors(Mock(root_node=outer), ".py", 2, None, 1)
+
+    assert len(samples) == 1
+    assert samples[0]["kind"] == "missing"
+    assert samples[0]["syntax_trace"] == ["ERROR", "parameters", ")"]
+    assert samples[0]["start_byte_column"] == samples[0]["end_byte_column"] == 13
+
+
 class TestMethodGroupValuePositions:
     """A method named rather than called is control flow wherever it appears."""
 
@@ -699,6 +793,21 @@ class TestConditionalCompilationBodies:
         f.write_text(self.SPLIT_BODY)
         si = SourceInspector()
         assert (6, 12) in _positions(si.find_call_sites(f))  # Write(1, t, v)
+        assert si.parsed_file_errors == {str(f): 0}
+        assert si.parse_error_samples == {}
+
+    def test_remaining_errors_report_preprocessor_recovery(self, tmp_path: Path):
+        f = tmp_path / "ILogger.cs"
+        f.write_text(self.SPLIT_BODY + "@@@\n")
+        si = SourceInspector()
+        si.find_call_sites(f)
+        sample = si.parse_error_samples[str(f)][0]
+        assert sample["kind"] == "error"
+        assert sample["node_type"] == "ERROR"
+        assert sample["syntax_trace"][-1] == "ERROR"
+        assert sample["recovery_applied"] is True
+        assert sample["original_error_count"] > sample["retry_error_count"] > 0
+        assert sample["retry_error_count"] == si.parsed_file_errors[str(f)]
 
     def test_positions_still_match_the_original_bytes(self, tmp_path: Path):
         f = tmp_path / "ILogger.cs"
