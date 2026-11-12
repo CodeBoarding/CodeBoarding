@@ -13,7 +13,12 @@ from codeboarding_workflows.analysis import (
     run_incremental_workflow,
     run_partial,
 )
-from agents.agent_responses import AnalysisInsights
+from agents.agent_responses import AnalysisInsights, Component
+from agents.file_index_models import FileMethodGroup, MethodEntry
+from agents.scope_ids import ROOT_SCOPE_ID
+from diagram_analysis.diagram_generator import DiagramGenerator
+from diagram_analysis.io_utils import load_full_analysis
+from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from infra.repo_utils.change_detector import ChangeSet
@@ -172,6 +177,67 @@ def test_run_incremental_workflow_runs_in_full_over_a_baseline_in_an_older_forma
 
     generator.generate_analysis.assert_called_once_with()
     generator.generate_analysis_incremental.assert_not_called()
+
+
+def saving_generator(**kwargs) -> DiagramGenerator:
+    """A DiagramGenerator built like ``build_generator``'s whose analysis is a fixed tree, saved through the real path.
+
+    Its ``generate_analysis`` makes a progress save and the final save, as a full run does, with no LLM or
+    static analysis behind them.
+    """
+    generator = DiagramGenerator.__new__(DiagramGenerator)
+    generator.output_dir = kwargs["output_dir"]
+    generator.repo_location = Path(kwargs["repo_location"])
+    generator.repo_name = kwargs["repo_name"]
+    generator.depth_cap = kwargs["depth_cap"]
+    generator.static_analysis = None
+    generator.clustering_hierarchy = None
+    generator._baseline_global_relations = None
+    generator._scopes_unnamed = generator._scopes_enriched = 0
+    generator.tree_spec = TreeSpec(scopes={ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Parent")])})
+    generator.file_coverage_data = {
+        "analyzed_files": ["a.py"],
+        "not_analyzed_files": [],
+        "summary": {"total_files": 1, "analyzed": 1, "not_analyzed": 0, "not_analyzed_by_reason": {}},
+    }
+
+    def generate_analysis() -> Path:
+        members = [
+            FileMethodGroup(
+                file_path="a.py",
+                methods=[MethodEntry(qualified_name="a.f", start_line=1, end_line=2, node_type="FUNCTION")],
+            )
+        ]
+        root = AnalysisInsights(
+            description="d",
+            components=[Component(name="A", component_id="1", description="", key_entities=[], file_methods=members)],
+            components_relations=[],
+        )
+        with (
+            patch.object(DiagramGenerator, "_source_tree_hash", return_value=""),
+            patch.object(DiagramGenerator, "_source_tree_fingerprint_map", return_value={}),
+            patch.object(DiagramGenerator, "_persist_static_analysis_artifact"),
+        ):
+            generator._save_progress(root, {})
+            return generator.finalize_and_save(root, {})
+
+    generator.generate_analysis = generate_analysis  # type: ignore[method-assign]
+    return generator
+
+
+def test_a_full_run_over_an_unreadable_analysis_rewrites_it(tmp_path: Path) -> None:
+    """Why: the error tells the user to run a full analysis, so the full run must not need the old file."""
+    (tmp_path / "analysis.json").write_text("{not json")
+
+    with patch("codeboarding_workflows.analysis.DiagramGenerator", side_effect=saving_generator):
+        run_full(
+            RunPaths(repo_path=tmp_path, output_dir=tmp_path, project_name="proj"),
+            RunContext(run_id="rid", log_path="logs/run.log"),
+        )
+
+    loaded = load_full_analysis(tmp_path)
+    assert loaded is not None
+    assert [component.component_id for component in loaded[0].components] == ["1"]
 
 
 def _fail_after_a_progress_save(analysis_path: Path):

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis import DEFAULT_DEPTH_CAP
 from diagram_analysis.analysis_json import build_unified_analysis_json
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from codeboarding_cli.github_action import (
     _resolve_depth_cap,
     generate_analysis,
@@ -18,6 +19,7 @@ from codeboarding_cli.github_action import (
     generate_rst,
 )
 from infra.utils import CODEBOARDING_DIR_NAME
+from tests.codeboarding_workflows.test_analysis import saving_generator
 
 LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
@@ -459,6 +461,35 @@ class TestResolveDepthCap(unittest.TestCase):
             shutil.copy(LEGACY_ANALYSIS, temp_path / "analysis.json")
 
             self.assertEqual(_resolve_depth_cap(temp_path), 2)
+
+    def test_an_unreadable_seeded_analysis_is_rewritten_by_a_full_run(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            seeded, output = temp_path / "seeded", temp_path / "out"
+            seeded.mkdir()
+            output.mkdir()
+            (temp_path / "repo").mkdir()
+            (seeded / "analysis.json").write_text("{not json")
+
+            with (
+                patch.dict(os.environ, {"REPO_ROOT": str(temp_path)}, clear=True),
+                patch("codeboarding_cli.github_action.clone_repository", return_value="repo"),
+                patch("codeboarding_cli.github_action.checkout_repo"),
+                patch("codeboarding_cli.github_action.create_temp_repo_folder", return_value=output),
+                patch("codeboarding_cli.github_action.DiagramGenerator", side_effect=saving_generator),
+                patch("codeboarding_cli.github_action.generate_markdown"),
+            ):
+                generate_analysis(
+                    "https://github.com/o/repo", "feature", "main", ".md", existing_analysis_dir=str(seeded)
+                )
+
+            loaded = load_full_analysis(output)
+            metadata = load_analysis_metadata(output)
+
+        assert loaded is not None
+        self.assertEqual([component.component_id for component in loaded[0].components], ["1"])
+        assert metadata is not None
+        self.assertEqual(metadata["depth_cap"], DEFAULT_DEPTH_CAP)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_realized_depth_is_not_a_configuration_fallback(self):

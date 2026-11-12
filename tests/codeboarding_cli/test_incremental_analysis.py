@@ -10,10 +10,11 @@ import pytest
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.exceptions import ScopeSemanticsError
-from diagram_analysis.io_utils import save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_full_analysis, save_analysis, write_fingerprint
 from codeboarding_cli.main import main
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.scanner import ProjectScanner
+from tests.codeboarding_workflows.test_analysis import saving_generator
 
 LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
@@ -73,6 +74,26 @@ def test_a_baseline_in_an_older_format_asks_for_a_full_run(tmp_path: Path, capsy
     payload = json.loads(capsys.readouterr().out)
     assert payload["requiresFullAnalysis"] is True
     assert "predates format versioning" in payload["error"]
+
+
+def test_the_full_run_asked_for_over_an_unreadable_analysis_rewrites_it(tmp_path: Path, capsys) -> None:
+    """Why: a full run that needed the old file would leave the repository with no way out."""
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir()
+    (output_dir / "analysis.json").write_text("{not json")
+
+    with (
+        patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"),
+        patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+        patch("codeboarding_workflows.analysis.DiagramGenerator", side_effect=saving_generator),
+    ):
+        main(["incremental", "--local", str(tmp_path)])
+        assert json.loads(capsys.readouterr().out)["requiresFullAnalysis"] is True
+        main(["full", "--local", str(tmp_path)])
+
+    loaded = load_full_analysis(output_dir)
+    assert loaded is not None
+    assert [component.component_id for component in loaded[0].components] == ["1"]
 
 
 @pytest.fixture

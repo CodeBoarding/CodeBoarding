@@ -1421,6 +1421,7 @@ class DiagramGenerator:
         """Save the tree mid-run as a reader rebuilds it: top-level relations between leaves, edges aligned.
 
         Why copies: the run keeps building each scope on its own relations; only the file is lifted.
+        Every field comes from the run itself, so the save never reads the file it replaces.
         """
         self._strip_ignored(analysis, sub_analyses)
         expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
@@ -1433,6 +1434,7 @@ class DiagramGenerator:
             output_dir=Path(self.output_dir),
             sub_analyses=subs,
             repo_name=self.repo_name,
+            file_coverage_summary=self._build_file_coverage_summary(),
             repo_dir=self.repo_location,
             source_tree_hash=self._source_tree_hash(),
             expandable_component_ids=expandable_ids,

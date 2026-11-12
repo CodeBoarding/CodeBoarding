@@ -439,6 +439,7 @@ class TestProgressSaves(unittest.TestCase):
             generator.output_dir = output_dir
             generator.repo_name = "repo"
             generator.depth_cap = 2
+            generator.file_coverage_data = None
             root = analysis(
                 component("1", "Parent", {"a.py": ["a.one", "a.two"]}),
                 component("2", "Leaf", {"b.py": ["b.one"]}),
