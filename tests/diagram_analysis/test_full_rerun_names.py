@@ -3,7 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from agents.scope_analysis_agent import ScopeAnalysisResult, ScopeComponentSemantics
 from diagram_analysis.diagram_generator import DiagramGenerator
@@ -92,7 +92,8 @@ class TestFullRerunKeepsNames(unittest.TestCase):
         agent = NamingAgent(run)
         generator.scope_analysis_agent = agent
         generator._agent_llm = MagicMock()
-        generator.generate_analysis()
+        with patch("diagram_analysis.diagram_generator.ProjectScanner.scan", return_value=[]):
+            generator.generate_analysis()
         loaded = load_full_analysis(self.output)
         assert loaded is not None
         root, _subs = loaded
