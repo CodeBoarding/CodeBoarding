@@ -151,25 +151,26 @@ def prune_ungrounded_edges(
     keep_edge: Callable[[RelationEdge], bool],
     changed_members: set[str] | None = None,
 ) -> list[Relation]:
-    """Re-apply edge filters after baseline preservation, moving misfiled edges when possible."""
+    """Re-apply edge filters after baseline preservation, moving each misfiled edge to the pair its owners join.
+
+    Why never left where it was: analysis.json files an edge under the pair its owners join, so a
+    misfiled one cannot be saved; one whose pair no relation holds is dropped.
+    """
     by_pair: dict[tuple[str, str], Relation] = {(relation.src_id, relation.dst_id): relation for relation in relations}
     additions: dict[tuple[str, str], list[RelationEdge]] = {}
 
-    def find_relation_pair_for_edge(edge: RelationEdge) -> tuple[tuple[str, str] | None, bool]:
+    def find_relation_pair_for_edge(edge: RelationEdge) -> tuple[str, str] | None:
         source = owner_of(edge.source)
         target = owner_of(edge.target)
-        if not source or not target:
-            return None, False
         if is_self_or_descendant(source, target) or is_self_or_descendant(target, source):
-            return None, True
+            return None
         for pair in by_pair:
             if is_self_or_descendant(source, pair[0]) and is_self_or_descendant(target, pair[1]):
-                return pair, False
-        return None, False
+                return pair
+        return None
 
     kept: list[Relation] = []
     for relation in relations:
-        pair = (relation.src_id, relation.dst_id)
         all_edges: list[RelationEdge] = []
         for edge in relation.all_edges:
             if not keep_edge(edge) or not (owner_of(edge.source) and owner_of(edge.target)):
@@ -177,15 +178,8 @@ def prune_ungrounded_edges(
             if edge_crosses_components(edge, owner_of, relation.src_id, relation.dst_id):
                 all_edges.append(edge)
                 continue
-            if changed_members is not None and edge.source.qualified_name not in changed_members:
-                all_edges.append(edge)
-                continue
-            matching_pair, is_internal = find_relation_pair_for_edge(edge)
-            if is_internal:
-                continue
-            if matching_pair is None or matching_pair == pair:
-                all_edges.append(edge)
-            else:
+            matching_pair = find_relation_pair_for_edge(edge)
+            if matching_pair is not None:
                 additions.setdefault(matching_pair, []).append(edge)
         surviving = {edge.identity() for edge in all_edges}
         key_edges = [edge for edge in relation.key_edges if edge.identity() in surviving]

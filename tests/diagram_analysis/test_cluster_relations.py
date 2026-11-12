@@ -325,13 +325,15 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.a.helper")])
         self.assertEqual(self._prune(rel), [])
 
-    def test_a_real_call_filed_under_the_wrong_pair_is_kept_not_lost(self):
-        # 1 -> 2 is real, but this relation claims 2 -> 1. Dropping it would delete the only
-        # record of a genuine cross-component call.
+    def test_a_call_whose_pair_no_relation_holds_is_dropped(self):
+        """Why: analysis.json files an edge under the pair its owners join, so it cannot stay under 2 -> 1.
+
+        The call is not lost: the call graph gives its real pair 1 -> 2 a relation of its own.
+        """
         rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
         rel.src_id, rel.dst_id = "2", "1"
-        kept = self._prune(rel)
-        self.assertEqual([e.target.qualified_name for e in kept[0].all_edges], ["pkg.b.callee"])
+        # With no edge and no evidence left, the relation itself goes, as any such relation does.
+        self.assertEqual(self._prune(rel), [])
 
     def test_a_misfiled_call_moves_to_the_relation_that_declares_its_pair(self):
         wrong = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")], evidence="e")
@@ -345,7 +347,8 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         # connection the grounded relation already states the right way round.
         self.assertNotIn(("2", "1"), by_pair)
 
-    def test_an_unrelated_misfiled_call_keeps_its_baseline_pair(self):
+    def test_an_unchanged_misfiled_call_still_moves_to_its_pair(self):
+        """Why: re-clustering can move an unchanged method to another leaf; its edge must follow it."""
         wrong = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")], evidence="e")
         wrong.src_id, wrong.dst_id = "2", "1"
         right = self._relation([], evidence="the pair this call actually runs between")
@@ -358,8 +361,8 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         )
 
         by_pair = {(relation.src_id, relation.dst_id): relation for relation in kept}
-        self.assertEqual([edge.source.qualified_name for edge in by_pair[("2", "1")].all_edges], ["pkg.a.caller"])
-        self.assertEqual(by_pair[("1", "2")].all_edges, [])
+        self.assertEqual([edge.source.qualified_name for edge in by_pair[("1", "2")].all_edges], ["pkg.a.caller"])
+        self.assertEqual(by_pair[("2", "1")].all_edges, [])
 
     def test_dead_edges_are_dropped_even_when_their_source_is_unchanged(self):
         relation = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
