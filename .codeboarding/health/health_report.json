@@ -1,17 +1,17 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-11-12T19:37:59.763244+00:00",
-  "overall_score": 0.9884685230024214,
+  "timestamp": "2026-11-12T21:18:08.324379+00:00",
+  "overall_score": 0.9873035066505441,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1633,
+      "total_entities_checked": 1634,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993876301285977,
+      "score": 0.9993880048959608,
       "finding_groups": [
         {
           "severity": "warning",
@@ -30,34 +30,14 @@
       ]
     },
     {
-      "check_name": "circular_dependencies",
-      "description": "Detects circular dependencies between packages",
-      "languages": [],
-      "check_type": "circular_dependencies",
-      "cycles": [
-        "codeboarding_cli.commands -> codeboarding_cli -> codeboarding_cli.commands",
-        "health -> health.checks -> health",
-        "agents.llm_renderers -> agents -> agents.llm_renderers",
-        "static_analyzer -> static_analyzer.cfg -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine -> static_analyzer.cfg -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer.cfg -> static_analyzer",
-        "infra.tool_registry -> infra -> infra.tool_registry"
-      ],
-      "packages_checked": 25,
-      "packages_in_cycles": 12
-    },
-    {
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 19,
-      "findings_count": 19,
+      "total_entities_checked": 20,
+      "findings_count": 20,
       "warning_count": 1,
-      "score": 0.04999999999999993,
+      "score": 0.0,
       "finding_groups": [
         {
           "severity": "info",
@@ -189,6 +169,13 @@
               "line_start": 1480,
               "line_end": 1480,
               "metric_value": 0.0
+            },
+            {
+              "entity_name": "[unused_variable] \"_exc_type\" is not accessed",
+              "file_path": "static_analyzer/__init__.py",
+              "line_start": 329,
+              "line_end": 329,
+              "metric_value": 0.0
             }
           ]
         },
@@ -248,6 +235,12 @@
     },
     {
       "file_path": "agents/retry.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "static_analyzer/__init__.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
