@@ -224,12 +224,9 @@ def test_standalone_render_rejects_invalid_analysis(
 @pytest.mark.parametrize(
     ("command_module", "command_args"),
     [
-        ("codeboarding_cli.main.full_analysis.run_from_args", ["full", "--local", "/tmp/repo"]),
-        ("codeboarding_cli.main.incremental_analysis.run_from_args", ["incremental", "--local", "/tmp/repo"]),
-        (
-            "codeboarding_cli.main.partial_analysis.run_from_args",
-            ["partial", "--local", "/tmp/repo", "--component-id", "1"],
-        ),
+        ("codeboarding_cli.main.full_analysis.run_from_args", ["full"]),
+        ("codeboarding_cli.main.incremental_analysis.run_from_args", ["incremental"]),
+        ("codeboarding_cli.main.partial_analysis.run_from_args", ["partial", "--component-id", "1"]),
     ],
 )
 @patch("codeboarding_cli.main.render_output")
@@ -237,22 +234,24 @@ def test_main_renders_after_any_successful_analysis(
     mock_render_output,
     command_module: str,
     command_args: list[str],
+    tmp_path: Path,
 ) -> None:
-    analysis_path = Path("/tmp/repo/.codeboarding/analysis.json")
+    # Why: main resolves --local, and on macOS a literal /tmp resolves to /private/tmp.
+    output_dir = (tmp_path / "repo").resolve() / ".codeboarding"
     events: list[str] = []
     mock_render_output.side_effect = lambda *args, **kwargs: events.append("render")
     with (
         patch(command_module, side_effect=lambda *args, **kwargs: events.append("analysis")),
         patch("codeboarding_cli.main.Path.is_file", return_value=True),
     ):
-        main([*command_args, "--render", "rst"])
+        main([*command_args, "--local", str(tmp_path / "repo"), "--render", "rst"])
 
     assert events == ["analysis", "render"]
     mock_render_output.assert_called_once_with(
         "rst",
-        analysis_path=analysis_path,
+        analysis_path=output_dir / "analysis.json",
         repo_name="repo",
-        output_dir=Path("/tmp/repo/.codeboarding"),
+        output_dir=output_dir,
     )
 
 
