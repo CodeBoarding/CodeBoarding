@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import replace
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
-from infra.clustering_ids import ROOT_SCOPE_ID, ClusterId, ComponentId, ScopeId
+from infra.clustering_ids import ROOT_SCOPE_ID, ClusterId, CodeBoardingClusterIds, ComponentId, ScopeId
 from infra.repo_utils.path_utils import normalize_repo_path
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
@@ -49,6 +51,26 @@ FILE_STRATEGY = "file_leaves"
 
 NEW_SCOPE = "new_scope"
 logger = logging.getLogger(__name__)
+
+CARRY_OVERLAP = 0.5
+"""A drafted component continues a previous one when they share more than this much of their code: past a
+half, neither side can continue two components of the other."""
+
+MemberKey = tuple[str, str]
+"""``(repo-relative file, qualified name)`` of one member."""
+
+
+def membership_overlap(live: Collection[MemberKey], previous: Collection[MemberKey]) -> float:
+    """Jaccard over files, each weighing the most members it holds on either side.
+
+    Why files: a file is the clustering unit, and an engine release may respell the qualified names in it.
+    """
+    live_counts = Counter(path for path, _ in live)
+    previous_counts = Counter(path for path, _ in previous)
+    weights = live_counts | previous_counts
+    union = sum(weights.values())
+    shared = sum(weights[path] for path in live_counts.keys() & previous_counts.keys())
+    return shared / union if union else 0.0
 
 
 def file_leaf_clusters(graph: CallGraph) -> ClusterResult:
@@ -110,13 +132,27 @@ class ClusteringService:
         self.spec = TreeSpec(grouper=self.grouper.name)
         self._links: Links = {}
         self._baseline: _Baseline | None = None
+        self.carried_from: dict[ComponentId, ComponentId] = {}
+        """Drafted component id -> the previous component it continues, after a full build over a previous analysis."""
 
-    def build_full_hierarchy(self, static_analysis: StaticAnalysisResults, max_depth: int) -> ClusterScopeResult:
-        """Draft the specification from every language's names and materialize the tree."""
+    def build_full_hierarchy(
+        self,
+        static_analysis: StaticAnalysisResults,
+        max_depth: int,
+        previous: Mapping[ScopeId, Any] = MappingProxyType({}),
+        previous_spec: TreeSpec | None = None,
+    ) -> ClusterScopeResult:
+        """Draft the specification from every language's names and materialize the tree.
+
+        ``previous`` (scope id -> persisted analysis) is the analysis this run replaces: a drafted component that
+        continues one of its components takes over that component's id.
+        """
         graphs = static_analysis.available_cfgs()
         units = units_from_graphs(graphs, self._repo_dir)
         self._links = unit_links(graphs)
         self.spec = draft_tree(units, self.grouper, max_depth + 1, links=self._links)
+        if previous:
+            self._carry_ids(graphs, units, max_depth, previous, previous_spec)
         hierarchy = self._materialize(graphs, units, ROOT_SCOPE_ID, 1, max_depth)
         hierarchy.index_hierarchy()
         return hierarchy
@@ -242,6 +278,102 @@ class ClusteringService:
                 child_graphs, child_units, group.group_id, depth + 1, max_depth, baseline=baseline
             )
         return result
+
+    def _carry_ids(
+        self,
+        graphs: Mapping[str, CallGraph],
+        units: list[Unit],
+        max_depth: int,
+        previous: Mapping[ScopeId, Any],
+        previous_spec: TreeSpec | None,
+    ) -> None:
+        """Renumber the drafted specification so every component that continues a previous one keeps its id.
+
+        Scopes are paired top-down, so a kept id keeps its parent's prefix. Every other component gets an id above
+        any the previous scope used, so a retired id never comes back meaning something else.
+        """
+        role_words = role_words_for(self.spec.machinery)
+        previous_keys = {
+            component.component_id: frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            for scope in previous.values()
+            for component in scope.components
+            if component.component_id
+        }
+        by_members = {keys: component_id for component_id, keys in sorted(previous_keys.items()) if keys}
+        ids: dict[str, str] = {}
+        last_ids: dict[ScopeId, int] = {}
+
+        def visit(
+            scope_id: ScopeId, final_id: ScopeId, scope_units: list[Unit], previous_id: ScopeId | None, depth: int
+        ) -> None:
+            scope = self.spec.scope(scope_id)
+            if scope is None or scope.is_leaf:
+                return
+            partition = replay(scope_units, scope, role_words)
+            live = {
+                rule.component_id: self._member_keys(partition.members.get(rule.component_id, []), graphs)
+                for rule in scope.rules
+            }
+            previous_scope = previous.get(previous_id) if previous_id is not None else None
+            siblings = [
+                component.component_id
+                for component in (previous_scope.components if previous_scope is not None else [])
+                if component.component_id
+            ]
+            drawn = [component_id for component_id, keys in live.items() if keys]
+            # Save-time absorption lifts a lone expanded component's children into this scope, so they are the
+            # ones that face this scope's previous components.
+            lone_scope = self.spec.scope(drawn[0]) if len(drawn) == 1 and depth < max_depth else None
+            lone = lone_scope is not None and not lone_scope.is_leaf
+            candidates = [
+                (membership_overlap(live[rule_id], previous_keys[old_id]), rule_id, old_id)
+                for rule_id in ([] if lone else drawn)
+                for old_id in siblings
+                if old_id.rpartition(".")[2].isdigit()
+            ]
+            matched: dict[str, str] = {}
+            for overlap, rule_id, old_id in sorted(candidates, key=lambda c: (-c[0], c[1], c[2])):
+                if overlap > CARRY_OVERLAP and rule_id not in matched and old_id not in matched.values():
+                    matched[rule_id] = old_id
+            prefix = CodeBoardingClusterIds.prefix_for_scope(final_id)
+            used = [int(old_id.rpartition(".")[2]) for old_id in siblings if old_id.rpartition(".")[2].isdigit()]
+            previous_last = (
+                previous_spec.scope(previous_id) if previous_spec is not None and previous_id is not None else None
+            )
+            last = max([*used, previous_last.last_id if previous_last is not None else 0], default=0)
+            for rule in scope.rules:
+                old_id = matched.get(rule.component_id)
+                if old_id is not None:
+                    new_id = CodeBoardingClusterIds.qualify_local_id(old_id.rpartition(".")[2], prefix)
+                    self.carried_from[new_id] = old_id
+                else:
+                    last += 1
+                    new_id = CodeBoardingClusterIds.qualify_local_id(str(last), prefix)
+                    # A component whose parent changed keeps no id, but identical members still carry its name.
+                    same = by_members.get(live[rule.component_id])
+                    if same is not None and same not in self.carried_from.values():
+                        self.carried_from[new_id] = same
+                ids[rule.component_id] = new_id
+                child_previous = previous_id if lone else old_id
+                visit(
+                    rule.component_id, new_id, partition.members.get(rule.component_id, []), child_previous, depth + 1
+                )
+            last_ids[final_id] = last
+
+        visit(ROOT_SCOPE_ID, ROOT_SCOPE_ID, units, ROOT_SCOPE_ID, 1)
+        self.spec.renumber(ids, last_ids)
+        logger.info("[Names] %d of the drafted components continue a previous one", len(self.carried_from))
+
+    def _member_keys(self, members: Iterable[Unit], graphs: Mapping[str, CallGraph]) -> frozenset[MemberKey]:
+        """The members a component drawn over ``members`` owns: its callables and classes."""
+        return frozenset(
+            (normalize_repo_path(unit.unit_id, self._repo_dir), name)
+            for unit in members
+            for name in unit.names
+            if graphs[unit.language].nodes[name].type in CALLABLE_TYPES | CLASS_TYPES
+        )
 
     def _adopt(self, spec: TreeSpec) -> None:
         """Replay ``spec`` with the grouper that drew it, so a scope it never reached is drafted the same way."""

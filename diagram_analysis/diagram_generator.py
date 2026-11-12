@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import threading
 import time
 from collections import Counter, defaultdict
@@ -54,7 +55,7 @@ from diagram_analysis.exceptions import (
 )
 from diagram_analysis.file_coverage import FileCoverage
 from diagram_analysis.file_index import build_files_index, refresh_method_spans_from_cfg
-from diagram_analysis.io_utils import load_analysis_metadata, save_analysis, write_fingerprint
+from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis, save_analysis, write_fingerprint
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from infra.repo_utils.path_utils import normalize_repo_path
@@ -84,8 +85,8 @@ from static_analyzer.clustering import (
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError, PlannerUnavailableError
 from static_analyzer.clustering.names import AffinityGrouper, Grouper, KinshipGrouper, TreeSpec
 from static_analyzer.clustering.names.spec import SPEC_VERSION
-from static_analyzer.clustering.names.tokens import is_natural_name
-from static_analyzer.clustering.service import ClusteringService, hierarchy_differs
+from static_analyzer.clustering.names.tokens import humanize, is_natural_name
+from static_analyzer.clustering.service import ClusteringService, hierarchy_differs, membership_overlap
 from agents.tree_planner_agent import TreePlannerAgent
 from infra.user_config import GROUPER_ENV, GROUPERS
 from static_analyzer.config import AdapterName
@@ -96,6 +97,10 @@ from infra.monitoring.telemetry.events import track_analysis
 logger = logging.getLogger(__name__)
 
 _EMPTY_PERSISTED_SCOPES: Mapping[str, AnalysisInsights] = MappingProxyType({})
+
+
+NAME_LOCK_OVERLAP = 0.8
+"""A component that still holds this much of what its predecessor held keeps that predecessor's name."""
 
 
 def _empty_analysis_message(repo_name: str, scanned: list[ProgrammingLanguage]) -> str:
@@ -610,6 +615,14 @@ class DiagramGenerator:
         # components over verbatim instead of re-deriving (and re-labelling) it.
         # ``None`` => full analysis: rebuild every relation. Keyed by ``(src_id, dst_id)``.
         self._baseline_global_relations: dict[tuple[str, str], Relation] | None = None
+        # Full run over a previous analysis: what that analysis said, and which drafted component
+        # continues which of its components (new id -> previous id).
+        self._previous: _MembershipBaseline | None = None
+        self._previous_scopes: dict[str, AnalysisInsights] = {}
+        self._previous_relations: list[Relation] = []
+        self._previous_rule_names: dict[str, str] = {}
+        self._previous_changed_files: set[str] = set()
+        self._carried_from: dict[str, str] = {}
         self._baseline_component_ids: set[str] = set()
         # Per-component baseline member-key set, captured with the membership baseline. A
         # component whose live member keys differ from these gained or lost a member (without
@@ -699,9 +712,14 @@ class DiagramGenerator:
             if not static_analysis.present_languages():
                 scanned = ProjectScanner(self.repo_location).scan()
                 raise StaticAnalysisFatalError(_empty_analysis_message(self.repo_name, scanned))
+            previous_scopes, previous_spec = self._previous_analysis()
             service = ClusteringService(self._grouper(), self.repo_location)
-            self.clustering_hierarchy = service.build_full_hierarchy(static_analysis, depth)
+            self.clustering_hierarchy = service.build_full_hierarchy(
+                static_analysis, depth, previous_scopes, previous_spec
+            )
             self.tree_spec = service.spec
+            if previous_scopes:
+                self._adopt_previous(previous_scopes, previous_spec, service.carried_from)
         else:
             # A partial run expands one component of an existing analysis, so it replays the
             # specification that analysis was drawn from rather than drafting a new one.
@@ -736,6 +754,59 @@ class DiagramGenerator:
             with open(code_stats_file, "w", encoding="utf-8") as f:
                 json.dump(static_stats, f, indent=2)
             logger.debug(f"Written code_stats.json to {code_stats_file}")
+
+    def _previous_analysis(self) -> tuple[dict[str, AnalysisInsights], TreeSpec | None]:
+        """The analysis a full run replaces, read before the first progress save overwrites it."""
+        try:
+            loaded = load_full_analysis(Path(self.output_dir))
+            stored_spec = (load_analysis_metadata(Path(self.output_dir)) or {}).get("tree_spec")
+            spec = TreeSpec.from_dict(stored_spec) if stored_spec else None
+        except Exception as error:
+            # An unreadable previous analysis only costs the names it held.
+            logger.info("Not carrying names from the previous analysis: %s", error)
+            return {}, None
+        if loaded is None or not loaded[0].components:
+            return {}, None
+        root_analysis, sub_analyses = loaded
+        return {ROOT_SCOPE_ID: root_analysis, **sub_analyses}, spec
+
+    def _adopt_previous(
+        self,
+        previous_scopes: dict[str, AnalysisInsights],
+        previous_spec: TreeSpec | None,
+        carried_from: dict[str, str],
+    ) -> None:
+        """Keep what naming a drafted tree needs from the analysis it replaces."""
+        root_analysis = previous_scopes[ROOT_SCOPE_ID]
+        sub_analyses = {scope_id: scope for scope_id, scope in previous_scopes.items() if scope_id != ROOT_SCOPE_ID}
+        self._previous = _capture_membership_baseline(root_analysis, sub_analyses)
+        self._previous_scopes = previous_scopes
+        self._carried_from = carried_from
+        # Shallowest pair first: a scope's own label beats the one its descendants inherited from it.
+        self._previous_relations = sorted(
+            (
+                relation
+                for scope in previous_scopes.values()
+                for relation in scope.components_relations
+                if relation.src_id and relation.dst_id
+            ),
+            key=lambda relation: (
+                relation.src_id.count(".") + relation.dst_id.count("."),
+                relation.src_id,
+                relation.dst_id,
+            ),
+        )
+        self._previous_rule_names = {
+            rule.component_id: humanize(rule.name)
+            for scope in (previous_spec.scopes.values() if previous_spec is not None else ())
+            for rule in scope.rules
+        }
+        live_hashes = self._source_tree_fingerprint or {}
+        self._previous_changed_files = {
+            normalize_repo_path(file_path, self.repo_location)
+            for file_path, entry in root_analysis.files.items()
+            if live_hashes.get(normalize_repo_path(file_path, self.repo_location)) != entry.content_hash
+        }
 
     def _stored_tree_spec(self) -> TreeSpec:
         """The specification the baseline analysis.json was drawn from."""
@@ -874,6 +945,138 @@ class DiagramGenerator:
             names = [self._names_by_id.get(".".join(parts[: index + 1])) for index in range(len(parts))]
         return tuple(name for name in names if name)
 
+    def _naming_sets(
+        self,
+        scope: ClusterScopeResult,
+        analysis: AnalysisInsights,
+        refreshed_ids: Collection[str],
+        baseline: _MembershipBaseline,
+        predecessors: Mapping[str, str],
+        changed_files: Collection[str],
+        changed_members: Collection[str],
+    ) -> tuple[set[str], frozenset[str]]:
+        """The groups the model may describe, and those of them that keep their predecessor's name.
+
+        A group is editable when it is refreshed, holds a changed file or member, or carries a directory or
+        identifier name: locked or carried forward, such a name would ship on every later run. It keeps its name
+        when it still holds ``NAME_LOCK_OVERLAP`` of what its predecessor (``predecessors``: group id -> baseline
+        component id) held.
+        """
+        unnatural_ids = {
+            component.component_id for component in analysis.components if not is_natural_name(component.name)
+        }
+        editable = [
+            group
+            for group in scope.groups
+            if group.group_id in refreshed_ids
+            or group.group_id in unnatural_ids
+            or bool(self._group_files(group, scope) & set(changed_files))
+            or bool(group.qualified_names & set(changed_members))
+        ]
+        locked_ids = frozenset(
+            group.group_id
+            for group in editable
+            if group.group_id not in unnatural_ids
+            and (meta := baseline.meta_by_id.get(predecessors.get(group.group_id, ""))) is not None
+            and membership_overlap(self._group_member_keys(group, scope), meta.member_keys) >= NAME_LOCK_OVERLAP
+        )
+        return {group.group_id for group in editable}, locked_ids
+
+    def _enrich_drafted_scope(self, scope: ClusterScopeResult, analysis: AnalysisInsights) -> None:
+        """Name a freshly drafted scope; a component that continues the previous analysis keeps what it said."""
+        group_ids = {group.group_id for group in scope.groups}
+        previous = self._previous
+        if previous is None:
+            self._enrich_scope(scope, analysis, group_ids)
+            return
+        carried: dict[str, str] = {}
+        for component in analysis.components:
+            old_id = self._carried_from.get(component.component_id)
+            meta = previous.meta_by_id.get(old_id) if old_id else None
+            if old_id is None or meta is None:
+                continue
+            # The save may have told two expanded components apart with their id; that is no part of the name.
+            name = re.sub(rf" \({re.escape(old_id)}\)_*$", "", meta.name)
+            placeholder = self._previous_rule_names.get(old_id)
+            if not is_natural_name(name) or (
+                placeholder and (name == placeholder or name.startswith(f"{placeholder} {old_id}"))
+            ):
+                continue
+            carried[component.component_id] = old_id
+            component.name = name
+            component.description = meta.description
+            live_qnames = {qname for _path, qname in _member_keys(component)}
+            component.key_entities = [
+                entity.model_copy(deep=True) for entity in meta.key_entities if entity.qualified_name in live_qnames
+            ]
+        previous_scope = self._previous_scopes.get(
+            ROOT_SCOPE_ID if scope.scope_id == ROOT_SCOPE_ID else self._carried_from.get(scope.scope_id, "")
+        )
+        if previous_scope is not None and previous_scope.description:
+            analysis.description = previous_scope.description
+
+        # Each carried pair keeps the label the previous analysis gave it, or gave its descendants;
+        # an endpoint belongs to the carried component that continues its nearest ancestor.
+        def carrier(old_endpoint: str) -> str:
+            owners = [(len(old), new) for new, old in carried.items() if is_self_or_descendant(old_endpoint, old)]
+            return max(owners)[1] if owners else ""
+
+        labels: dict[tuple[str, str], Relation] = {}
+        for relation in self._previous_relations:
+            pair = (carrier(relation.src_id), carrier(relation.dst_id))
+            if pair[0] and pair[1] and pair[0] != pair[1]:
+                labels.setdefault(pair, relation)
+        names = {component.component_id: component.name for component in analysis.components}
+        analysis.components_relations = [
+            relation.model_copy(
+                deep=True,
+                update={
+                    "src_id": source,
+                    "dst_id": target,
+                    "src_name": names[source],
+                    "dst_name": names[target],
+                },
+            )
+            for (source, target), relation in sorted(labels.items())
+        ]
+        self.scope_assembler.merge_scope_relations(analysis, scope)
+
+        refreshed_ids = {
+            group.group_id
+            for group in scope.groups
+            if group.group_id not in carried
+            or self._group_member_keys(group, scope) != previous.meta_by_id[carried[group.group_id]].member_keys
+        }
+        editable_ids, locked_ids = self._naming_sets(
+            scope, analysis, refreshed_ids, previous, carried, self._previous_changed_files, ()
+        )
+        # A connection the previous analysis never had, between two components nobody changed, needs a
+        # label; ask for it without letting their names or descriptions move.
+        label_only = {
+            endpoint
+            for relation in analysis.components_relations
+            if (relation.src_id, relation.dst_id) not in labels
+            and relation.src_id not in editable_ids
+            and relation.dst_id not in editable_ids
+            for endpoint in (relation.src_id, relation.dst_id)
+        }
+        kept = {
+            component.component_id: (component.description, component.key_entities)
+            for component in analysis.components
+            if component.component_id in label_only
+        }
+        self._enrich_scope(
+            scope,
+            analysis,
+            editable_ids | label_only,
+            locked_ids | label_only,
+            frozenset(self._previous_changed_files),
+            incremental=True,
+        )
+        for component in analysis.components:
+            if component.component_id in kept:
+                component.description, component.key_entities = kept[component.component_id]
+
     def _enrich_incremental_scopes(
         self,
         hierarchy: ClusterScopeResult,
@@ -894,29 +1097,17 @@ class DiagramGenerator:
             analysis = root_analysis if scope.scope_id == ROOT_SCOPE_ID else sub_analyses.get(scope.scope_id)
             if analysis is None:
                 continue
-            # A baseline name that is a directory or an identifier is renamed even when nothing
-            # changed: locked or carried forward, it would ship on every later run.
-            unnatural_ids = {
-                component.component_id for component in analysis.components if not is_natural_name(component.name)
-            }
-            editable_ids = {
-                group.group_id
-                for group in scope.groups
-                if group.group_id in refreshed_ids
-                or group.group_id in unnatural_ids
-                or bool(self._group_files(group, scope) & changed_files)
-                or bool(group.qualified_names & self._changed_members)
-            }
+            editable_ids, locked_ids = self._naming_sets(
+                scope,
+                analysis,
+                refreshed_ids,
+                baseline_membership,
+                {group.group_id: group.group_id for group in scope.groups},
+                changed_files,
+                self._changed_members,
+            )
             if not editable_ids:
                 continue
-            locked_ids = frozenset(
-                group.group_id
-                for group in scope.groups
-                if group.group_id in editable_ids
-                and group.group_id not in unnatural_ids
-                and group.group_id in baseline_membership.meta_by_id
-                and self._group_member_keys(group, scope) == baseline_membership.meta_by_id[group.group_id].member_keys
-            )
             self._enrich_scope(
                 scope,
                 analysis,
@@ -1126,7 +1317,7 @@ class DiagramGenerator:
         try:
             analysis = self.scope_assembler.build(scope)
             self.scope_assembler.qualify_source_cluster_ids(analysis, component.component_id)
-            self._enrich_scope(scope, analysis, {group.group_id for group in scope.groups})
+            self._enrich_drafted_scope(scope, analysis)
             new_components = [child for child in analysis.components if child.component_id in preclustered_scopes]
 
             return component.component_id, analysis, new_components
@@ -1410,11 +1601,7 @@ class DiagramGenerator:
 
             assert self.clustering_hierarchy is not None
             analysis = self.scope_assembler.build(self.clustering_hierarchy)
-            self._enrich_scope(
-                self.clustering_hierarchy,
-                analysis,
-                {group.group_id for group in self.clustering_hierarchy.groups},
-            )
+            self._enrich_drafted_scope(self.clustering_hierarchy, analysis)
             root_components = [
                 component
                 for component in analysis.components
