@@ -22,17 +22,18 @@ class IncrementalClusteringError(RuntimeError):
 
 
 class ScopeContainmentError(RuntimeError):
-    """Raised when a child scope owns methods its parent component does not.
+    """Raised when a child scope's members are not exactly its parent component's.
 
     Every method must belong to exactly one component per tree level. Because a
-    child scope is a separate ``AnalysisInsights``, containment is the one half of
-    that invariant no single populate/patch pass can enforce — so it is checked
-    once before the save. A violation means the same method renders under two
-    components, which is worse to ship than a failed run.
+    child scope is a separate ``AnalysisInsights``, that invariant spans two objects
+    no single populate/patch pass touches together, so it is checked before the save.
+    A child method outside its parent renders under two components; a parent method
+    in no child belongs to no leaf, and analysis.json, which lists only leaves'
+    members, would drop it.
     """
 
     def __init__(self, violations: list[str]):
-        super().__init__("Child scopes own methods outside their parent component: " + "; ".join(violations))
+        super().__init__("Child scopes do not hold exactly their parent's methods: " + "; ".join(violations))
         self.violations = violations
 
 
@@ -63,6 +64,14 @@ class SymbolIdCollisionError(RuntimeError):
         super().__init__(f"Methods {first_key!r} and {second_key!r} share the analysis.json id {symbol_id!r}")
         self.symbol_id = symbol_id
         self.keys = (first_key, second_key)
+
+
+class AnalysisInvariantError(RuntimeError):
+    """Raised when an analysis breaks a rule analysis.json relies on to state each fact once.
+
+    Why: the document leaves out what a reader rebuilds, so writing such an analysis would lose
+    or invent facts on the next read.
+    """
 
 
 class UnreadableAnalysisError(ValueError):

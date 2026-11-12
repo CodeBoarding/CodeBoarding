@@ -46,6 +46,7 @@ from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
+    align_relation_edges,
 )
 from diagram_analysis.exceptions import (
     ClusteringScopeUnavailableError,
@@ -1360,20 +1361,7 @@ class DiagramGenerator:
                         stats["saves"] += 1
 
                         logger.debug("Saving intermediate analysis for '%s'", comp_name)
-                        self._strip_ignored(analysis, sub_analyses)
-                        expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
-                        save_analysis(
-                            analysis=analysis,
-                            output_dir=Path(self.output_dir),
-                            sub_analyses=sub_analyses,
-                            repo_name=self.repo_name,
-                            repo_dir=self.repo_location,
-                            source_tree_hash=self._source_tree_hash(),
-                            expandable_component_ids=expandable_ids,
-                            sub_expandable_ids=sub_expandable_ids,
-                            depth_cap=self.depth_cap,
-                            tree_spec=self._tree_spec_dict(),
-                        )
+                        self._save_progress(analysis, sub_analyses)
 
                     if new_components and level + 1 < self.depth_cap:
                         for child in new_components:
@@ -1428,6 +1416,30 @@ class DiagramGenerator:
             analysis_path = self.finalize_and_save(analysis, sub_analyses)
             logger.info(f"Analysis complete. Written unified analysis to {analysis_path}")
             return analysis_path
+
+    def _save_progress(self, analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> None:
+        """Save the tree mid-run as a reader rebuilds it: top-level relations between leaves, edges aligned.
+
+        Why copies: the run keeps building each scope on its own relations; only the file is lifted.
+        """
+        self._strip_ignored(analysis, sub_analyses)
+        expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
+        root = analysis.model_copy(deep=True)
+        subs = {scope_id: sub.model_copy(deep=True) for scope_id, sub in sub_analyses.items()}
+        self.rebuild_global_relations(root, subs)
+        align_relation_edges(root, subs, self.repo_location)
+        save_analysis(
+            analysis=root,
+            output_dir=Path(self.output_dir),
+            sub_analyses=subs,
+            repo_name=self.repo_name,
+            repo_dir=self.repo_location,
+            source_tree_hash=self._source_tree_hash(),
+            expandable_component_ids=expandable_ids,
+            sub_expandable_ids=sub_expandable_ids,
+            depth_cap=self.depth_cap,
+            tree_spec=self._tree_spec_dict(),
+        )
 
     def rebuild_global_relations(
         self,
@@ -1510,6 +1522,7 @@ class DiagramGenerator:
             self.tree_spec.reroot(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
         distinguish_expanded_component_names(root_analysis, sub_analyses)
+        align_relation_edges(root_analysis, sub_analyses, self.repo_location)
 
     def finalize_and_save(
         self,
@@ -1598,8 +1611,8 @@ class DiagramGenerator:
         Recurse into every scope so a deeper boundary that shifted is still caught.
 
         ``preserved_ids`` are components whose subtree was already restored verbatim from
-        the baseline; reconciling them would graft the parent's undistributed methods into
-        children and re-drift the very structure the restore froze, so skip them entirely.
+        the baseline, where each parent holds exactly its children's methods (the store
+        refuses anything else), so there is nothing to reconcile and they are skipped.
         """
         for component in scope.components:
             if component.component_id in preserved_ids:
@@ -1801,7 +1814,7 @@ def assert_scope_containment(
     root_analysis: AnalysisInsights,
     sub_analyses: dict[str, AnalysisInsights],
 ) -> None:
-    """Raise ``ScopeContainmentError`` if any child scope owns methods its parent does not."""
+    """Raise ``ScopeContainmentError`` unless each child scope holds exactly its parent's methods."""
     components_by_id = {
         component.component_id: component
         for analysis in [root_analysis, *sub_analyses.values()]
@@ -1814,12 +1827,16 @@ def assert_scope_containment(
         if parent is None:
             continue
         owned = _member_keys(parent)
+        held: set = set()
         for child in child_scope.components:
             escaped = _member_keys(child) - owned
+            held |= _member_keys(child)
             if escaped:
                 violations.append(
                     f"{child.component_id or child.name} holds {len(escaped)} method(s) outside parent {component_id}"
                 )
+        if child_scope.components and owned - held:
+            violations.append(f"{component_id} holds {len(owned - held)} method(s) none of its children holds")
     if violations:
         raise ScopeContainmentError(violations)
 
