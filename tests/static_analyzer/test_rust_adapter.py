@@ -11,6 +11,31 @@ import pytest
 from static_analyzer.config import Language
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter, _normalize_parent
+from static_analyzer.engine.lsp_client import LSPClient
+
+
+@pytest.mark.parametrize("manifest", ["Cargo.toml", "rust-project.json", ".rust-project.json"])
+@pytest.mark.parametrize("override", [False, True])
+def test_diagnostic_wait_requires_only_scheduled_workspace_checks(tmp_path: Path, manifest: str, override: bool):
+    (tmp_path / manifest).write_text("")
+    client = LSPClient(["rust-analyzer"], tmp_path)
+    client._process = Mock()
+    client._process.poll.return_value = None
+    options = {"check": {"overrideCommand": ["custom-check"]}} if override else {}
+    clock = 0
+
+    def advance(_seconds):
+        nonlocal clock
+        clock += 1
+        if clock == 5:
+            client._handle_notification("$/progress", {"token": "rust-analyzer/flycheck/0", "value": {"kind": "end"}})
+
+    with (
+        patch("static_analyzer.engine.lsp_client.time.monotonic", side_effect=lambda: clock),
+        patch("static_analyzer.engine.lsp_client.time.sleep", side_effect=advance),
+    ):
+        RustAdapter().wait_for_diagnostics(client, tmp_path, options)
+    assert (clock >= 5) == (manifest == "Cargo.toml" or override)
 
 
 class TestRustAdapterProperties:

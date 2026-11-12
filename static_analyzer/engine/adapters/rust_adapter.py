@@ -103,9 +103,8 @@ class RustAdapter(LanguageAdapter):
     def wait_for_diagnostics(self, client: LSPClient, project_root: Path, init_options: dict) -> None:
         """Wait for cargo check and its asynchronously published diagnostics."""
         # JSON-project runnables check individual saved files, not the initial workspace.
-        workspace_check = not (project_root / "rust-project.json").is_file() or bool(
-            init_options.get("check", {}).get("overrideCommand")
-        )
+        json_manifest = any((project_root / name).is_file() for name in ("rust-project.json", ".rust-project.json"))
+        workspace_check = not json_manifest or bool(init_options.get("check", {}).get("overrideCommand"))
         # Workspace quiescence excludes flycheck; a quiet diagnostic stream can still be incomplete.
         client.wait_for_diagnostic_progress("rust-analyzer/flycheck/", require_completion=workspace_check)
 
