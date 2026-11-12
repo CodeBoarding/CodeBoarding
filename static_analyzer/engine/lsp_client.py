@@ -123,8 +123,8 @@ class LSPClient:
         commands: list[dict] | None = None,
     ) -> None:
         self._command = command
-        self.project_root = project_root
-        self.init_options = init_options or {}
+        self._project_root = project_root
+        self._init_options = init_options or {}
         self._default_timeout = default_timeout
         # Bounds ``initialize`` only, which some servers hold until the project's build is imported.
         self._startup_timeout = startup_timeout
@@ -202,7 +202,7 @@ class LSPClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
-                cwd=str(self.project_root),
+                cwd=str(self._project_root),
             )
         except PermissionError as exc:
             binary = self._command[0] if self._command else "<lsp>"
@@ -225,7 +225,7 @@ class LSPClient:
         self._stderr_thread = threading.Thread(target=self._read_stderr, daemon=True)
         self._stderr_thread.start()
 
-        root_uri = self.project_root.as_uri()
+        root_uri = self._project_root.as_uri()
 
         text_doc_capabilities: dict = {
             "documentSymbol": {
@@ -263,13 +263,13 @@ class LSPClient:
             {
                 "processId": os.getpid(),
                 "rootUri": root_uri,
-                "rootPath": str(self.project_root),
+                "rootPath": str(self._project_root),
                 "capabilities": capabilities,
                 "workspaceFolders": [
                     {"uri": folder.as_uri(), "name": folder.name}
-                    for folder in self._workspace_folders or [self.project_root]
+                    for folder in self._workspace_folders or [self._project_root]
                 ],
-                "initializationOptions": self.init_options,
+                "initializationOptions": self._init_options,
             },
             timeout=self._startup_timeout,
         )

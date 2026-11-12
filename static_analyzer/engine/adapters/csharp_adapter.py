@@ -390,7 +390,7 @@ class CSharpAdapter(LanguageAdapter):
         """Roslyn workspace loading for large .NET solutions can exceed 5 minutes."""
         return 600
 
-    def wait_for_diagnostics(self, client: LSPClient) -> None:
+    def wait_for_diagnostics(self, client: LSPClient, project_root: Path, init_options: dict) -> None:
         """csharp-ls publishes diagnostics asynchronously after didOpen with
         no enclosing readiness signal — no ``$/progress`` end, no
         ``language/status``, just a burst of ``publishDiagnostics`` and

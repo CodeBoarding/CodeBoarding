@@ -62,6 +62,8 @@ class EngineConfig:
     excluded_roots: list[Path] = field(default_factory=list)
     # Configs a full pass or full re-analysis runs in its place, each on a server of its own.
     split: list["EngineConfig"] = field(default_factory=list)
+    # Retain the options sent at startup for adapter hooks on the running server.
+    init_options: dict = field(default_factory=dict)
 
 
 TYPESCRIPT_SPLIT_MIN_FILES = 1000
@@ -504,6 +506,7 @@ class StaticAnalyzer:
         # Servers run N at a time share the memory budget; one at a time, or resident, each may use all of it.
         heap = per_engine_memory_budget(self._server_slots) - SERVER_NON_HEAP_BYTES
         init_options = {**adapter.get_lsp_init_options(self.ignore_manager), **adapter.get_lsp_heap_options(heap)}
+        engine_config.init_options = init_options
         extra_env = adapter.get_lsp_env(project_path, engine_config.source_files)
         # Node-based LSPs spawn child ``node`` processes by name; on
         # a Node-less host the embedded runtime's dir must be on PATH.
@@ -895,7 +898,7 @@ class StaticAnalyzer:
                 try:
                     logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
                     analyses.append(self._run_full_analysis(part, engine_client))
-                    self._collect_diagnostics_for(adapter, engine_client, analyses[-1])
+                    self._collect_diagnostics_for(part, engine_client, analyses[-1])
                 finally:
                     if server is None:
                         engine_client.shutdown()
@@ -993,7 +996,7 @@ class StaticAnalyzer:
                 engine_client.check_alive()
                 carried[language] = analysis
                 carried_adapters[language] = adapter
-                self._collect_diagnostics_for(adapter, engine_client, analysis)
+                self._collect_diagnostics_for(engine_config, engine_client, analysis)
             finally:
                 if resident_client is None:
                     engine_client.shutdown()
@@ -1088,7 +1091,7 @@ class StaticAnalyzer:
         results.add_package_dependencies(language, analysis.get("package_relations", {}))
         results.add_source_files(language, [str(f) for f in analysis.get("source_files", [])])
 
-    def _collect_diagnostics_for(self, adapter: LanguageAdapter, engine_client: LSPClient, analysis: dict) -> None:
+    def _collect_diagnostics_for(self, engine_config: EngineConfig, engine_client: LSPClient, analysis: dict) -> None:
         """Merge cached + live diagnostics for one adapter into ``self.collected_diagnostics``.
 
         Why: rust-analyzer / csharp-ls publish diagnostics asynchronously
@@ -1096,9 +1099,10 @@ class StaticAnalyzer:
         per-adapter quiescence signal that prevents us from snapshotting an
         empty ``collected_diagnostics`` map.
         """
+        adapter = engine_config.adapter
         cache_diags: dict = analysis.get("diagnostics") or {}
         t_wait = time.monotonic()
-        adapter.wait_for_diagnostics(engine_client)
+        adapter.wait_for_diagnostics(engine_client, engine_config.project_path, engine_config.init_options)
         logger.debug(f"wait_for_diagnostics for {adapter.language}: {time.monotonic() - t_wait:.1f}s")
         live_diags = engine_client.get_collected_diagnostics()
         merged_diags: dict = dict(cache_diags)

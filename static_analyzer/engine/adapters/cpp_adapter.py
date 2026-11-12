@@ -255,7 +255,7 @@ class CppAdapter(LanguageAdapter):
                 "raw NVCC flags are not necessarily understood by clangd."
             )
 
-    def wait_for_diagnostics(self, client: LSPClient) -> None:
+    def wait_for_diagnostics(self, client: LSPClient, project_root: Path, init_options: dict) -> None:
         """Retain compiler diagnostics without discarding resolved relationships."""
         client.wait_for_diagnostics_quiesce(idle_seconds=0.5, max_wait=10.0)
         errors = [
