@@ -29,6 +29,7 @@ from diagram_analysis.analysis_json import (
     _compute_depth_level,
     build_unified_analysis_json,
     parse_unified_analysis,
+    read_metadata,
 )
 from diagram_analysis.exceptions import UnreadableAnalysisError
 from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
@@ -156,8 +157,8 @@ class _AnalysisFileStore:
             # Why: the metadata block reads in any format, so a full run replacing an older analysis.json
             # still keeps them across its progress saves.
             document = self.read_document()
-            if document:
-                metadata = document.get("metadata") or {}
+            if document is not None:
+                metadata = read_metadata(document)
                 if not repo_name:
                     repo_name = metadata.get("repo_name", "")
                 if tree_spec is None:
@@ -295,7 +296,7 @@ def load_analysis_metadata(output_dir: Path) -> dict | None:
     Why: the block is the same in every format, so a baseline this Core cannot parse still gives its depth cap.
     """
     document = _get_store(output_dir).read_document()
-    return None if document is None else document.get("metadata") or {}
+    return None if document is None else read_metadata(document)
 
 
 def write_text_atomic(path: Path, text: str) -> None:

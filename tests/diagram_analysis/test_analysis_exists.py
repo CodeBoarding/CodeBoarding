@@ -39,6 +39,12 @@ def test_invalid_json_raises_instead_of_reading_as_absent(tmp_path: Path) -> Non
         analysis_exists(tmp_path)
 
 
+def test_json_that_is_not_an_object_raises_for_its_metadata_too(tmp_path: Path) -> None:
+    (tmp_path / "analysis.json").write_text("[]")
+    with pytest.raises(UnreadableAnalysisError, match="not a JSON object"):
+        load_analysis_metadata(tmp_path)
+
+
 def test_an_older_format_raises_instead_of_reading_as_absent(tmp_path: Path) -> None:
     shutil.copy(LEGACY_ANALYSIS, tmp_path / "analysis.json")
 

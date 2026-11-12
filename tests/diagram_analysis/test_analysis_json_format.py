@@ -22,7 +22,7 @@ from diagram_analysis.analysis_json import (
     dump_analysis_document,
     parse_unified_analysis,
 )
-from diagram_analysis.exceptions import AnalysisFormatError, SymbolIdCollisionError
+from diagram_analysis.exceptions import AnalysisFormatError, SymbolIdCollisionError, UnreadableAnalysisError
 from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 
 METHODS = {"a.py": ["a.one", "a.two"], "b.py": ["b.one"], "c.py": ["c.one"]}
@@ -236,10 +236,13 @@ class TestWhatReadersCannotRebuildIsWrittenOut(unittest.TestCase):
         root.components[0].file_methods.append(FileMethodGroup(file_path="c.py", methods=[method("c.py", "c.one")]))
 
         doc = store(root, subs)
-        parsed, _ = parse_unified_analysis(doc)
+        parsed, parsed_subs = parse_unified_analysis(doc)
+        again = store(parsed, {cid: (sub, []) for cid, sub in parsed_subs.items()})
 
         self.assertEqual(len(doc["components"][0]["file_methods"]), 4)
         self.assertEqual(parsed.components[0].file_methods, root.components[0].file_methods)
+        del doc["metadata"]["generated_at"], again["metadata"]["generated_at"]
+        self.assertEqual(again, doc)
 
 
 def index(*keys: str) -> dict[str, FileEntry]:
@@ -275,11 +278,26 @@ class TestRejectedDocuments(unittest.TestCase):
         with self.assertRaisesRegex(AnalysisFormatError, "'v2'"):
             parse_unified_analysis({"metadata": {"format_version": "v2"}})
 
-    def test_an_id_with_no_method_is_rejected(self):
+    def test_an_id_with_no_method_is_unreadable(self):
         doc = store(*tree())
         doc["components"][1]["file_methods"][0] = "missing0"
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(UnreadableAnalysisError, "'missing0'"):
+            parse_unified_analysis(doc)
+
+    def test_a_document_that_is_not_an_object_is_unreadable(self):
+        with self.assertRaisesRegex(UnreadableAnalysisError, "not a JSON object"):
+            parse_unified_analysis([])  # type: ignore[arg-type]
+
+    def test_a_document_with_only_metadata_is_unreadable(self):
+        with self.assertRaisesRegex(UnreadableAnalysisError, r"4 problem\(s\); at files: Field required"):
+            parse_unified_analysis({"metadata": {"format_version": "v1"}})
+
+    def test_a_malformed_record_is_unreadable(self):
+        doc = store(*tree())
+        doc["edges"][0] = doc["edges"][0][:2]
+
+        with self.assertRaisesRegex(UnreadableAnalysisError, "at edges.0"):
             parse_unified_analysis(doc)
 
 

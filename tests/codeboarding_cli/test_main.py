@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
+from agents.agent_responses import AnalysisInsights
 from codeboarding_cli import main
 from agents.llm_config import CODEBOARDING_KEY_TAIL
 from agents.llm_errors import LLMAuthError, LLMQuotaError
@@ -310,13 +311,13 @@ class TestIncrementalDepthSource(unittest.TestCase):
                     RunContext(run_id="r", log_path="l"),
                 )
 
-    @patch("codeboarding_workflows.analysis.run_incremental_workflow")
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
-    def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow):
+    def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_load_full):
         mock_detect.return_value = MagicMock(files=[])
-        mock_workflow.return_value = Path("analysis.json")
+        mock_load_full.return_value = (AnalysisInsights(description="", components=[], components_relations=[]), {})
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"

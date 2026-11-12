@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 
 from agents.content_hash import compute_source_tree_hash
+from agents.agent_responses import AnalysisInsights
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis import DiagramGenerator
 from diagram_analysis.analysis_json import require_format_version
@@ -128,11 +129,7 @@ def run_partial(
 
     # Prefer the configured cap; retain depth_level for legacy baselines.
     depth_cap = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_CAP)))
-    full_analysis = load_full_analysis(run_paths.output_dir)
-    if full_analysis is None:
-        raise BaselineUnavailableError(f"analysis.json in '{run_paths.output_dir}' was removed during the run.")
-
-    root_analysis, sub_analyses = full_analysis
+    root_analysis, sub_analyses = _load_baseline(run_paths.output_dir)
     preserved_expandable_ids = load_expandable_component_ids(run_paths.output_dir)
 
     component_to_analyze = None
@@ -228,42 +225,23 @@ def run_incremental(
         static_analyzer=static_analyzer,
         changes=changes,
     )
-    return run_incremental_workflow(generator)
+    return _run_from_baseline(generator, _load_baseline(run_paths.output_dir))
 
 
 def run_incremental_workflow(generator: DiagramGenerator) -> Path:
     """Run incremental analysis when a baseline exists, otherwise fall back to a full run.
 
-    Public kernel used by ``github_action.py`` and ``run_incremental`` (CLI). Shape:
-    1. If no prior ``analysis.json`` is present, or this Core cannot read it, run full analysis.
-    2. Otherwise hand the loaded baseline to ``generate_analysis_incremental``,
-       which itself falls back to a full run when the cluster snapshot is
-       missing or the cluster delta produces nothing actionable.
+    Public kernel for unattended callers (``github_action.py``): with no prior ``analysis.json``,
+    or one this Core cannot read, it runs a full analysis. ``generate_analysis_incremental`` itself
+    falls back to a full run when the cluster snapshot is missing or the delta has nothing actionable.
     """
-    output_dir = Path(generator.output_dir)
     try:
-        existing = load_full_analysis(output_dir)
+        baseline = load_full_analysis(Path(generator.output_dir))
     except UnreadableAnalysisError:
-        # Why: callers that reach here unattended have nobody to answer a "run a full analysis" prompt.
+        # Why: nobody is there to answer a "run a full analysis" prompt.
         logger.warning("The existing analysis.json cannot be updated; running full analysis.", exc_info=True)
-        existing = None
-    # Progress saves land mid-run, so a failed run must not leave its partial analysis.json behind.
-    before = snapshot_analysis(output_dir)
-    try:
-        if existing is None:
-            logger.info("No usable analysis baseline; running full analysis.")
-            return generator.generate_analysis()
-
-        root_analysis, sub_analyses = existing
-
-        if not root_analysis.components:
-            logger.info("Baseline analysis has no components; running full analysis.")
-            return generator.generate_analysis()
-
-        return generator.generate_analysis_incremental(root_analysis, sub_analyses)
-    except BaseException:
-        restore_analysis(output_dir, before)
-        raise
+        baseline = None
+    return _run_from_baseline(generator, baseline)
 
 
 def _baseline_metadata(output_dir: Path) -> dict:
@@ -277,3 +255,41 @@ def _baseline_metadata(output_dir: Path) -> dict:
     if metadata is None:
         raise BaselineUnavailableError(f"No baseline analysis.json found in '{output_dir}'. Run a full analysis first.")
     return metadata
+
+
+def _load_baseline(output_dir: Path) -> tuple[AnalysisInsights, dict[str, AnalysisInsights]]:
+    """The root analysis and sub-analyses of a baseline ``_baseline_metadata`` accepted.
+
+    Raises ``BaselineUnavailableError`` when its body is not one this Core can read.
+    """
+    try:
+        baseline = load_full_analysis(output_dir)
+    except UnreadableAnalysisError as error:
+        raise BaselineUnavailableError(str(error)) from error
+    if baseline is None:
+        raise BaselineUnavailableError(f"analysis.json in '{output_dir}' was removed during the run.")
+    return baseline
+
+
+def _run_from_baseline(
+    generator: DiagramGenerator, baseline: tuple[AnalysisInsights, dict[str, AnalysisInsights]] | None
+) -> Path:
+    """Update *baseline* incrementally, or run in full without one or with an empty one."""
+    output_dir = Path(generator.output_dir)
+    # Progress saves land mid-run, so a failed run must not leave its partial analysis.json behind.
+    before = snapshot_analysis(output_dir)
+    try:
+        if baseline is None:
+            logger.info("No usable analysis baseline; running full analysis.")
+            return generator.generate_analysis()
+
+        root_analysis, sub_analyses = baseline
+
+        if not root_analysis.components:
+            logger.info("Baseline analysis has no components; running full analysis.")
+            return generator.generate_analysis()
+
+        return generator.generate_analysis_incremental(root_analysis, sub_analyses)
+    except BaseException:
+        restore_analysis(output_dir, before)
+        raise

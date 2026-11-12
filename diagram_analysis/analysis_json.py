@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from agents.agent_responses import (
     Component,
@@ -18,8 +18,9 @@ from agents.agent_responses import (
 )
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.relation_edges import merge_relations_by_pair
-from diagram_analysis.exceptions import AnalysisFormatError, SymbolIdCollisionError
+from diagram_analysis.exceptions import AnalysisFormatError, SymbolIdCollisionError, UnreadableAnalysisError
 from infra.analysis_format import ANALYSIS_FORMAT_VERSION, RECORD_WIDTH, SYMBOL_ID_BYTES
+from infra.clustering_ids import ComponentId
 from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
@@ -324,8 +325,20 @@ def parse_unified_analysis(
     Returns:
         (root_analysis, sub_analyses_dict) where sub_analyses_dict maps component_id
         to its nested AnalysisInsights.
+
+    Raises ``UnreadableAnalysisError`` (``AnalysisFormatError`` for another format) when *data*
+    is not a document in the shape the reader relies on.
     """
-    require_format_version(data.get("metadata") or {})
+    require_format_version(read_metadata(data))
+    try:
+        _AnalysisDocument.model_validate(data)
+    except ValidationError as error:
+        first = error.errors()[0]
+        location = ".".join(str(part) for part in first["loc"]) or "the document"
+        raise UnreadableAnalysisError(
+            f"analysis.json is not a valid {ANALYSIS_FORMAT_VERSION!r} document ({error.error_count()} problem(s); "
+            f"at {location}: {first['msg']}); run a full analysis to rewrite it"
+        ) from error
     reader = _DocumentReader(data)
     root_analysis = reader.analysis(data.get("description", ""), data["components"], data["components_relations"], "")
     if reader.missing:
@@ -339,6 +352,17 @@ def parse_unified_analysis(
         sub.files = {path: FileEntry().merge_from(entry) for path, entry in reader.files.items() if path in owned}
 
     return root_analysis, reader.sub_analyses
+
+
+def read_metadata(document: object) -> dict:
+    """The metadata block of a decoded analysis.json in any format.
+
+    Raises ``UnreadableAnalysisError`` when *document* is not an object with an object for metadata.
+    """
+    metadata = (document.get("metadata") or {}) if isinstance(document, dict) else None
+    if not isinstance(metadata, dict):
+        raise UnreadableAnalysisError("analysis.json is not a JSON object with a metadata object")
+    return metadata
 
 
 def require_format_version(metadata: dict) -> None:
@@ -571,6 +595,51 @@ def _edges_by_relation(
     return held
 
 
+# The shape ``_DocumentReader`` relies on; ``parse_unified_analysis`` checks a document against it first.
+_CallSites = list[tuple[int, int]]
+_EdgeRow = tuple[str, str, _CallSites] | tuple[str, str, _CallSites, str]
+
+
+class _FileDocument(BaseModel):
+    methods: dict[str, tuple[int, int, str, str, str]]
+    content_hash: str
+    module_hash: str
+
+
+class _RelationDocument(BaseModel):
+    relation: str
+    src_name: str
+    dst_name: str
+    src_id: str
+    dst_id: str
+    evidence: str = ""
+    is_static: bool = False
+    key_edges: list[tuple[str, str] | tuple[str, str, str] | tuple[str, str, str, _CallSites]] = Field(
+        default_factory=list
+    )
+    all_edges: list[_EdgeRow] | None = None
+
+
+class _ComponentDocument(BaseModel):
+    name: str
+    component_id: str
+    description: str
+    key_entities: list[SourceCodeReference] = Field(default_factory=list)
+    source_cluster_ids: list[ComponentId] = Field(default_factory=list)
+    file_methods: list[str] | None = None
+    components: list["_ComponentDocument"] = Field(default_factory=list)
+    components_relations: list[_RelationDocument] = Field(default_factory=list)
+
+
+class _AnalysisDocument(BaseModel):
+    metadata: dict
+    description: str = ""
+    files: dict[str, _FileDocument]
+    components: list[_ComponentDocument]
+    components_relations: list[_RelationDocument]
+    edges: list[_EdgeRow]
+
+
 class _DocumentReader:
     """Rebuilds the in-memory analysis from a parsed analysis.json document."""
 
@@ -635,7 +704,7 @@ class _DocumentReader:
         member = self.methods.get(ref)
         if member is None:
             if "|" not in ref:
-                raise ValueError(f"Unknown method id {ref!r}")
+                raise UnreadableAnalysisError(f"analysis.json cites method id {ref!r}, which no file lists")
             # A raw key names no indexed method, so there is no member to hold.
             self.missing.append(ref)
         return member
@@ -681,7 +750,7 @@ class _DocumentReader:
                 reference_end_line=method.end_line,
             )
         if "|" not in ref:
-            raise ValueError(f"Unknown method id {ref!r}")
+            raise UnreadableAnalysisError(f"analysis.json cites method id {ref!r}, which no file lists")
         file_path, _, qualified_name = ref.partition("|")
         return SourceCodeReference(qualified_name=qualified_name, reference_file=file_path or None)
 
