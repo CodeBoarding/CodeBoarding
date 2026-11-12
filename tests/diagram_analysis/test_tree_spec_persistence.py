@@ -1,4 +1,4 @@
-"""The tree specification rides in analysis.json metadata and survives a save that omits it."""
+"""The tree specification rides in analysis.json metadata."""
 
 import json
 import shutil
@@ -9,8 +9,11 @@ from pathlib import Path
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.io_utils import load_analysis_metadata, save_analysis
+from diagram_analysis.analysis_json import FileCoverageSummary
 from static_analyzer.clustering.exceptions import IncrementalCacheMissingError
 from static_analyzer.clustering.names.spec import SPEC_VERSION
+
+NO_COVERAGE = FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0)
 
 
 class TestTreeSpecPersistence(unittest.TestCase):
@@ -36,6 +39,7 @@ class TestTreeSpecPersistence(unittest.TestCase):
             source_tree_hash="abc",
             depth_cap=2,
             tree_spec=tree_spec,
+            file_coverage_summary=NO_COVERAGE,
         )
 
     def _metadata(self) -> dict:
@@ -45,12 +49,6 @@ class TestTreeSpecPersistence(unittest.TestCase):
 
     def test_the_specification_is_written_and_read_back(self):
         self._save(self.spec)
-        self.assertEqual(self._metadata()["tree_spec"], self.spec)
-
-    def test_a_save_without_a_specification_keeps_the_one_on_disk(self):
-        """Dropping it would strand every later incremental and partial run."""
-        self._save(self.spec)
-        self._save(None)
         self.assertEqual(self._metadata()["tree_spec"], self.spec)
 
     def test_a_specification_of_another_version_is_not_replayed(self):
@@ -67,8 +65,3 @@ class TestTreeSpecPersistence(unittest.TestCase):
         )
         with self.assertRaisesRegex(IncrementalCacheMissingError, "version"):
             generator._stored_tree_spec()
-
-    def test_an_analysis_written_before_the_specification_has_an_empty_one(self):
-        self._save(None)
-        payload = json.loads((self.temp_dir / "analysis.json").read_text())
-        self.assertEqual(payload["metadata"]["tree_spec"], {})

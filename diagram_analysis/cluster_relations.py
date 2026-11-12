@@ -214,15 +214,29 @@ def build_global_relations(
         if pair in static_pairs or pair in superseded_llm_pairs:
             continue
         grounded = llm_rel.with_merged_edges()
-        kept = [
-            edge
-            for edge in grounded.all_edges
-            if edge_crosses_components(edge, ownership.owner_of, llm_rel.src_id, llm_rel.dst_id)
-        ]
-        kept_ids = {edge.identity() for edge in kept}
-        global_relations[pair] = grounded.model_copy(
-            update={"all_edges": kept, "key_edges": [e for e in grounded.key_edges if e.identity() in kept_ids]}
-        )
+        # A top-level relation joins two leaves, so each edge goes under the leaves that own its ends.
+        by_leaves: dict[tuple[str, str], list[RelationEdge]] = {}
+        for edge in grounded.all_edges:
+            if edge_crosses_components(edge, ownership.owner_of, llm_rel.src_id, llm_rel.dst_id):
+                by_leaves.setdefault((ownership.owner_of(edge.source), ownership.owner_of(edge.target)), []).append(
+                    edge
+                )
+        for (src_id, dst_id), edges in (by_leaves or {pair: []}).items():
+            ids = {edge.identity() for edge in edges}
+            relation = grounded.model_copy(
+                update={
+                    "src_id": src_id,
+                    "dst_id": dst_id,
+                    "src_name": id_to_name.get(src_id, src_id),
+                    "dst_name": id_to_name.get(dst_id, dst_id),
+                    "all_edges": edges,
+                    "key_edges": [edge for edge in grounded.key_edges if edge.identity() in ids],
+                }
+            )
+            if (src_id, dst_id) in global_relations:
+                global_relations[src_id, dst_id].merge_edges_from(relation)
+            else:
+                global_relations[src_id, dst_id] = relation
 
     return drop_reverse_duplicates(
         drop_internal_self_relations(sorted(global_relations.values(), key=lambda rel: (rel.src_id, rel.dst_id)))

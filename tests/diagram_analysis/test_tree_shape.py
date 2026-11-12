@@ -1,16 +1,26 @@
 """Tests for single-child component absorption."""
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agents.agent_responses import AnalysisInsights, Component, Relation, SourceCodeReference
-from agents.file_index_models import FileMethodGroup, MethodEntry
+from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
+from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis.analysis_json import build_unified_analysis_json, parse_unified_analysis
-from diagram_analysis.diagram_generator import DiagramGenerator, _member_keys, _reconcile_child_scope
+from diagram_analysis.diagram_generator import (
+    DiagramGenerator,
+    _member_keys,
+    _reconcile_child_scope,
+    assert_scope_containment,
+)
 from diagram_analysis.exceptions import ScopeContainmentError
+from diagram_analysis.io_utils import load_full_analysis
+from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
+from static_analyzer.config import Language, NodeType
+from static_analyzer.node import Node
 from diagram_analysis.tree_shape import absorb_single_child_components
 
 
@@ -44,7 +54,11 @@ def relation(src_id: str, dst_id: str) -> Relation:
 
 
 def analysis(*components: Component, relations: list[Relation] | None = None) -> AnalysisInsights:
-    return AnalysisInsights(description="d", components=list(components), components_relations=relations or [])
+    """A scope whose files index its components' members, as a live scope's do."""
+    scope = AnalysisInsights(description="d", components=list(components), components_relations=relations or [])
+    for group in (group for c in components for group in c.file_methods):
+        scope.files.setdefault(group.file_path, FileEntry()).merge_from(FileEntry(methods=group.methods))
+    return scope
 
 
 def shape(root: AnalysisInsights, subs: dict[str, AnalysisInsights]) -> dict[str, list[str]]:
@@ -358,6 +372,17 @@ class TestMembershipReconciliation(unittest.TestCase):
         self.assertEqual([entity.qualified_name for entity in child.key_entities], ["a.kept"])
         self.assertEqual(child.source_cluster_ids, ["1.7"])
 
+    def test_a_method_entering_a_parent_lands_in_a_child(self):
+        """Why: analysis.json lists only leaves' members, so a parent method no child holds would be lost."""
+        parent = component("1", "Parent", {"a.py": ["a.kept", "a.entered"]})
+        child = component("1.1", "Child", {"a.py": ["a.kept"]})
+        child_scope = analysis(child)
+
+        _reconcile_child_scope(parent, child_scope, set(_member_keys(parent)), set(_member_keys(child)), Path("."))
+
+        assert_scope_containment(analysis(parent), {"1": child_scope})
+        self.assertEqual(set(_member_keys(child)), set(_member_keys(parent)))
+
     def test_an_emptied_child_loses_stale_metadata(self):
         parent = component("1", "Parent", {})
         child = component("1.1", "Child", {"a.py": ["a.gone"]}, clusters=["1.7"])
@@ -408,7 +433,83 @@ class TestAbsorptionKeepsTheDocumentRenderable(unittest.TestCase):
         self.assertEqual((edge.dst_id, edge.dst_name), ("1.2", "Second"))
 
 
+class TestProgressSaves(unittest.TestCase):
+    """Mid-run, top-level relations still join the root's own components, which the file cannot hold."""
+
+    def test_a_progress_save_writes_the_frontier_tree_and_leaves_the_run_alone(self):
+        graph = CallGraph(language="python")
+        for name, path, start in (("a.one", "a.py", 1), ("a.two", "a.py", 11), ("b.one", "b.py", 1)):
+            graph.add_node(Node(name, NodeType.FUNCTION, path, start, start + 5))
+        graph.add_edge("a.one", "a.two", [{"line": 3, "column": 4}])
+        graph.add_edge("a.two", "b.one", [{"line": 12, "column": 1}])
+        root = analysis(
+            component("1", "Parent", {"a.py": ["a.one", "a.two"]}),
+            component("2", "Leaf", {"b.py": ["b.one"]}),
+            relations=[relation("1", "2")],
+        )
+        subs = {"1": analysis(component("1.1", "A", {"a.py": ["a.one"]}), component("1.2", "B", {"a.py": ["a.two"]}))}
+        in_flight = [root.components_relations, subs["1"].components_relations]
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            generator = DiagramGenerator.__new__(DiagramGenerator)
+            generator.static_analysis = StaticAnalysisResults()
+            generator.static_analysis.add_cfg(Language.PYTHON, graph)
+            generator.clustering_hierarchy = None
+            generator.tree_spec = None
+            generator._baseline_global_relations = None
+            generator.repo_location = Path(".")
+            generator.output_dir = output_dir
+            generator.repo_name = "repo"
+            generator.depth_cap = 2
+            generator.file_coverage_data = {"summary": {"total_files": 2, "analyzed": 2, "not_analyzed": 0}}
+            with (
+                patch.object(DiagramGenerator, "_strip_ignored"),
+                patch.object(DiagramGenerator, "_source_tree_hash", return_value=""),
+            ):
+                generator._save_progress(root, subs)
+
+            loaded = load_full_analysis(Path(output_dir))
+
+        assert loaded is not None
+        loaded_root, loaded_subs = loaded
+
+        def relations(scope: AnalysisInsights) -> list[tuple]:
+            return [
+                (
+                    r.src_id,
+                    r.dst_id,
+                    r.relation,
+                    [(e.source.qualified_name, e.target.qualified_name) for e in r.all_edges],
+                )
+                for r in scope.components_relations
+            ]
+
+        self.assertEqual(shape(loaded_root, loaded_subs), shape(root, subs))
+        # Every edge between two leaves is top-level; 1 -> 2's label passes to the leaves under it.
+        self.assertEqual(
+            relations(loaded_root),
+            [("1.1", "1.2", "calls", [("a.one", "a.two")]), ("1.2", "2", "calls", [("a.two", "b.one")])],
+        )
+        self.assertEqual(relations(loaded_subs["1"]), [])
+        self.assertEqual([root.components_relations, subs["1"].components_relations], in_flight)
+        self.assertIs(root.components_relations, in_flight[0])
+
+
 class TestAbsorptionNeverHidesAContainmentViolation(unittest.TestCase):
+    def test_a_parent_method_no_child_holds_fails_the_save(self):
+        generator = DiagramGenerator.__new__(DiagramGenerator)
+        generator.tree_spec = None
+        generator.static_analysis = None
+        generator.clustering_hierarchy = None
+        generator.repo_location = Path(".")
+        generator._baseline_global_relations = None
+        root = analysis(component("1", "Parent", {"a.py": ["a.one", "a.stray"]}))
+        subs = {"1": analysis(component("1.1", "Child", {"a.py": ["a.one"]}))}
+
+        with patch.object(DiagramGenerator, "_strip_ignored"):
+            with self.assertRaisesRegex(ScopeContainmentError, "1 holds 1 method\\(s\\) none of its children holds"):
+                generator.finalize_for_save(root, subs)
+
     def test_a_child_owning_what_its_parent_does_not_fails_before_the_collapse(self):
         generator = DiagramGenerator.__new__(DiagramGenerator)
         generator.tree_spec = None

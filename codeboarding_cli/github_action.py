@@ -5,6 +5,7 @@ from pathlib import Path
 
 from codeboarding_workflows.analysis import run_incremental_workflow
 from diagram_analysis import DEFAULT_DEPTH_CAP, DiagramGenerator, RunContext
+from diagram_analysis.exceptions import UnreadableAnalysisError
 from diagram_analysis.io_utils import load_analysis_metadata
 from output_generators.rendering import render_docs
 from infra.repo_utils import checkout_repo, clone_repository
@@ -92,7 +93,12 @@ def _resolve_depth_cap(temp_repo_folder: Path) -> int:
     env_depth = os.getenv("DIAGRAM_DEPTH_CAP")
     if env_depth is not None:
         return int(env_depth)
-    metadata = load_analysis_metadata(temp_repo_folder)
+    try:
+        metadata = load_analysis_metadata(temp_repo_folder)
+    except UnreadableAnalysisError:
+        # Why: run_incremental_workflow replaces an unreadable baseline with a full run, so it has no cap to carry.
+        logger.warning("The seeded analysis.json cannot be read; using the default depth cap.", exc_info=True)
+        return DEFAULT_DEPTH_CAP
     if metadata is not None:
         return int(metadata.get("depth_cap", DEFAULT_DEPTH_CAP))
     return DEFAULT_DEPTH_CAP

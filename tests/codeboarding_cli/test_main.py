@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
+from agents.agent_responses import AnalysisInsights
 from codeboarding_cli import main
 from agents.llm_config import CODEBOARDING_KEY_TAIL
 from agents.llm_errors import LLMAuthError, LLMQuotaError
@@ -12,6 +13,7 @@ from codeboarding_workflows.sources import local_source, onboarding_materials_ex
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.run_context import RunContext, RunPaths
 from infra.repo_utils.change_detector import ChangeSet
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 
 
 class TestOnboardingMaterialsExist(unittest.TestCase):
@@ -97,7 +99,12 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {
+            "depth_level": 1,
+            "depth_cap": 1,
+            "source_tree_hash": "source-hash",
+            "format_version": ANALYSIS_FORMAT_VERSION,
+        }
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -167,7 +174,12 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_nested_component_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 2, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {
+            "depth_level": 1,
+            "depth_cap": 2,
+            "source_tree_hash": "source-hash",
+            "format_version": ANALYSIS_FORMAT_VERSION,
+        }
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -238,8 +250,11 @@ class TestPartialUpdate(unittest.TestCase):
             output_dir.mkdir()
 
             cases = (
-                ({"depth_level": 2}, "Run a full analysis first"),
-                ({"depth_level": 2, "source_tree_hash": "baseline-hash"}, "Run incremental analysis"),
+                ({"depth_level": 2, "format_version": ANALYSIS_FORMAT_VERSION}, "Run a full analysis first"),
+                (
+                    {"depth_level": 2, "source_tree_hash": "baseline-hash", "format_version": ANALYSIS_FORMAT_VERSION},
+                    "Run incremental analysis",
+                ),
             )
             for metadata, expected_message in cases:
                 with self.subTest(metadata=metadata):
@@ -302,13 +317,13 @@ class TestIncrementalDepthSource(unittest.TestCase):
                     RunContext(run_id="r", log_path="l"),
                 )
 
-    @patch("codeboarding_workflows.analysis.run_incremental_workflow")
+    @patch("codeboarding_workflows.analysis.load_full_analysis")
     @patch("codeboarding_workflows.analysis.detect_changes_from_fingerprint")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
-    def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_workflow):
+    def test_depth_cap_taken_from_metadata(self, mock_load_metadata, mock_generator_class, mock_detect, mock_load_full):
         mock_detect.return_value = MagicMock(files=[])
-        mock_workflow.return_value = Path("analysis.json")
+        mock_load_full.return_value = (AnalysisInsights(description="", components=[], components_relations=[]), {})
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_path = Path(temp_dir) / "repo"
@@ -316,18 +331,17 @@ class TestIncrementalDepthSource(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            for metadata, expected_cap in (
-                ({"depth_level": 1, "depth_cap": 4}, 4),
-                ({"depth_level": 1}, 1),
-                ({}, 3),
-            ):
-                with self.subTest(metadata=metadata):
-                    mock_load_metadata.return_value = metadata
-                    run_incremental(
-                        RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                        RunContext(run_id="r", log_path="l"),
-                    )
-                    self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], expected_cap)
+            # The configured cap, not the realized depth.
+            mock_load_metadata.return_value = {
+                "depth_level": 1,
+                "depth_cap": 4,
+                "format_version": ANALYSIS_FORMAT_VERSION,
+            }
+            run_incremental(
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                RunContext(run_id="r", log_path="l"),
+            )
+            self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], 4)
 
 
 class TestRemoteSource(unittest.TestCase):
@@ -405,7 +419,12 @@ class TestLocalSource(unittest.TestCase):
             description="",
             key_entities=[],
         )
-        mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 1, "source_tree_hash": "source-hash"}
+        mock_load_metadata.return_value = {
+            "depth_level": 1,
+            "depth_cap": 1,
+            "source_tree_hash": "source-hash",
+            "format_version": ANALYSIS_FORMAT_VERSION,
+        }
         root_analysis = AnalysisInsights(description="root", components=[component], components_relations=[])
         mock_load_full.return_value = (root_analysis, {})
         mock_generator_class.return_value.process_component.return_value = ("target", None, [])
