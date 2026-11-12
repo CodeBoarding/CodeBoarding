@@ -1,3 +1,4 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -129,7 +130,7 @@ def test_track_analysis_propagates_run_id_to_nested_repo_scanned(captured):
 
         @track_analysis
         def generate_analysis(self):
-            events.track_tech_stack("/repo", 100, [])
+            events.track_tech_stack(Path("/repo"), 100, [])
             return "done"
 
     Generator().generate_analysis()
@@ -140,7 +141,7 @@ def test_track_analysis_propagates_run_id_to_nested_repo_scanned(captured):
 def test_repo_scanned_reads_run_id_from_env_without_track_analysis(captured, monkeypatch):
     """repo_scanned stays correlated even when the scan fires outside a decorated scope."""
     monkeypatch.setenv("CODEBOARDING_RUN_ID", "env-run")
-    events.track_tech_stack("/env-repo", 100, [])
+    events.track_tech_stack(Path("/env-repo"), 100, [])
 
     assert props_for(captured, "repo_scanned")["run_id"] == "env-run"
 
@@ -151,7 +152,7 @@ def test_repo_is_the_project_directory_basename_only(captured, tmp_path, monkeyp
     events.track_tech_stack(project, 100, [])
     monkeypatch.chdir(project)
     track_lsp_result(
-        repo_path=".", language="python", loc=0, status="success", duration_ms=1, analysis={}, diagnostics={}
+        repo_path=Path("."), language="python", loc=0, status="success", duration_ms=1, analysis={}, diagnostics={}
     )
 
     for name in ("repo_scanned", "lsp_analysis_result"):
@@ -166,6 +167,7 @@ def test_repo_is_the_project_directory_basename_only(captured, tmp_path, monkeyp
 )
 def test_opting_out_sends_no_repo_name(monkeypatch, tmp_path, opt_out, sent_repos):
     monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("CODEBOARDING_TELEMETRY", raising=False)
     for key, value in opt_out.items():
         monkeypatch.setenv(key, value)
     sent: list[dict] = []
@@ -192,7 +194,7 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
     }
 
     track_lsp_result(
-        repo_path="/repo",
+        repo_path=Path("/repo"),
         language="python",
         loc=42,
         status="success",
@@ -213,7 +215,7 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
 
 def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog):
     track_lsp_result(
-        repo_path="/repo", language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={}
+        repo_path=Path("/repo"), language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={}
     )
 
     assert "LSP analysis result for python is degraded: missing call graph, missing source files" in caplog.text
@@ -227,7 +229,7 @@ def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog)
 @pytest.mark.parametrize("errors,quality", [([0, 0, 0], "ok"), ([0, 2, 5], "warning")])
 def test_lsp_analysis_result_reports_parser_quality(captured, errors, quality):
     track_lsp_result(
-        repo_path="/repo",
+        repo_path=Path("/repo"),
         language="cpp",
         loc=100,
         status="success",

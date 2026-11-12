@@ -65,7 +65,7 @@ never personal data.
 | `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_cap`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens` |
 | `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `repo`, `total_loc`, `language_count`, `languages`, `stack` |
 | `$exception` | Any unhandled exception, via PostHog's built-in error tracking | `command`, `version`, `run_id` (plus the exception type, message, and stack trace captured automatically by the SDK) |
-| `lsp_analysis_result` | Static analysis finishes for one language | `version`, `run_id`, `repo`, `language`, `loc`, `status`, `duration_ms`, `source_file_count`, `node_count`, `edge_count`, `reference_count`, `diagnostic_file_count`, `diagnostic_count`, `parsed_file_count`, `parse_error_file_count`, `parse_error_node_count`, `quality_status`, `zero_nodes_with_loc`, `zero_edges_with_loc` |
+| `lsp_analysis_result` | Static analysis finishes for one language | `version`, `run_id`, `repo`, `language`, `loc`, `status`, `duration_ms`, `source_file_count`, `node_count`, `edge_count`, `reference_count`, `diagnostic_file_count`, `diagnostic_count`, `parsed_file_count`, `parse_error_file_count`, `parse_error_node_count`, `parse_error_samples`, `quality_status`, `zero_nodes_with_loc`, `zero_edges_with_loc` |
 | `mcp_request_received` | An MCP client calls the server | `method`, `is_notification`, `has_workspace` |
 | `mcp_tool_called` | An MCP tool runs | `method`, `is_notification`, `has_workspace` |
 

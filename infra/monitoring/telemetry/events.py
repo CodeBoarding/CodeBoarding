@@ -50,11 +50,6 @@ def _app_version() -> str:
 _scanned_repos: set[str] = set()
 
 
-def _repo_name(repo_path: str | Path) -> str | None:
-    """Basename of the analysed project directory; its full path and Git remote are never sent."""
-    return Path(repo_path).resolve().name or None
-
-
 def _resolve_run_id() -> str | None:
     """Correlation id from the subprocess env, then the run-scoped ContextVar."""
     return os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
@@ -75,7 +70,7 @@ def _token_usage() -> TokenSnapshot:
         return TokenSnapshot()
 
 
-def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> None:
+def track_tech_stack(repo_path: Path, total_loc: int, languages: list) -> None:
     """Emit one ``repo_scanned`` event with lines-of-code and tech stack."""
     key = str(repo_path)
     if key in _scanned_repos:
@@ -86,7 +81,7 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> 
     event = RepoScanned(
         version=_app_version(),
         run_id=_resolve_run_id(),
-        repo=_repo_name(repo_path),
+        repo=repo_path.resolve().name,
         total_loc=total_loc,
         language_count=len(languages),
         languages=[
@@ -99,7 +94,7 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> 
 
 def track_lsp_result(
     *,
-    repo_path: str | Path,
+    repo_path: Path,
     language: str,
     loc: int,
     status: str,
@@ -152,7 +147,7 @@ def track_lsp_result(
     event = LspAnalysisResult(
         version=_app_version(),
         run_id=_resolve_run_id(),
-        repo=_repo_name(repo_path),
+        repo=repo_path.resolve().name,
         language=language,
         loc=loc,
         status=status,

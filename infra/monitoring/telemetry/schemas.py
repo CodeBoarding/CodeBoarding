@@ -15,16 +15,17 @@ class LanguageStat(BaseModel):
 
 class RepoScanned(BaseModel):
     version: str
+    repo: str
     total_loc: int
     language_count: int
     languages: list[LanguageStat]
     stack: str
     run_id: str | None = None
-    repo: str | None = None
 
 
 class LspAnalysisResult(BaseModel):
     version: str
+    repo: str
     language: str
     loc: int
     status: str
@@ -43,7 +44,6 @@ class LspAnalysisResult(BaseModel):
     zero_nodes_with_loc: bool = False
     zero_edges_with_loc: bool = False
     run_id: str | None = None
-    repo: str | None = None
 
 
 class AnalysisStarted(BaseModel):
