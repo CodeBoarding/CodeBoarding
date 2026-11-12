@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 
 
 def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | None) -> StaticAnalyzer:
@@ -199,10 +200,11 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         sibling = EngineConfig(adapter=config.adapter, project_path=self.project / "nested")
         analyzer._engine_clients.append((sibling, client))
         language = config.adapter.results_language
-        snapshot = {"source_files": [], "diagnostics": {"/proj/a.py": ["early"]}}
+        early, late = LSPDiagnostic(message="early"), LSPDiagnostic(message="late")
+        snapshot = {"source_files": [], "diagnostics": {"/proj/a.py": [early]}}
 
         def merge(_adapter, _client, _analysis) -> None:
-            analyzer.collected_diagnostics.setdefault(language, {})["/proj/a.py"] = ["early", "late"]
+            analyzer.collected_diagnostics.setdefault(language, {})["/proj/a.py"] = [early, late]
 
         with (
             patch("static_analyzer.update_cfg_for_changed_files", return_value=snapshot),
@@ -212,7 +214,7 @@ class TestWarmStartChangedFiles(unittest.TestCase):
             patch("static_analyzer.track_lsp_result"),
         ):
             analyzer._update_cached_results(self.cached, analyzer.changed_files)
-        self.assertEqual(analyzer.collected_diagnostics[language], {"/proj/a.py": ["early", "late"]})
+        self.assertEqual(analyzer.collected_diagnostics[language], {"/proj/a.py": [early, late]})
 
     @patch("static_analyzer.update_cfg_for_changed_files")
     def test_a_config_the_pkl_holds_nothing_of_is_rebuilt_even_without_changes(self, mock_update) -> None:
