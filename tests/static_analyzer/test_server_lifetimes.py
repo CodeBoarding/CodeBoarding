@@ -66,10 +66,10 @@ def test_a_one_shot_warm_start_starts_each_server_for_its_own_step(tmp_path: Pat
     with (
         _patched(analyzer, servers, lambda config, _client: _analysis(config)),
         patch("static_analyzer.update_cfg_for_changed_files", side_effect=lambda cached, *_args: cached),
-        patch.object(analyzer, "_extract_language_dict", return_value={}),
+        patch.object(analyzer, "_extract_language_dict", return_value=_cached(analyzer)),
     ):
         analyzer.start_clients()
-        analyzer._update_cached_results(MagicMock(), "baseline")
+        analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
 
     assert servers.peak == 1
     assert servers.started == analyzer._engine_configs
@@ -83,11 +83,11 @@ def test_a_one_shot_warm_start_stops_the_server_of_a_step_that_fails(tmp_path: P
     with (
         _patched(analyzer, servers, lambda config, _client: _analysis(config)),
         patch("static_analyzer.update_cfg_for_changed_files", side_effect=RuntimeError("pyright died")),
-        patch.object(analyzer, "_extract_language_dict", return_value={}),
+        patch.object(analyzer, "_extract_language_dict", return_value=_cached(analyzer)),
     ):
         analyzer.start_clients()
         with pytest.raises(RuntimeError, match="pyright died"):
-            analyzer._update_cached_results(MagicMock(), "baseline")
+            analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
 
     assert servers.started == analyzer._engine_configs[:1]
     assert servers.running == []
@@ -109,14 +109,14 @@ def test_a_one_shot_warm_start_skips_a_language_whose_server_cannot_start(
         _patched(analyzer, servers, lambda config, _client: _analysis(config)),
         patch.object(analyzer, "_spawn_engine_client", side_effect=spawn),
         patch("static_analyzer.update_cfg_for_changed_files", side_effect=lambda cached, *_args: cached),
-        patch.object(analyzer, "_extract_language_dict", return_value={}),
+        patch.object(analyzer, "_extract_language_dict", return_value=_cached(analyzer)),
     ):
         analyzer.start_clients()
         if skipped:
-            analyzer._update_cached_results(MagicMock(), "baseline")
+            analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
         else:
             with pytest.raises(StaticAnalysisFatalError):
-                analyzer._update_cached_results(MagicMock(), "baseline")
+                analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
 
     expected = [analyzer._engine_configs[0], analyzer._engine_configs[2]] if skipped else analyzer._engine_configs[:1]
     assert servers.started == expected
@@ -129,10 +129,11 @@ def test_a_warm_start_where_no_server_starts_raises_instead_of_returning_an_empt
 
     with (
         patch.object(analyzer, "_spawn_engine_client", side_effect=RuntimeError("no node")),
+        patch.object(analyzer, "_extract_language_dict", return_value=_cached(analyzer)),
         patch("static_analyzer.track_lsp_result"),
     ):
         analyzer.start_clients()
-        results = analyzer._update_cached_results(MagicMock(), "baseline")
+        results = analyzer._update_cached_results(MagicMock(), analyzer.changed_files)
 
     with pytest.raises(RuntimeError, match="No language could be analysed"):
         analyzer._validate_analysis_results(results)
@@ -146,13 +147,10 @@ def test_a_warm_start_full_re_analysis_that_fails_raises_instead_of_leaving_the_
             raise RuntimeError("tsserver crashed")
         return _analysis(config)
 
-    with (
-        _patched(analyzer, servers, analyse),
-        patch.object(analyzer, "_changed_files_for_language", return_value=None),
-    ):
+    with _patched(analyzer, servers, analyse):
         analyzer.start_clients()
         with pytest.raises(RuntimeError, match="tsserver crashed"):
-            analyzer._update_cached_results(MagicMock(), "baseline")
+            analyzer._update_cached_results(MagicMock(), None)
 
     assert servers.running == []
 
@@ -184,6 +182,11 @@ def _analyzer(tmp_path: Path, resident_servers: bool) -> tuple[StaticAnalyzer, _
     analyzer._loc_for_adapter = MagicMock(return_value=0)  # type: ignore[method-assign]
     analyzer._collect_diagnostics_for = MagicMock()  # type: ignore[method-assign]
     return analyzer, _Servers()
+
+
+def _cached(analyzer: StaticAnalyzer) -> dict:
+    """A cached language state that already holds every config's files."""
+    return {"source_files": [path for config in analyzer._engine_configs for path in config.source_files]}
 
 
 @contextmanager

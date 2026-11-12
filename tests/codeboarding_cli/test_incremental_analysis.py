@@ -122,7 +122,8 @@ def test_a_baseline_from_another_engine_is_rebuilt_in_full(
     }
     generator = generate.call_args.args[0]
     generate.assert_called_once()
-    assert generator.force_full_analysis
+    # The analyzer refuses the old engine's cache by its tag; forcing would also discard a cache it accepts.
+    assert not generator.force_full_analysis
     assert generator.depth_cap == 4
     warnings = [record.getMessage() for record in caplog.records]
     assert len(warnings) == 1

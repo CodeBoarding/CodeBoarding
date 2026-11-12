@@ -616,8 +616,8 @@ class DiagramGenerator:
         # necessarily a body-hash change), so its relations may legitimately relabel — the
         # save-time global rebuild must treat it as changed.
         self._baseline_member_keys: dict[str, frozenset[tuple[str, str]]] = {}
-        # Whole-tree content hash, stamped into the pkl's sibling .sha file as the
-        # diff base for the next warm-start (NOT a cache gate). ``prepare_analysis``
+        # Whole-tree content hash, stamped into the pkl's sibling .sha file to name
+        # the source state it reflects (NOT a cache gate). ``prepare_analysis``
         # fills it from the live tree when unset; ``None`` is a tag-less save.
         self.source_sha: str | None = None
         # Whole-tree ``{posix_path: sha16}`` fingerprint, computed once per run and
@@ -1211,12 +1211,9 @@ class DiagramGenerator:
     def _changed_files_for_static_analysis(self) -> set[Path] | None:
         """Absolute changed-file paths from the incremental ChangeSet, or None.
 
-        Incremental analysis always carries a git-free ``ChangeSet`` (the
-        fingerprint diff). We hand those files to the static-analysis warm-start
-        so it re-LSPs exactly them without shelling out to git. None means "no
-        ChangeSet" (a full run) and leaves the warm-start to its own git scoping;
-        an empty set means "incremental, nothing changed" and correctly re-LSPs
-        zero files instead of falling back to a full re-LSP via git.
+        Incremental analysis always carries a ``ChangeSet`` (the fingerprint diff),
+        handed to the static-analysis warm-start on top of the changes its own
+        recorded hashes show. None means "no ChangeSet" (a full run).
         """
         if self.changes is None:
             return None
@@ -1237,6 +1234,7 @@ class DiagramGenerator:
             skip_cache=skip_cache,
             source_sha=self.source_sha,
             cache_dir=self.output_dir,
+            source_file_hashes=self._source_tree_fingerprint_map(),
         )
         result.diagnostics = self._static_analyzer.collected_diagnostics
         return result
@@ -1255,6 +1253,7 @@ class DiagramGenerator:
             source_sha=self.source_sha,
             cache_dir=self.output_dir,
             changed_files=self._changed_files_for_static_analysis(),
+            source_file_hashes=self._source_tree_fingerprint_map(),
         )
 
     def _persist_static_analysis_artifact(self) -> None:
