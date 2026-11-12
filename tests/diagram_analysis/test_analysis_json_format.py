@@ -16,8 +16,8 @@ from agents.agent_responses import (
 from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from diagram_analysis import analysis_json
 from diagram_analysis.analysis_json import (
+    file_nested_relation_edges,
     _symbol_ids,
-    align_relation_edges,
     build_unified_analysis_json,
     dump_analysis_document,
     parse_unified_analysis,
@@ -31,6 +31,7 @@ from diagram_analysis.exceptions import (
 from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 
 METHODS = {"a.py": ["a.one", "a.two"], "b.py": ["b.one"], "c.py": ["c.one"]}
+Subs = dict[str, tuple[AnalysisInsights, list[Component]]]
 
 
 def method(path: str, name: str) -> MethodEntry:
@@ -84,38 +85,59 @@ def component(cid: str, members: dict[str, list[str]]) -> Component:
     )
 
 
-def tree() -> tuple[AnalysisInsights, dict[str, tuple[AnalysisInsights, list[Component]]]]:
-    """Root components '1' (leaves '1.1' and '1.2') and '2'; relations join leaves at the top."""
-    one_to_b = edge("a.py|a.one", "b.py|b.one", (3, 4))
-    two_to_c = edge("a.py|a.two", "c.py|c.one", (7, 1), (9, 2), description="wires")
-    key = edge("a.py|a.one", "b.py|b.one", (3, 4), description="loads")
+def tree() -> tuple[AnalysisInsights, Subs]:
+    """Parents '1' and '1.1', leaves '1.1.1', '1.1.2', '1.2' and '2', and one edge filed at each depth.
+
+    a.one -> a.two parts inside '1.1'; a.two -> b.one parts inside '1', between a parent and a leaf;
+    b.one -> c.one parts only at the top.
+    """
+    inside_one_one = edge("a.py|a.one", "a.py|a.two", (3, 4))
+    inside_one = edge("a.py|a.two", "b.py|b.one", (7, 1), (9, 2), description="wires")
+    across = edge("b.py|b.one", "c.py|c.one", (5, 5))
     root = AnalysisInsights(
         description="d",
         components=[
             component("1", {"a.py": ["a.one", "a.two"], "b.py": ["b.one"]}),
             component("2", {"c.py": ["c.one"]}),
         ],
-        components_relations=[relation("1.1", "1.2", [one_to_b], [key]), relation("1.1", "2", [two_to_c])],
+        components_relations=[
+            relation("1.1.1", "1.1.2", [inside_one_one], [inside_one_one.model_copy(update={"description": "loads"})]),
+            relation("1.1.2", "1.2", [inside_one]),
+            relation("1.2", "2", [across]),
+        ],
     )
     root.files = {
         path: FileEntry(methods=[method(path, n) for n in names], content_hash=f"h{path}")
         for path, names in METHODS.items()
     }
-    sub = AnalysisInsights(
+    one = AnalysisInsights(
         description="component 1",
         components=[component("1.1", {"a.py": ["a.one", "a.two"]}), component("1.2", {"b.py": ["b.one"]})],
-        components_relations=[relation("1.1", "1.2", [one_to_b], [key])],
+        components_relations=[relation("1.1", "1.2", [inside_one], [inside_one])],
     )
-    return root, {"1": (sub, [])}
+    one_one = AnalysisInsights(
+        description="component 1.1",
+        components=[component("1.1.1", {"a.py": ["a.one"]}), component("1.1.2", {"a.py": ["a.two"]})],
+        components_relations=[relation("1.1.1", "1.1.2", [inside_one_one])],
+    )
+    return root, {"1": (one, []), "1.1": (one_one, [])}
 
 
-def store(root: AnalysisInsights, subs: dict[str, tuple[AnalysisInsights, list[Component]]]) -> dict:
+def store(root: AnalysisInsights, subs: Subs) -> dict:
     expandable = [c for c in root.components if c.component_id in subs]
     return json.loads(
         build_unified_analysis_json(
-            root, expandable, "repo", repo_dir=Path("/repo"), source_tree_hash="t", depth_cap=2, sub_analyses=subs
+            root, expandable, "repo", repo_dir=Path("/repo"), source_tree_hash="t", depth_cap=3, sub_analyses=subs
         )
     )
+
+
+def resaved(document: dict) -> dict:
+    """Read *document* and write it again; the generation time is the only field that may move."""
+    parsed, parsed_subs = parse_unified_analysis(document)
+    again = store(parsed, {cid: (sub, []) for cid, sub in parsed_subs.items()})
+    again["metadata"]["generated_at"] = document["metadata"]["generated_at"]
+    return again
 
 
 class TestStoredShape(unittest.TestCase):
@@ -138,49 +160,53 @@ class TestStoredShape(unittest.TestCase):
         self.assertEqual(self.doc["metadata"]["format_version"], ANALYSIS_FORMAT_VERSION)
 
     def test_each_edge_is_written_once_and_relations_cite_it(self):
+        ids = self.ids
         self.assertEqual(
             self.doc["edges"],
             [
-                [self.ids["a.py|a.one"], self.ids["b.py|b.one"], [[3, 4]]],
-                [self.ids["a.py|a.two"], self.ids["c.py|c.one"], [[7, 1], [9, 2]], "wires"],
+                [ids["a.py|a.one"], ids["a.py|a.two"], [[3, 4]]],
+                [ids["a.py|a.two"], ids["b.py|b.one"], [[7, 1], [9, 2]], "wires"],
+                [ids["b.py|b.one"], ids["c.py|c.one"], [[5, 5]]],
             ],
         )
-        top, nested = self.doc["components_relations"][0], self.doc["components"][0]["components_relations"][0]
-        self.assertNotIn("all_edges", top)
-        self.assertNotIn("all_edges", nested)
-        self.assertEqual(top["key_edges"], [[self.ids["a.py|a.one"], self.ids["b.py|b.one"], "loads"]])
+        one = self.doc["components"][0]
+        relations = [
+            *self.doc["components_relations"],
+            *one["components_relations"],
+            *one["components"][0]["components_relations"],
+        ]
+        self.assertTrue(all("all_edges" not in relation for relation in relations))
+        self.assertEqual(relations[0]["key_edges"], [[ids["a.py|a.one"], ids["a.py|a.two"], "loads"]])
+        self.assertEqual(relations[3]["key_edges"], [[ids["a.py|a.two"], ids["b.py|b.one"], "wires"]])
 
     def test_only_leaves_list_their_members(self):
-        parent = self.doc["components"][0]
+        one = self.doc["components"][0]
 
-        self.assertNotIn("file_methods", parent)
-        self.assertEqual(parent["components"][0]["file_methods"], [self.ids["a.py|a.one"], self.ids["a.py|a.two"]])
+        self.assertNotIn("file_methods", one)
+        self.assertNotIn("file_methods", one["components"][0])
+        self.assertEqual(one["components"][0]["components"][0]["file_methods"], [self.ids["a.py|a.one"]])
 
 
 class TestRoundTrip(unittest.TestCase):
-    def test_parsing_recovers_the_analysis(self):
+    def test_parsing_recovers_every_relation_at_every_depth(self):
         root, subs = tree()
 
         parsed, parsed_subs = parse_unified_analysis(store(root, subs))
 
         self.assertEqual(parsed.components, root.components)
         self.assertEqual(parsed.components_relations, root.components_relations)
-        self.assertEqual(parsed_subs["1"].components, subs["1"][0].components)
-        self.assertEqual(parsed_subs["1"].components_relations, subs["1"][0].components_relations)
+        for scope_id, (sub, _) in subs.items():
+            self.assertEqual(parsed_subs[scope_id].components, sub.components)
+            self.assertEqual(parsed_subs[scope_id].components_relations, sub.components_relations)
         self.assertEqual(
             {path: entry.methods for path, entry in parsed.files.items()},
             {path: entry.methods for path, entry in root.files.items()},
         )
 
     def test_saving_a_parsed_analysis_writes_the_same_document(self):
-        root, subs = tree()
-        stored = store(root, subs)
+        stored = store(*tree())
 
-        parsed, parsed_subs = parse_unified_analysis(stored)
-        again = store(parsed, {cid: (sub, []) for cid, sub in parsed_subs.items()})
-
-        del stored["metadata"]["generated_at"], again["metadata"]["generated_at"]
-        self.assertEqual(again, stored)
+        self.assertEqual(resaved(stored), stored)
 
     def test_a_file_path_containing_a_pipe_is_written_and_read(self):
         root = AnalysisInsights(description="d", components=[], components_relations=[])
@@ -194,22 +220,55 @@ class TestRoundTrip(unittest.TestCase):
 
         self.assertEqual([m.qualified_name for m in parsed.files["we|ird.py"].methods], ["fn"])
 
+    def test_methods_whose_joined_path_and_name_coincide_stay_apart(self):
+        """Why: "a|b" + "c" and "a" + "b|c" both join to "a|b|c", but they are two methods."""
+        root = AnalysisInsights(description="d", components=[], components_relations=[])
+        root.files = {
+            "a|b": FileEntry(methods=[MethodEntry(qualified_name="c", start_line=1, end_line=2, node_type="FUNCTION")]),
+            "a": FileEntry(methods=[MethodEntry(qualified_name="b|c", start_line=3, end_line=4, node_type="FUNCTION")]),
+        }
+
+        doc = store(root, {})
+
+        self.assertNotEqual(doc["files"]["a|b"]["methods"]["c"][4], doc["files"]["a"]["methods"]["b|c"][4])
+
+
+class TestNestedRelationEdges(unittest.TestCase):
+    def test_each_nested_relation_takes_the_top_level_edges_filed_under_it(self):
+        root, subs = tree()
+        expected = {cid: sub.components_relations for cid, (sub, _) in subs.items()}
+        scopes = {cid: sub for cid, (sub, _) in subs.items()}
+        for sub in scopes.values():
+            sub.components_relations = [
+                relation.model_copy(update={"all_edges": []}) for relation in sub.components_relations
+            ]
+
+        file_nested_relation_edges(root, scopes, Path("/repo"))
+
+        self.assertEqual({cid: sub.components_relations for cid, sub in scopes.items()}, expected)
+
 
 class TestAWriteThatWouldLoseFactsFails(unittest.TestCase):
+    def test_a_top_level_relation_that_does_not_join_two_leaves(self):
+        root, subs = tree()
+        root.components_relations.append(relation("1", "2", [edge("b.py|b.one", "c.py|c.one", (5, 5))]))
+
+        with self.assertRaisesRegex(AnalysisInvariantError, "relation 1 -> 2 holds 1 edge"):
+            store(root, subs)
+
     def test_a_relation_holding_edges_its_scope_does_not_file_under_it(self):
         root, subs = tree()
-        subs["1"][0].components_relations[0].all_edges = [edge("a.py|a.one", "b.py|b.one", (99, 1))]
+        subs["1"][0].components_relations[0].all_edges = [edge("a.py|a.two", "b.py|b.one", (99, 1))]
 
-        # Its key edge is folded into its edges too, so the relation holds two edges its scope does not.
-        with self.assertRaisesRegex(AnalysisInvariantError, "relation 1.1 -> 1.2 holds 3 edge"):
+        with self.assertRaisesRegex(AnalysisInvariantError, "relation 1.1 -> 1.2 holds"):
             store(root, subs)
 
     def test_a_key_edge_that_is_not_one_of_its_relations_edges(self):
         """Merging folds a relation's key edges into its edges, so one with other call sites is a second edge."""
         root, subs = tree()
-        root.components_relations[0].key_edges = [edge("a.py|a.one", "b.py|b.one", (5, 5), description="loads")]
+        root.components_relations[0].key_edges = [edge("a.py|a.one", "a.py|a.two", (5, 5), description="loads")]
 
-        with self.assertRaisesRegex(AnalysisInvariantError, "a.py\\|a.one -> b.py\\|b.one is held twice, differently"):
+        with self.assertRaisesRegex(AnalysisInvariantError, "is held twice, differently"):
             store(root, subs)
 
     def test_a_parent_member_no_child_holds(self):
@@ -221,37 +280,30 @@ class TestAWriteThatWouldLoseFactsFails(unittest.TestCase):
 
     def test_an_edge_to_a_method_no_file_indexes(self):
         root, subs = tree()
-        root.components_relations[1].all_edges.append(edge("a.py|a.two", "c.py|vendor.absent", (8, 1)))
+        root.components_relations[2].all_edges.append(edge("b.py|b.one", "c.py|vendor.absent", (8, 1)))
 
-        with self.assertRaisesRegex(AnalysisInvariantError, "'c.py\\|vendor.absent', which no file indexes"):
+        with self.assertRaisesRegex(AnalysisInvariantError, "'vendor.absent'\\), which no file indexes"):
             store(root, subs)
 
-
-class TestAlignment(unittest.TestCase):
-    def test_every_relation_takes_the_edges_its_scope_files_under_it(self):
+    def test_a_method_two_leaves_hold(self):
+        """Why: a reader files the method's edges under one of them, so the other's would be lost."""
         root, subs = tree()
-        nested = subs["1"][0].components_relations[0]
-        nested.all_edges = []
-        root.components_relations[0].key_edges = [edge("a.py|a.one", "b.py|b.one", (5, 5), description="loads")]
-
-        align_relation_edges(root, {cid: sub for cid, (sub, _) in subs.items()}, Path("/repo"))
-        parsed, parsed_subs = parse_unified_analysis(store(root, subs))
-
-        self.assertEqual(nested.all_edges, root.components_relations[0].all_edges)
-        self.assertEqual(root.components_relations[0].key_edges[0].call_sites, [RelationCallSite(line=3, column=4)])
-        self.assertEqual(parsed.components_relations, root.components_relations)
-        self.assertEqual(parsed_subs["1"].components_relations, subs["1"][0].components_relations)
-
-    def test_an_edge_no_leaf_holds_belongs_to_no_relation(self):
-        root, subs = tree()
-        root.components_relations[1].all_edges.append(edge("a.py|a.two", "c.py|vendor.absent", (8, 1)))
-
-        align_relation_edges(root, {cid: sub for cid, (sub, _) in subs.items()}, Path("/repo"))
-
-        self.assertEqual(
-            root.components_relations[1].all_edges,
-            [edge("a.py|a.two", "c.py|c.one", (7, 1), (9, 2), description="wires")],
+        subs["1.1"][0].components[1].file_methods.append(
+            FileMethodGroup(file_path="a.py", methods=[method("a.py", "a.one")])
         )
+
+        with self.assertRaisesRegex(AnalysisInvariantError, "1 method\\(s\\) are members of more than one leaf"):
+            store(root, subs)
+
+    def test_a_component_twice_in_the_tree(self):
+        root, subs = tree()
+        subs["1.2"] = (
+            AnalysisInsights(description="d", components=[component("1.1", {})], components_relations=[]),
+            [],
+        )
+
+        with self.assertRaisesRegex(AnalysisInvariantError, "Component 1.1 appears twice"):
+            store(root, subs)
 
 
 def index(*keys: str) -> dict[str, FileEntry]:
@@ -269,11 +321,11 @@ class TestSymbolIds(unittest.TestCase):
         alone = _symbol_ids(index("a.py|a.one"))
         among_others = _symbol_ids(index("0.py|z.one", "a.py|a.one", "b.py|b.one"))
 
-        self.assertEqual(alone["a.py|a.one"], among_others["a.py|a.one"])
-        self.assertRegex(alone["a.py|a.one"], r"^[A-Za-z0-9_-]{12}$")
+        self.assertEqual(alone["a.py", "a.one"], among_others["a.py", "a.one"])
+        self.assertRegex(alone["a.py", "a.one"], r"^[A-Za-z0-9_-]{12}$")
 
     def test_two_methods_sharing_an_id_fail_the_write(self):
-        with patch.object(analysis_json, "_symbol_id", return_value="AAAAAAAA"):
+        with patch.object(analysis_json, "_symbol_id", return_value="AAAAAAAAAAAA"):
             with self.assertRaises(SymbolIdCollisionError):
                 store(*tree())
 
@@ -287,16 +339,36 @@ class TestRejectedDocuments(unittest.TestCase):
         with self.assertRaisesRegex(AnalysisFormatError, "'v2'"):
             parse_unified_analysis({"metadata": {"format_version": "v2"}})
 
-    def test_an_id_with_no_method_is_unreadable(self):
+    def test_a_member_id_no_file_lists_is_unreadable(self):
         doc = store(*tree())
-        doc["components"][1]["file_methods"][0] = "missing0"
+        doc["components"][1]["file_methods"][0] = "missing00000"
 
-        with self.assertRaisesRegex(UnreadableAnalysisError, "'missing0'"):
+        with self.assertRaisesRegex(UnreadableAnalysisError, "'missing00000'"):
+            parse_unified_analysis(doc)
+
+    def test_an_edge_citing_an_id_no_file_lists_is_unreadable(self):
+        doc = store(*tree())
+        doc["edges"].append(["missing00000", doc["edges"][0][1], [[1, 1]]])
+
+        with self.assertRaisesRegex(UnreadableAnalysisError, "'missing00000'"):
+            parse_unified_analysis(doc)
+
+    def test_a_key_edge_that_is_not_an_edge_is_unreadable(self):
+        """Why: a KeyError here would fail the Action's run instead of sending it to a full one."""
+        doc = store(*tree())
+        doc["components_relations"][2]["key_edges"] = [doc["edges"][0][:2]]
+        doc["edges"] = doc["edges"][1:]
+
+        with self.assertRaisesRegex(UnreadableAnalysisError, "key edge .* that is not in edges"):
             parse_unified_analysis(doc)
 
     def test_a_document_that_is_not_an_object_is_unreadable(self):
         with self.assertRaisesRegex(UnreadableAnalysisError, "not a JSON object"):
             parse_unified_analysis([])  # type: ignore[arg-type]
+
+    def test_a_document_without_metadata_is_unreadable(self):
+        with self.assertRaisesRegex(UnreadableAnalysisError, "metadata object"):
+            parse_unified_analysis({"metadata": None})
 
     def test_a_document_with_only_metadata_is_unreadable(self):
         with self.assertRaisesRegex(UnreadableAnalysisError, r"5 problem\(s\); at description: Field required"):

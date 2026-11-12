@@ -32,7 +32,6 @@ from diagram_analysis.analysis_json import (
     read_metadata,
 )
 from diagram_analysis.exceptions import UnreadableAnalysisError
-from diagram_analysis.run_context import DEFAULT_DEPTH_CAP
 from infra.utils import ANALYSIS_FILENAME, FINGERPRINT_FILENAME
 
 logger = logging.getLogger(__name__)
@@ -92,49 +91,16 @@ class _AnalysisFileStore:
         analysis: AnalysisInsights,
         repo_dir: Path,
         source_tree_hash: str,
+        *,
+        sub_analyses: dict[str, AnalysisInsights],
+        repo_name: str,
+        file_coverage_summary: FileCoverageSummary,
+        depth_cap: int,
+        tree_spec: dict,
         expandable_component_ids: list[str] | None = None,
-        sub_analyses: dict[str, AnalysisInsights] | None = None,
-        repo_name: str = "",
-        file_coverage_summary: FileCoverageSummary | None = None,
         sub_expandable_ids: dict[str, list[str]] | None = None,
-        depth_cap: int | None = None,
-        tree_spec: dict | None = None,
     ) -> Path:
-        """Write the full analysis to ``analysis.json`` with file locking.
-
-        If *sub_analyses* is not provided, existing sub-analyses on disk are
-        preserved. ``depth_cap`` is the run's configured depth ceiling; when
-        omitted, the existing on-disk value is preserved (see
-        ``_write_with_lock_held``).
-        """
-        with self._lock:
-            return self._write_with_lock_held(
-                analysis,
-                repo_dir,
-                source_tree_hash,
-                expandable_component_ids,
-                sub_analyses,
-                repo_name,
-                file_coverage_summary,
-                sub_expandable_ids,
-                depth_cap,
-                tree_spec,
-            )
-
-    def _write_with_lock_held(
-        self,
-        analysis: AnalysisInsights,
-        repo_dir: Path,
-        source_tree_hash: str,
-        expandable_component_ids: list[str] | None = None,
-        sub_analyses: dict[str, AnalysisInsights] | None = None,
-        repo_name: str = "",
-        file_coverage_summary: FileCoverageSummary | None = None,
-        sub_expandable_ids: dict[str, list[str]] | None = None,
-        depth_cap: int | None = None,
-        tree_spec: dict | None = None,
-    ) -> Path:
-        """Write ``analysis.json`` — caller must already hold ``self._lock``."""
+        """Write the analysis to ``analysis.json``; every field comes from the caller, none from the old file."""
         # A caller-provided set is authoritative: it already reflects the run's expansion
         # decision (including the separability gate that keeps cohesive components as leaves),
         # so unioning in the unconditional ``should_expand_component`` set would re-mark those
@@ -148,61 +114,19 @@ class _AnalysisFileStore:
             }
         expandable = [c for c in analysis.components if c.component_id in expandable_ids]
 
-        # Preserve existing sub-analyses and metadata fields from disk when not explicitly provided.
-        if sub_analyses is None:
-            existing = self.read()
-            if existing:
-                sub_analyses = existing[1]
-        if file_coverage_summary is None or not repo_name or depth_cap is None or tree_spec is None:
-            # Why: the metadata block reads in any format, so a full run replacing an older analysis.json
-            # still keeps them across its progress saves.
-            document = self.read_document()
-            if document is not None:
-                metadata = read_metadata(document)
-                if not repo_name:
-                    repo_name = metadata.get("repo_name", "")
-                if tree_spec is None:
-                    # Dropping it would strand every later incremental and partial run, which
-                    # replay the specification the persisted partition was drawn from.
-                    tree_spec = metadata.get("tree_spec")
-                if file_coverage_summary is None:
-                    raw_summary = metadata.get("file_coverage_summary")
-                    if raw_summary:
-                        file_coverage_summary = FileCoverageSummary(
-                            total_files=raw_summary.get("total_files", 0),
-                            analyzed=raw_summary.get("analyzed", 0),
-                            not_analyzed=raw_summary.get("not_analyzed", 0),
-                            not_analyzed_by_reason=raw_summary.get("not_analyzed_by_reason", {}),
-                        )
-                if depth_cap is None:
-                    depth_cap = metadata.get("depth_cap")
-                    if depth_cap is None:
-                        depth_cap = metadata.get("depth_level")
-                        if depth_cap is not None:
-                            logger.warning(
-                                "Baseline has no depth_cap; using its realized depth_level=%s as the cap. "
-                                "Run a full analysis with --depth-cap to widen it.",
-                                depth_cap,
-                            )
-        if depth_cap is None:
-            depth_cap = DEFAULT_DEPTH_CAP
-
-        # Convert sub_analyses dict to the format expected by build_unified_analysis_json
-        sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None
-        if sub_analyses:
-            component_lookup = index_components_by_id(analysis, sub_analyses)
-            sub_analyses_tuples = {}
-            for cid, sub in sub_analyses.items():
-                if sub_expandable_ids is not None and cid in sub_expandable_ids:
-                    # Authoritative per-sub set from the run's separability gate; same
-                    # rationale as the root list above (don't re-mark suppressed leaves).
-                    ids = set(sub_expandable_ids[cid])
-                    sub_expandable = [c for c in sub.components if c.component_id in ids]
-                else:
-                    parent_component = component_lookup.get(cid)
-                    parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
-                    sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
-                sub_analyses_tuples[cid] = (sub, sub_expandable)
+        component_lookup = index_components_by_id(analysis, sub_analyses)
+        sub_analyses_tuples: dict[str, tuple[AnalysisInsights, list[Component]]] = {}
+        for cid, sub in sub_analyses.items():
+            if sub_expandable_ids is not None and cid in sub_expandable_ids:
+                # Authoritative per-sub set from the run's separability gate; same
+                # rationale as the root list above (don't re-mark suppressed leaves).
+                ids = set(sub_expandable_ids[cid])
+                sub_expandable = [c for c in sub.components if c.component_id in ids]
+            else:
+                parent_component = component_lookup.get(cid)
+                parent_had_clusters = bool(parent_component.source_cluster_ids) if parent_component else True
+                sub_expandable = self._compute_expandable_components(sub, parent_had_clusters=parent_had_clusters)
+            sub_analyses_tuples[cid] = (sub, sub_expandable)
 
         # A cap below the tree's own realized depth would silently freeze future
         # incremental/partial runs at that shallower depth (e.g. a partial run
@@ -210,9 +134,6 @@ class _AnalysisFileStore:
         # save depth_cap=1 — the realized tree already exceeds it).
         depth_cap = max(depth_cap, _compute_depth_level(sub_analyses_tuples))
 
-        # Atomic write: build the JSON in a sibling temp file, then rename
-        # over the destination.  A crashed process leaves either the prior
-        # complete file or no file at all — never a half-written one.
         payload = build_unified_analysis_json(
             analysis=analysis,
             expandable_components=expandable,
@@ -222,9 +143,13 @@ class _AnalysisFileStore:
             depth_cap=depth_cap,
             sub_analyses=sub_analyses_tuples,
             file_coverage_summary=file_coverage_summary,
-            tree_spec=tree_spec or {},
+            tree_spec=tree_spec,
         )
-        write_text_atomic(self._analysis_path, payload)
+        # Atomic write: build the JSON in a sibling temp file, then rename
+        # over the destination.  A crashed process leaves either the prior
+        # complete file or no file at all — never a half-written one.
+        with self._lock:
+            write_text_atomic(self._analysis_path, payload)
         return self._analysis_path
 
 
@@ -270,9 +195,9 @@ def load_full_analysis(output_dir: Path) -> tuple[AnalysisInsights, dict[str, An
 
 
 def load_expandable_component_ids(output_dir: Path) -> set[str]:
-    """Load component IDs currently persisted with ``can_expand=true``."""
-    result = _get_store(output_dir).read()
-    if result is None:
+    """Load component IDs currently persisted with ``can_expand=true``, without parsing the analysis."""
+    document = _get_store(output_dir).read_document()
+    if document is None:
         return set()
 
     expandable_ids: set[str] = set()
@@ -286,7 +211,7 @@ def load_expandable_component_ids(output_dir: Path) -> set[str]:
             if isinstance(nested, list):
                 visit(nested)
 
-    visit(result[2].get("components", []))
+    visit(document.get("components", []))
     return expandable_ids
 
 
@@ -357,30 +282,30 @@ def save_analysis(
     output_dir: Path,
     repo_dir: Path,
     source_tree_hash: str,
+    *,
+    sub_analyses: dict[str, AnalysisInsights],
+    repo_name: str,
+    file_coverage_summary: FileCoverageSummary,
+    depth_cap: int,
+    tree_spec: dict,
     expandable_component_ids: list[str] | None = None,
-    sub_analyses: dict[str, AnalysisInsights] | None = None,
-    repo_name: str = "",
-    file_coverage_summary: FileCoverageSummary | None = None,
     sub_expandable_ids: dict[str, list[str]] | None = None,
-    depth_cap: int | None = None,
-    tree_spec: dict | None = None,
 ) -> Path:
     """Save the analysis to a unified analysis.json file with file locking.
 
     ``repo_dir`` relativizes paths; ``source_tree_hash`` is the precomputed
     whole-tree version key (reproducible by consumers that fingerprint the tree).
-    ``depth_cap`` is the run's configured depth ceiling; omit to preserve the
-    existing on-disk value (e.g. for an intermediate save mid-run).
+    ``depth_cap`` is the run's configured depth ceiling.
     """
     return _get_store(output_dir).write(
         analysis,
         repo_dir,
         source_tree_hash,
-        expandable_component_ids,
-        sub_analyses,
-        repo_name,
-        file_coverage_summary,
-        sub_expandable_ids,
-        depth_cap,
-        tree_spec,
+        sub_analyses=sub_analyses,
+        repo_name=repo_name,
+        file_coverage_summary=file_coverage_summary,
+        depth_cap=depth_cap,
+        tree_spec=tree_spec,
+        expandable_component_ids=expandable_component_ids,
+        sub_expandable_ids=sub_expandable_ids,
     )

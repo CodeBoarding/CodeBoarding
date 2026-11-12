@@ -98,7 +98,12 @@ class TestPartialUpdate(unittest.TestCase):
     @patch("codeboarding_workflows.analysis.load_analysis_metadata")
     @patch("codeboarding_workflows.analysis.DiagramGenerator")
     def test_partial_update_success(self, mock_generator_class, mock_load_metadata, mock_load_full):
-        mock_load_metadata.return_value = {"depth_level": 1, "source_tree_hash": "source-hash", "format_version": "v1"}
+        mock_load_metadata.return_value = {
+            "depth_level": 1,
+            "depth_cap": 1,
+            "source_tree_hash": "source-hash",
+            "format_version": "v1",
+        }
         from agents.agent_responses import AnalysisInsights, Component
 
         mock_generator = MagicMock()
@@ -325,18 +330,13 @@ class TestIncrementalDepthSource(unittest.TestCase):
             output_dir = Path(temp_dir) / "output"
             output_dir.mkdir()
 
-            for metadata, expected_cap in (
-                ({"depth_level": 1, "depth_cap": 4, "format_version": "v1"}, 4),
-                ({"depth_level": 1, "format_version": "v1"}, 1),
-                ({"format_version": "v1"}, 3),
-            ):
-                with self.subTest(metadata=metadata):
-                    mock_load_metadata.return_value = metadata
-                    run_incremental(
-                        RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
-                        RunContext(run_id="r", log_path="l"),
-                    )
-                    self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], expected_cap)
+            # The configured cap, not the realized depth.
+            mock_load_metadata.return_value = {"depth_level": 1, "depth_cap": 4, "format_version": "v1"}
+            run_incremental(
+                RunPaths(repo_path=repo_path, output_dir=output_dir, project_name="test_project"),
+                RunContext(run_id="r", log_path="l"),
+            )
+            self.assertEqual(mock_generator_class.call_args.kwargs["depth_cap"], 4)
 
 
 class TestRemoteSource(unittest.TestCase):

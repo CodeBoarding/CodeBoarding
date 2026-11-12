@@ -127,8 +127,7 @@ def run_partial(
             "Partial analysis requires an up-to-date source baseline. Run incremental analysis before expanding a component."
         )
 
-    # Prefer the configured cap; retain depth_level for legacy baselines.
-    depth_cap = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_CAP)))
+    depth_cap = int(metadata["depth_cap"])
     root_analysis, sub_analyses = _load_baseline(run_paths.output_dir)
     preserved_expandable_ids = load_expandable_component_ids(run_paths.output_dir)
 
@@ -170,10 +169,6 @@ def run_partial(
     # its subcomponents. Rebuild reads each sub's LLM relation labels, which live
     # only in memory (they aren't serialized), so it must run before the save.
     sub_analyses[component_id] = sub_analysis
-    # The baseline we loaded may predate child scopes being confined to their parent.
-    # Repair it here too: this flow only regenerates one component, so nothing else
-    # would reconcile the rest of the tree before the save asserts containment.
-    generator._rescope_child_analyses(root_analysis, sub_analyses, set())
     # Keep coverage and fingerprint artifacts unchanged; persist only the new lineage below.
     generator.finalize_and_save(
         root_analysis,
@@ -204,8 +199,7 @@ def run_incremental(
     prompt rather than silently degrading to an unscoped run.
     """
     metadata = _baseline_metadata(run_paths.output_dir)
-    # Prefer the configured cap; retain depth_level for legacy baselines.
-    depth_cap = int(metadata.get("depth_cap", metadata.get("depth_level", DEFAULT_DEPTH_CAP)))
+    depth_cap = int(metadata["depth_cap"])
 
     # Why here: the analyzer refuses this pkl too, but only after servers started and a failed run was reported.
     if StaticAnalysisCache(run_paths.output_dir, run_paths.repo_path).from_another_engine():

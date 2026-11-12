@@ -32,7 +32,6 @@ from agents.file_index_models import FileEntry, FileMethodGroup, MethodEntry
 from agents.llm_config import initialize_agent_llm
 from agents.llm_errors import LLMAuthError, LLMQuotaError, is_quota_exhausted, llm_failure_properties
 from agents.relation_edges import (
-    drop_misattributed_edges,
     index_relation_endpoints,
     preserve_unchanged_relations,
     prune_ungrounded_edges,
@@ -46,7 +45,7 @@ from diagram_analysis.analysis_json import (
     FileCoverageReport,
     FileCoverageSummary,
     NotAnalyzedFile,
-    align_relation_edges,
+    file_nested_relation_edges,
 )
 from diagram_analysis.exceptions import (
     ClusteringScopeUnavailableError,
@@ -645,7 +644,7 @@ class DiagramGenerator:
         # Settled component names by id, so a child scope is told the names it sits inside.
         self._names_by_id: dict[str, str] = {}
         self.incremental_updater: IncrementalUpdater | None = None
-        self.file_coverage_data: dict | None = None
+        self.file_coverage_data: dict = {}
 
         self._monitoring_agents: dict[str, MonitoringMixin] = {}
         self.stats_writer: StreamingStatsWriter | None = None
@@ -975,8 +974,8 @@ class DiagramGenerator:
                 scopes.extend(DiagramGenerator._cluster_scopes(group.children))
         return scopes
 
-    def _tree_spec_dict(self) -> dict | None:
-        return self.tree_spec.to_dict() if self.tree_spec is not None else None
+    def _tree_spec_dict(self) -> dict:
+        return self.tree_spec.to_dict() if self.tree_spec is not None else {}
 
     def agent_init(self) -> None:
         """Initialize analysis helpers after deterministic analysis."""
@@ -1418,30 +1417,33 @@ class DiagramGenerator:
             return analysis_path
 
     def _save_progress(self, analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> None:
-        """Save the tree mid-run as a reader rebuilds it: top-level relations between leaves, edges aligned.
+        """Save the tree mid-run as a reader rebuilds it, its relations at the expansion frontier.
 
-        Why copies: the run keeps building each scope on its own relations; only the file is lifted.
-        Every field comes from the run itself, so the save never reads the file it replaces.
+        Every field comes from the run itself, so the save never reads the file it replaces. Why the
+        relations are put back afterwards: the run keeps building each scope on its own.
         """
         self._strip_ignored(analysis, sub_analyses)
         expandable_ids, sub_expandable_ids = self._expandable_ids_for_tree(analysis, sub_analyses)
-        root = analysis.model_copy(deep=True)
-        subs = {scope_id: sub.model_copy(deep=True) for scope_id, sub in sub_analyses.items()}
-        self.rebuild_global_relations(root, subs)
-        align_relation_edges(root, subs, self.repo_location)
-        save_analysis(
-            analysis=root,
-            output_dir=Path(self.output_dir),
-            sub_analyses=subs,
-            repo_name=self.repo_name,
-            file_coverage_summary=self._build_file_coverage_summary(),
-            repo_dir=self.repo_location,
-            source_tree_hash=self._source_tree_hash(),
-            expandable_component_ids=expandable_ids,
-            sub_expandable_ids=sub_expandable_ids,
-            depth_cap=self.depth_cap,
-            tree_spec=self._tree_spec_dict(),
-        )
+        scopes = [analysis, *sub_analyses.values()]
+        relations = [scope.components_relations for scope in scopes]
+        try:
+            self.rebuild_global_relations(analysis, sub_analyses)
+            save_analysis(
+                analysis=analysis,
+                output_dir=Path(self.output_dir),
+                sub_analyses=sub_analyses,
+                repo_name=self.repo_name,
+                file_coverage_summary=self._build_file_coverage_summary(),
+                repo_dir=self.repo_location,
+                source_tree_hash=self._source_tree_hash(),
+                expandable_component_ids=expandable_ids,
+                sub_expandable_ids=sub_expandable_ids,
+                depth_cap=self.depth_cap,
+                tree_spec=self._tree_spec_dict(),
+            )
+        finally:
+            for scope, scope_relations in zip(scopes, relations):
+                scope.components_relations = scope_relations
 
     def rebuild_global_relations(
         self,
@@ -1501,10 +1503,7 @@ class DiagramGenerator:
                 self._changed_members,
             )
         root_analysis.components_relations = global_relations
-        for sub_analysis in sub_analyses.values():
-            sub_analysis.components_relations = drop_misattributed_edges(
-                sub_analysis.components_relations, ownership.owner_of
-            )
+        file_nested_relation_edges(root_analysis, sub_analyses, self.repo_location)
         return global_relations
 
     def finalize_for_save(
@@ -1524,7 +1523,6 @@ class DiagramGenerator:
             self.tree_spec.reroot(absorbed_ids)
         assert_scope_containment(root_analysis, sub_analyses)
         distinguish_expanded_component_names(root_analysis, sub_analyses)
-        align_relation_edges(root_analysis, sub_analyses, self.repo_location)
 
     def finalize_and_save(
         self,
@@ -1581,16 +1579,8 @@ class DiagramGenerator:
             write_fingerprint(Path(self.output_dir), self._source_tree_fingerprint_map())
         return analysis_path
 
-    def _build_file_coverage_summary(self) -> FileCoverageSummary | None:
-        if not self.file_coverage_data:
-            return None
-        summary = self.file_coverage_data["summary"]
-        return FileCoverageSummary(
-            total_files=summary["total_files"],
-            analyzed=summary["analyzed"],
-            not_analyzed=summary["not_analyzed"],
-            not_analyzed_by_reason=summary["not_analyzed_by_reason"],
-        )
+    def _build_file_coverage_summary(self) -> FileCoverageSummary:
+        return FileCoverageSummary(**self.file_coverage_data["summary"])
 
     def _rescope_child_analyses(
         self,

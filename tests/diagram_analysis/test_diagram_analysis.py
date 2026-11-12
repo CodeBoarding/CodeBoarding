@@ -25,9 +25,7 @@ from agents.scope_analysis_agent import ScopeAnalysisResult, ScopeComponentSeman
 from agents.relation_edges import index_relation_endpoints
 from agents.scope_ids import ROOT_SCOPE_ID
 from diagram_analysis.analysis_json import (
-    ComponentFileMethodGroupJson,
-    ComponentJson,
-    align_relation_edges,
+    FileCoverageSummary,
     build_unified_analysis_json,
     parse_unified_analysis,
 )
@@ -56,6 +54,8 @@ from static_analyzer.exceptions import StaticAnalysisFatalError
 from static_analyzer.programming_language import ProgrammingLanguage
 from static_analyzer.node import Node
 
+NO_COVERAGE = FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0)
+
 
 def _stored(analysis: AnalysisInsights, expandable_components: list[Component], repo_dir: Path = Path(".")) -> dict:
     return json.loads(
@@ -68,57 +68,6 @@ def _stored(analysis: AnalysisInsights, expandable_components: list[Component], 
 def _root_spec() -> TreeSpec:
     """A specification whose root claims everything: enough to replay against a mock analysis."""
     return TreeSpec(scopes={ROOT_SCOPE_ID: ScopeSpec(ROOT_SCOPE_ID, [ComponentRule("1", "Parent", prefixes=((),))])})
-
-
-class TestComponentJson(unittest.TestCase):
-    def test_component_json_creation(self):
-        # Test creating a ComponentJson instance
-        comp = ComponentJson(
-            name="TestComponent",
-            component_id="test_comp_id",
-            description="Test description",
-            can_expand=True,
-            file_methods=[
-                ComponentFileMethodGroupJson(file_path="file1.py", methods=[]),
-                ComponentFileMethodGroupJson(file_path="file2.py", methods=[]),
-            ],
-            key_entities=[],
-        )
-
-        self.assertEqual(comp.name, "TestComponent")
-        self.assertEqual(comp.description, "Test description")
-        self.assertTrue(comp.can_expand)
-        self.assertEqual([fg.file_path for fg in comp.file_methods], ["file1.py", "file2.py"])
-
-    def test_component_json_defaults(self):
-        # Test default values
-        comp = ComponentJson(
-            name="Component",
-            component_id="comp_defaults_id",
-            description="Description",
-            key_entities=[],
-        )
-
-        self.assertFalse(comp.can_expand)
-        self.assertEqual(comp.file_methods, [])
-
-    def test_component_json_with_references(self):
-        # Test with source code references
-        ref = SourceCodeReference(
-            qualified_name="test.TestClass",
-            reference_file="test.py",
-            reference_start_line=1,
-            reference_end_line=10,
-        )
-        comp = ComponentJson(
-            name="Component",
-            component_id="comp_ref_id",
-            description="Description",
-            key_entities=[ref],
-        )
-
-        self.assertEqual(len(comp.key_entities), 1)
-        self.assertEqual(comp.key_entities[0].qualified_name, "test.TestClass")
 
 
 class TestAnalysisJsonConversion(unittest.TestCase):
@@ -268,6 +217,21 @@ class TestAnalysisJsonConversion(unittest.TestCase):
 
     def test_stored_relations_collapse_by_pair_but_keep_edges(self):
         self._add_edge_methods_to_index()
+        run_to_load = RelationEdge(
+            source=SourceCodeReference(
+                qualified_name="component1.run",
+                reference_file="component1.py",
+                reference_start_line=10,
+                reference_end_line=20,
+            ),
+            target=SourceCodeReference(
+                qualified_name="component2.load",
+                reference_file="component2.py",
+                reference_start_line=30,
+                reference_end_line=40,
+            ),
+            call_sites=[RelationCallSite(line=12, column=8)],
+        )
         dispatch = RelationEdge(
             source=SourceCodeReference(
                 qualified_name="component1.dispatch",
@@ -291,23 +255,7 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 src_id="1",
                 dst_id="2",
                 is_static=True,
-                all_edges=[
-                    RelationEdge(
-                        source=SourceCodeReference(
-                            qualified_name="component1.run",
-                            reference_file="component1.py",
-                            reference_start_line=10,
-                            reference_end_line=20,
-                        ),
-                        target=SourceCodeReference(
-                            qualified_name="component2.load",
-                            reference_file="component2.py",
-                            reference_start_line=30,
-                            reference_end_line=40,
-                        ),
-                        call_sites=[RelationCallSite(line=12, column=8)],
-                    )
-                ],
+                all_edges=[run_to_load, dispatch],
             ),
             Relation(
                 src_name="Component1",
@@ -315,11 +263,10 @@ class TestAnalysisJsonConversion(unittest.TestCase):
                 relation="dispatches to",
                 src_id="1",
                 dst_id="2",
-                all_edges=[dispatch],
+                all_edges=[run_to_load, dispatch],
                 key_edges=[dispatch],
             ),
         ]
-        align_relation_edges(self.analysis, {}, self.repo_dir)
 
         parsed, _ = parse_unified_analysis(_stored(self.analysis, []))
 
@@ -621,6 +568,9 @@ class TestDepthCapPersistence(unittest.TestCase):
             source_tree_hash="hash1",
             repo_name="test",
             depth_cap=1,
+            sub_analyses={},
+            file_coverage_summary=NO_COVERAGE,
+            tree_spec={},
         )
         baseline_metadata = load_analysis_metadata(self.output_dir)
         assert baseline_metadata is not None
@@ -639,6 +589,8 @@ class TestDepthCapPersistence(unittest.TestCase):
             repo_name="test",
             sub_analyses={"1": child_analysis},
             depth_cap=1,
+            file_coverage_summary=NO_COVERAGE,
+            tree_spec={},
         )
         metadata = load_analysis_metadata(self.output_dir)
         assert metadata is not None
@@ -655,42 +607,22 @@ class TestDepthCapPersistence(unittest.TestCase):
             source_tree_hash="hash1",
             repo_name="test",
             depth_cap=3,
+            sub_analyses={},
+            file_coverage_summary=NO_COVERAGE,
+            tree_spec={},
         )
         metadata = load_analysis_metadata(self.output_dir)
         assert metadata is not None
         self.assertEqual(metadata["depth_level"], 1)
         self.assertEqual(metadata["depth_cap"], 3)
 
-    def test_save_preserves_legacy_depth_fallback(self):
-        save_analysis(
-            analysis=self._make_root(),
-            output_dir=self.output_dir,
-            repo_dir=self.repo_dir,
-            source_tree_hash="hash1",
-            repo_name="test",
-            depth_cap=5,
-        )
-        path = self.output_dir / "analysis.json"
-        baseline = json.loads(path.read_text())
-        del baseline["metadata"]["depth_cap"]
-        baseline["metadata"]["depth_level"] = 5
-        path.write_text(json.dumps(baseline))
-
-        save_analysis(
-            analysis=self._make_root(),
-            output_dir=self.output_dir,
-            repo_dir=self.repo_dir,
-            source_tree_hash="hash2",
-            repo_name="test",
-            sub_analyses={},
-        )
-        metadata = json.loads(path.read_text())["metadata"]
-        self.assertEqual(metadata["depth_level"], 1)
-        self.assertEqual(metadata["depth_cap"], 5)
-
 
 class TestDiagramGenerator(unittest.TestCase):
     def setUp(self):
+        # These generators skip prepare_analysis, which is what measures file coverage.
+        coverage = patch.object(DiagramGenerator, "_build_file_coverage_summary", return_value=NO_COVERAGE)
+        coverage.start()
+        self.addCleanup(coverage.stop)
         # Create temporary directories for testing
         self.temp_dir = tempfile.mkdtemp()
         self.repo_location = Path(self.temp_dir) / "test_repo"
@@ -1618,6 +1550,8 @@ class TestDiagramGenerator(unittest.TestCase):
             components_relations=[],
         )
         assign_component_ids(analysis)
+        for group in (group for component in analysis.components for group in component.file_methods):
+            analysis.files.setdefault(group.file_path, FileEntry()).merge_from(FileEntry(methods=group.methods))
 
         gen = DiagramGenerator(
             repo_location=self.repo_location,

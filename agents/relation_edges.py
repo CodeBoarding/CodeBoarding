@@ -133,46 +133,16 @@ def edge_crosses_components(
     src_id: str,
     dst_id: str,
 ) -> bool:
-    """Return whether an edge's owned endpoints match its declared component pair."""
+    """Return whether each endpoint has an owner within its side of the declared component pair.
+
+    Why an unowned endpoint fails: no component holds it, so analysis.json, which cites only
+    component members, could not record the edge.
+    """
     for reference, component_id in ((edge.source, src_id), (edge.target, dst_id)):
         owner = owner_of(reference)
-        if owner and component_id and not is_self_or_descendant(owner, component_id):
+        if component_id and not (owner and is_self_or_descendant(owner, component_id)):
             return False
     return True
-
-
-def drop_misattributed_edges(
-    relations: list[Relation],
-    owner_of: Callable[[SourceCodeReference], str],
-) -> list[Relation]:
-    """Drop edges whose owning component contradicts the relation's declared pair.
-
-    Why: the per-scope ownership index sees only that scope's own components, so an
-    out-of-scope endpoint resolves to nothing and the edge survives its own gate. A
-    frontier-wide owner map resolves it and rejects the mismatch. A relation stripped of
-    every edge is kept: it still stands on its evidence prose, the ordinary shape of an
-    inferred relation.
-    """
-    filtered: list[Relation] = []
-    for relation in relations:
-        all_edges = [
-            edge
-            for edge in relation.all_edges
-            if edge_crosses_components(edge, owner_of, relation.src_id, relation.dst_id)
-        ]
-        if len(all_edges) == len(relation.all_edges):
-            filtered.append(relation)
-            continue
-        surviving = {edge.identity() for edge in all_edges}
-        filtered.append(
-            relation.model_copy(
-                update={
-                    "all_edges": all_edges,
-                    "key_edges": [edge for edge in relation.key_edges if edge.identity() in surviving],
-                }
-            )
-        )
-    return filtered
 
 
 def prune_ungrounded_edges(
@@ -202,7 +172,7 @@ def prune_ungrounded_edges(
         pair = (relation.src_id, relation.dst_id)
         all_edges: list[RelationEdge] = []
         for edge in relation.all_edges:
-            if not keep_edge(edge):
+            if not keep_edge(edge) or not (owner_of(edge.source) and owner_of(edge.target)):
                 continue
             if edge_crosses_components(edge, owner_of, relation.src_id, relation.dst_id):
                 all_edges.append(edge)

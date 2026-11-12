@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis import DEFAULT_DEPTH_CAP
 from diagram_analysis.analysis_json import build_unified_analysis_json
-from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
+from diagram_analysis.io_utils import load_analysis_metadata
 from codeboarding_cli.github_action import (
     _resolve_depth_cap,
     generate_analysis,
@@ -19,7 +19,7 @@ from codeboarding_cli.github_action import (
     generate_rst,
 )
 from infra.utils import CODEBOARDING_DIR_NAME
-from tests.codeboarding_workflows.test_analysis import saving_generator
+from tests.codeboarding_workflows.test_analysis import assert_holds_the_saved_tree, saving_generator
 
 LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
@@ -483,11 +483,9 @@ class TestResolveDepthCap(unittest.TestCase):
                     "https://github.com/o/repo", "feature", "main", ".md", existing_analysis_dir=str(seeded)
                 )
 
-            loaded = load_full_analysis(output)
+            assert_holds_the_saved_tree(output)
             metadata = load_analysis_metadata(output)
 
-        assert loaded is not None
-        self.assertEqual([component.component_id for component in loaded[0].components], ["1"])
         assert metadata is not None
         self.assertEqual(metadata["depth_cap"], DEFAULT_DEPTH_CAP)
 

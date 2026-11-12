@@ -6,7 +6,7 @@ from collections.abc import Iterable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from agents.agent_responses import (
     Component,
@@ -29,54 +29,6 @@ from infra.clustering_ids import ComponentId
 from infra.repo_utils.path_utils import normalize_repo_path
 
 logger = logging.getLogger(__name__)
-
-
-class RelationEdgeJson(BaseModel):
-    source: str = Field(description="Method key '<file_path>|<qualified_name>' of the source.")
-    target: str = Field(description="Method key '<file_path>|<qualified_name>' of the target.")
-    call_sites: list[RelationCallSite] = Field(default_factory=list)
-    description: str = Field(default="", description="Short explanation of how source reaches or configures target.")
-
-
-class RelationJson(Relation):
-    """Relation subclass that includes src_id/dst_id and static analysis evidence in JSON serialization."""
-
-    key_edges: list[RelationEdgeJson] = Field(
-        default_factory=list,
-        description="Important source-to-target edges, by method key.",
-    )
-    src_id: str = Field(default="", description="Component ID of the source.")
-    dst_id: str = Field(default="", description="Component ID of the destination.")
-    is_static: bool = Field(default=False, description="True if derived from static CFG analysis.")
-    all_edges: list[RelationEdgeJson] = Field(
-        default_factory=list,
-        description="All known source-to-target edges for this relation.",
-    )
-
-
-class ComponentJson(Component):
-    # Override to include in JSON serialization (parent has exclude=True)
-    component_id: str = Field(description="Deterministic unique identifier for this component.")
-    source_cluster_ids: list[str] = Field(
-        description="List of cluster IDs from CFG analysis that this component encompasses.",
-        default_factory=list,
-    )
-    can_expand: bool = Field(
-        description="Whether the component can be expanded in detail or not.",
-        default=False,
-    )
-    file_methods: list["ComponentFileMethodGroupJson"] = Field(
-        description="Component method references grouped by file. Each methods entry stores only qualified_name.",
-        default_factory=list,
-    )
-    # Nested sub-analysis for expanded components
-    components: list["ComponentJson"] = Field(
-        description="Sub-components if expanded, empty otherwise.", default_factory=list
-    )
-    components_relations: list[RelationJson] = Field(
-        description="Relations among sub-components if expanded, empty otherwise.",
-        default_factory=list,
-    )
 
 
 class NotAnalyzedFile(BaseModel):
@@ -104,8 +56,7 @@ class FileCoverageReport(BaseModel):
 class AnalysisMetadata(BaseModel):
     generated_at: str = Field(description="ISO timestamp of when the analysis was generated.")
     source_tree_hash: str = Field(
-        default="",
-        description="SHA-256 over the sorted per-file content hashes; the source-state version key.",
+        description="SHA-256 over the sorted per-file content hashes; the source-state version key."
     )
     repo_name: str = Field(description="Name of the analyzed repository.")
     depth_level: int = Field(description="Maximum depth level actually reached by this analysis.")
@@ -114,28 +65,14 @@ class AnalysisMetadata(BaseModel):
         "may exceed depth_level when separability stopped expansion before the cap. "
         "The value future incremental/partial runs reuse as their own cap."
     )
-    file_coverage_summary: FileCoverageSummary = Field(
-        default_factory=lambda: FileCoverageSummary(
-            total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}
-        ),
-        description="Lightweight file coverage counts.",
-    )
+    file_coverage_summary: FileCoverageSummary = Field(description="Lightweight file coverage counts.")
     tree_spec: dict = Field(
-        default_factory=dict,
         description="The tree specification the components were drawn from: per scope, the prefixes "
         "and words each component owns. Drafted on a full analysis; incremental and partial runs "
         "replay it, so the partition cannot move underneath unchanged code. Empty on an analysis "
         "written before it existed.",
     )
-    format_version: str = Field(default=ANALYSIS_FORMAT_VERSION, description="Layout of the analysis.json document.")
-
-
-class ComponentFileMethodGroupJson(BaseModel):
-    file_path: str = Field(description="Relative path to the source file.")
-    methods: list[str] = Field(
-        default_factory=list,
-        description="Qualified method/function names assigned to this component in this file.",
-    )
+    format_version: str = Field(description="Layout of the analysis.json document.")
 
 
 # The analysis.json document. The writer builds it and the reader validates into it, so a file that
@@ -187,16 +124,37 @@ class AnalysisDocument(BaseModel):
     components_relations: list[RelationDocument]
     edges: list[EdgeRow]
 
+    @model_validator(mode="after")
+    def _cites_only_what_it_holds(self) -> "AnalysisDocument":
+        """Every cited id is a listed method and every key edge an edge, so reading never misses a lookup."""
+        ids = {row[4] for entry in self.files.values() for row in entry.methods.values()}
+        pairs = {(row[0], row[1]) for row in self.edges}
+        components = list(_walk(self.components))
+        relations = [*self.components_relations, *(r for c in components for r in c.components_relations)]
+        cited = [
+            *(ref for row in self.edges for ref in row[:2]),
+            *(ref for c in components for ref in c.file_methods or []),
+        ]
+        unknown = next((ref for ref in cited if ref not in ids), None)
+        if unknown is not None:
+            raise ValueError(f"cites method id {unknown!r}, which no file lists")
+        stray = next((key for relation in relations for key in relation.key_edges if key[:2] not in pairs), None)
+        if stray is not None:
+            raise ValueError(f"has a key edge {stray[0]} -> {stray[1]} that is not in edges")
+        return self
+
+
+def _walk(components: list[ComponentDocument]) -> Iterable[ComponentDocument]:
+    for component in components:
+        yield component
+        yield from _walk(component.components)
+
 
 def _build_files_index_from_analysis(
     analysis: AnalysisInsights,
     sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]] | None = None,
 ) -> dict[str, FileEntry]:
-    """Build a unified file index from the root and sub-analyses, holding every component member.
-
-    Why every member: the document cites a method only by its index id, so a member the scopes'
-    ``files`` missed is indexed from its own span rather than left uncitable.
-    """
+    """Build a unified file index from the root and sub-analyses."""
     analyses = [analysis]
     if sub_analyses:
         analyses.extend(sub_analysis for sub_analysis, _ in sub_analyses.values())
@@ -205,21 +163,11 @@ def _build_files_index_from_analysis(
     for current_analysis in analyses:
         for file_path, entry in current_analysis.files.items():
             files_index.setdefault(file_path, FileEntry()).merge_from(entry)
-    for current_analysis in analyses:
-        for component in current_analysis.components:
-            for group in component.file_methods:
-                files_index.setdefault(group.file_path, FileEntry()).merge_from(FileEntry(methods=group.methods))
     return files_index
 
 
-def _method_key(file_path: str, qualified_name: str) -> str:
-    """Canonical method key ('<file_path>|<qualified_name>')."""
-    return f"{file_path}|{qualified_name}"
-
-
-def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path) -> str:
-    file_path = normalize_repo_path(reference.reference_file or "", repo_dir)
-    return _method_key(file_path, reference.qualified_name)
+def _source_reference_method_key(reference: SourceCodeReference, repo_dir: Path) -> tuple[str, str]:
+    return normalize_repo_path(reference.reference_file or "", repo_dir), reference.qualified_name
 
 
 def _relativize_key_entities(key_entities: list[SourceCodeReference], repo_dir: Path) -> list[SourceCodeReference]:
@@ -314,7 +262,7 @@ def build_unified_analysis_json(
     - A key edge is ``[source, target, description?]``, one of its relation's edges.
 
     Raises ``AnalysisInvariantError`` when the analysis breaks one of those rules, instead of
-    writing what a reader would not rebuild; ``align_relation_edges`` brings relations in line.
+    writing what a reader would not rebuild.
     """
     files_index = _build_files_index_from_analysis(analysis, sub_analyses)
     ids = _symbol_ids(files_index)
@@ -323,7 +271,11 @@ def build_unified_analysis_json(
     components = [writer.component(component, expandable_components) for component in analysis.components]
     relations = merge_relations_by_pair(analysis.components_relations, include_relation=True)
     edges = writer.edge_table(relations)
-    held = _edges_by_relation(edges, *_leaf_lineage(components))
+    leaf_of, lineage = _leaf_lineage(components)
+    leaf_members = [ref for c in _walk(components) if not c.components for ref in c.file_methods or []]
+    if len(leaf_members) != len(leaf_of):
+        raise AnalysisInvariantError(f"{len(leaf_members) - len(leaf_of)} method(s) are members of more than one leaf")
+    held = _edges_by_relation(edges, leaf_of, lineage)
     writer.fill_relations(held)
 
     metadata = AnalysisMetadata(
@@ -335,6 +287,7 @@ def build_unified_analysis_json(
         file_coverage_summary=file_coverage_summary
         or FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0, not_analyzed_by_reason={}),
         tree_spec=tree_spec or {},
+        format_version=ANALYSIS_FORMAT_VERSION,
     )
     document = AnalysisDocument(
         metadata=metadata,
@@ -406,7 +359,7 @@ def read_metadata(document: object) -> dict:
 
     Raises ``UnreadableAnalysisError`` when *document* is not an object with an object for metadata.
     """
-    metadata = (document.get("metadata") or {}) if isinstance(document, dict) else None
+    metadata = document.get("metadata") if isinstance(document, dict) else None
     if not isinstance(metadata, dict):
         raise UnreadableAnalysisError("analysis.json is not a JSON object with a metadata object")
     return metadata
@@ -419,44 +372,32 @@ def require_format_version(metadata: dict) -> None:
         raise AnalysisFormatError(version, ANALYSIS_FORMAT_VERSION)
 
 
-def align_relation_edges(
+def file_nested_relation_edges(
     root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights], repo_dir: Path
 ) -> None:
-    """Give every relation exactly the edges a reader of analysis.json files under it.
+    """Give each nested relation the top-level edges ``_edges_by_relation`` files under it.
 
-    The edges are those of the top-level relations whose endpoints two leaves own; each relation,
-    at every depth, holds what ``_edges_by_relation`` files under it, and each key edge becomes the
-    relation's own edge between the same methods. Why: the document stores each edge once and
-    readers rebuild relation edges with that rule, so anything else would not survive a save.
+    Its key edges are those among them. Why: the document leaves nested relation edges out and
+    readers rebuild them with that rule, so the generator gives nested relations exactly these.
     """
     leaf_of, lineage = _memory_lineage(root_analysis, sub_analyses)
 
-    def keys(edge: RelationEdge) -> tuple[str, str]:
+    def keys(edge: RelationEdge) -> tuple[tuple[str, str], tuple[str, str]]:
         return _source_reference_method_key(edge.source, repo_dir), _source_reference_method_key(edge.target, repo_dir)
 
-    table: dict[tuple[str, str], RelationEdge] = {}
-    for relation in root_analysis.components_relations:
-        for edge in relation.all_edges:
-            table.setdefault(keys(edge), edge)
-    rows = [(source, target, edge) for (source, target), edge in table.items()]
-    top = _edges_by_relation(rows, leaf_of, lineage)
-    # Only an edge some top-level relation holds is written, so only those are filed deeper.
-    written = {
-        (row[0], row[1])
-        for relation in root_analysis.components_relations
-        for row in top.get(("", relation.src_id, relation.dst_id), [])
-    }
-    held = _edges_by_relation([row for row in rows if (row[0], row[1]) in written], leaf_of, lineage)
-    for scope_id, scope in [("", root_analysis), *sub_analyses.items()]:
+    table = {keys(edge): edge for relation in root_analysis.components_relations for edge in relation.all_edges}
+    held = _edges_by_relation([(*pair, edge) for pair, edge in table.items()], leaf_of, lineage)
+    for scope_id, scope in sub_analyses.items():
+        relations = []
         for relation in scope.components_relations:
-            edges = [row[2] for row in held.get((scope_id, relation.src_id, relation.dst_id), [])]
-            by_pair = {keys(edge): edge for edge in edges}
-            relation.all_edges = edges
-            relation.key_edges = [
+            by_pair = {keys(row[2]): row[2] for row in held.get((scope_id, relation.src_id, relation.dst_id), [])}
+            key_edges = [
                 by_pair[pair].model_copy(update={"description": key.description})
                 for key in relation.key_edges
                 if (pair := keys(key)) in by_pair
             ]
+            relations.append(relation.model_copy(update={"all_edges": list(by_pair.values()), "key_edges": key_edges}))
+        scope.components_relations = relations
 
 
 def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]) -> dict[str, str]:
@@ -468,16 +409,16 @@ def build_id_to_name_map(root_analysis: AnalysisInsights, sub_analyses: dict[str
     return id_to_name
 
 
-def _symbol_ids(files_index: dict[str, FileEntry]) -> dict[str, str]:
-    """Map each indexed method's key to its id; two methods sharing an id fail the write."""
-    ids: dict[str, str] = {}
-    owners: dict[str, str] = {}
+def _symbol_ids(files_index: dict[str, FileEntry]) -> dict[tuple[str, str], str]:
+    """Map each indexed method's (path, qualified name) to its id; two methods sharing an id fail the write."""
+    ids: dict[tuple[str, str], str] = {}
+    owners: dict[str, tuple[str, str]] = {}
     for file_path, entry in files_index.items():
         for method in entry.methods:
-            key = _method_key(file_path, method.qualified_name)
+            key = (file_path, method.qualified_name)
             symbol_id = _symbol_id(file_path, method.qualified_name)
             if owners.setdefault(symbol_id, key) != key:
-                raise SymbolIdCollisionError(symbol_id, owners[symbol_id], key)
+                raise SymbolIdCollisionError(symbol_id, "|".join(owners[symbol_id]), "|".join(key))
             ids[key] = symbol_id
     return ids
 
@@ -488,7 +429,7 @@ def _symbol_id(file_path: str, qualified_name: str) -> str:
     return base64.urlsafe_b64encode(digest).decode("ascii")
 
 
-def _file_document(file_path: str, entry: FileEntry, ids: dict[str, str]) -> FileDocument:
+def _file_document(file_path: str, entry: FileEntry, ids: dict[tuple[str, str], str]) -> FileDocument:
     return FileDocument(
         content_hash=entry.content_hash,
         module_hash=entry.module_hash,
@@ -498,7 +439,7 @@ def _file_document(file_path: str, entry: FileEntry, ids: dict[str, str]) -> Fil
                 method.end_line,
                 method.node_type,
                 method.content_hash,
-                ids[_method_key(file_path, method.qualified_name)],
+                ids[(file_path, method.qualified_name)],
             )
             for method in entry.methods
         },
@@ -510,7 +451,7 @@ class _DocumentWriter:
 
     def __init__(
         self,
-        ids: dict[str, str],
+        ids: dict[tuple[str, str], str],
         repo_dir: Path,
         sub_analyses: dict[str, tuple[AnalysisInsights, list[Component]]],
     ) -> None:
@@ -528,14 +469,14 @@ class _DocumentWriter:
         children: list[ComponentDocument] = []
         relations: list[Relation] = []
         if component_id in self.written:
-            logger.warning(f"Component {component.name} (ID: {component_id}) already written, skipping its subtree")
-        elif sub is not None and sub[0].components:
+            raise AnalysisInvariantError(f"Component {component_id} appears twice in the tree")
+        if sub is not None and sub[0].components:
             self.written.add(component_id)
             children = [self.component(child, sub[1]) for child in sub[0].components]
             relations = merge_relations_by_pair(sub[0].components_relations, include_relation=True)
         members = list(
             dict.fromkeys(
-                self.cite(_method_key(group.file_path, method.qualified_name), f"component {component_id}")
+                self.cite((group.file_path, method.qualified_name), f"component {component_id}")
                 for group in component.file_methods
                 for method in group.methods
             )
@@ -562,7 +503,7 @@ class _DocumentWriter:
 
     def edge_table(self, relations: list[Relation]) -> list[EdgeRow]:
         """Every edge of the top-level relations once, sorted by (source key, target key)."""
-        rows: dict[tuple[str, str], EdgeRow] = {}
+        rows: dict[tuple[tuple[str, str], tuple[str, str]], EdgeRow] = {}
         for relation in relations:
             for edge in relation.all_edges:
                 row = self.edge_row(edge, f"relation {relation.src_id} -> {relation.dst_id}")
@@ -586,8 +527,7 @@ class _DocumentWriter:
         rows = {self.edge_row(edge, where) for edge in relation.all_edges}
         if rows != set(held):
             raise AnalysisInvariantError(
-                f"The {where} holds {len(rows ^ set(held))} edge(s) other than those of its scope; "
-                "align_relation_edges sets them"
+                f"The {where} holds {len(rows ^ set(held))} edge(s) other than those its scope files under it"
             )
         # Merging folded each key edge into the relation's edges, so the check above covers them too.
         key_edges: list[KeyEdgeRow] = [
@@ -611,7 +551,7 @@ class _DocumentWriter:
         call_sites = tuple((site.line, site.column) for site in edge.call_sites)
         return (source, target, call_sites, edge.description) if edge.description else (source, target, call_sites)
 
-    def cite(self, key: str, where: str) -> str:
+    def cite(self, key: tuple[str, str], where: str) -> str:
         symbol_id = self.ids.get(key)
         if symbol_id is None:
             raise AnalysisInvariantError(f"The {where} cites {key!r}, which no file indexes")
@@ -647,9 +587,9 @@ def _leaf_lineage(components: list[ComponentDocument]) -> tuple[dict[str, str], 
 
 def _memory_lineage(
     root_analysis: AnalysisInsights, sub_analyses: dict[str, AnalysisInsights]
-) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """``_leaf_lineage`` of an in-memory tree, keyed by method key."""
-    leaf_of: dict[str, str] = {}
+) -> tuple[dict[tuple[str, str], str], dict[str, list[str]]]:
+    """``_leaf_lineage`` of an in-memory tree, keyed by (path, qualified name)."""
+    leaf_of: dict[tuple[str, str], str] = {}
     lineage: dict[str, list[str]] = {}
 
     def visit(level: list[Component], ancestors: list[str]) -> None:
@@ -661,14 +601,14 @@ def _memory_lineage(
             lineage[component.component_id] = [*ancestors, component.component_id]
             for group in component.file_methods:
                 for method in group.methods:
-                    leaf_of[_method_key(group.file_path, method.qualified_name)] = component.component_id
+                    leaf_of[(group.file_path, method.qualified_name)] = component.component_id
 
     visit(root_analysis.components, [])
     return leaf_of, lineage
 
 
-def _edges_by_relation[Row: Sequence](
-    edges: Iterable[Row], leaf_of: dict[str, str], lineage: dict[str, list[str]]
+def _edges_by_relation[Row: Sequence, Ref](
+    edges: Iterable[Row], leaf_of: dict[Ref, str], lineage: dict[str, list[str]]
 ) -> dict[tuple[str, str, str], list[Row]]:
     """File each edge row under the relations that hold it, keyed by (scope, src_id, dst_id).
 
@@ -717,6 +657,7 @@ class _DocumentReader:
                     methods=methods, content_hash=entry.content_hash, module_hash=entry.module_hash
                 )
         self.held = _edges_by_relation(document.edges, *_leaf_lineage(document.components))
+        self.call_sites = {(row[0], row[1]): row[2] for row in document.edges}
 
     def analysis(
         self, description: str, components: list[ComponentDocument], relations: list[RelationDocument], scope: str
@@ -730,7 +671,7 @@ class _DocumentReader:
     def component(self, document: ComponentDocument) -> Component:
         component_id = document.component_id
         if not document.components:
-            groups = _groups([self.member(ref) for ref in document.file_methods or []])
+            groups = _groups([self.methods[ref] for ref in document.file_methods or []])
         else:
             self.sub_analyses[component_id] = self.analysis(
                 document.description, document.components, document.components_relations, component_id
@@ -751,17 +692,10 @@ class _DocumentReader:
             source_cluster_ids=document.source_cluster_ids,
         )
 
-    def member(self, ref: str) -> tuple[str, MethodEntry]:
-        member = self.methods.get(ref)
-        if member is None:
-            raise UnreadableAnalysisError(f"analysis.json cites method id {ref!r}, which no file lists")
-        return member
-
     def relation(self, document: RelationDocument, scope: str) -> Relation:
         rows = self.held.get((scope, document.src_id, document.dst_id), [])
-        call_sites_of = {(row[0], row[1]): row[2] for row in rows}
         key_edges = [
-            self.edge((key[0], key[1], call_sites_of[key[0], key[1]], *key[2:]))  # type: ignore[arg-type]
+            self.edge((key[0], key[1], self.call_sites[key[0], key[1]], *key[2:]))  # type: ignore[arg-type]
             for key in document.key_edges
         ]
         return Relation(
@@ -785,7 +719,7 @@ class _DocumentReader:
         )
 
     def reference(self, ref: str) -> SourceCodeReference:
-        file_path, method = self.member(ref)
+        file_path, method = self.methods[ref]
         return SourceCodeReference(
             qualified_name=method.qualified_name,
             reference_file=file_path or None,
