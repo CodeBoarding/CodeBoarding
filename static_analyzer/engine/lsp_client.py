@@ -684,7 +684,13 @@ class LSPClient:
                 return
             generation = current_generation
             time.sleep(0.1)
-        raise TimeoutError(f"LSP diagnostic work {token_prefix!r} did not settle within {timeout}s")
+        self.check_alive()
+        logger.warning(
+            "LSP diagnostic work %r did not settle within %ss; continuing with available diagnostics, "
+            "but compiler diagnostics and health checks may be incomplete.",
+            token_prefix,
+            timeout,
+        )
 
     # ---- JDTLS server-ready wait ----
 

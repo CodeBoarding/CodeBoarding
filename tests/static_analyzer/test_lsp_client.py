@@ -875,27 +875,39 @@ class TestHandleNotification:
         client._handle_notification("$/progress", {"token": "t", "value": {"kind": "end"}})
         assert client.wait_for_progress_quiet("indexing", 0.1, 2)
 
-    def test_progress_completion_requires_all_started_checks_to_finish(self):
+    def test_progress_completion_requires_all_started_checks_to_finish(self, caplog):
         client = LSPClient(["cmd"], Path("/root"))
         client._process = MagicMock()
         client._process.poll.return_value = None
         prefix = "rust-analyzer/flycheck/"
         client._handle_notification("experimental/serverStatus", {"quiescent": True, "health": "ok"})
         client._handle_notification("$/progress", {"token": 42, "value": {"kind": "end"}})
-        with pytest.raises(TimeoutError):
-            client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
+        caplog.clear()
 
         for token in (prefix + "0", prefix + "1"):
             client._handle_notification("$/progress", {"token": token, "value": {"kind": "begin", "title": "check"}})
         client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "end"}})
-        with pytest.raises(TimeoutError):
-            client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
+        caplog.clear()
         client._handle_notification("$/progress", {"token": prefix + "1", "value": {"kind": "end"}})
         client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert not caplog.records
 
         client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "begin", "title": "check"}})
-        with pytest.raises(TimeoutError):
-            client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
+
+    @pytest.mark.parametrize("timeout", [0, 1])
+    def test_diagnostic_drain_propagates_server_death(self, timeout, caplog):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = 137
+        with pytest.raises(StaticAnalysisFatalError, match="exited"):
+            client.wait_for_diagnostic_progress("rust-analyzer/flycheck/", timeout=timeout)
+        assert "may be incomplete" not in caplog.text
 
     def test_diagnostic_drain_waits_for_restarted_check_and_late_diagnostics(self, tmp_path):
         client = LSPClient(["cmd"], tmp_path)
