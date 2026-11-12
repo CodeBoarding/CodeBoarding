@@ -3,7 +3,9 @@ from types import SimpleNamespace
 import pytest
 
 import infra.monitoring.telemetry.events as events
+import infra.monitoring.telemetry.service as service
 from infra.monitoring.telemetry.events import capture_error, track_analysis, track_lsp_result
+from infra.monitoring.telemetry.service import ProductTelemetry
 
 
 @pytest.fixture
@@ -143,6 +145,44 @@ def test_repo_scanned_reads_run_id_from_env_without_track_analysis(captured, mon
     assert props_for(captured, "repo_scanned")["run_id"] == "env-run"
 
 
+def test_repo_is_the_project_directory_basename_only(captured, tmp_path, monkeypatch):
+    project = tmp_path / "parent-secret" / "my-project"
+    project.mkdir(parents=True)
+    events.track_tech_stack(project, 100, [])
+    monkeypatch.chdir(project)
+    track_lsp_result(
+        repo_path=".", language="python", loc=0, status="success", duration_ms=1, analysis={}, diagnostics={}
+    )
+
+    for name in ("repo_scanned", "lsp_analysis_result"):
+        props = props_for(captured, name)
+        assert props["repo"] == "my-project"
+        assert "parent-secret" not in str(props)
+
+
+@pytest.mark.parametrize(
+    "opt_out,sent_repos",
+    [({}, ["my-project"] * 2), ({"CODEBOARDING_TELEMETRY": "false"}, []), ({"DO_NOT_TRACK": "1"}, [])],
+)
+def test_opting_out_sends_no_repo_name(monkeypatch, tmp_path, opt_out, sent_repos):
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    for key, value in opt_out.items():
+        monkeypatch.setenv(key, value)
+    sent: list[dict] = []
+    monkeypatch.setattr(service, "Posthog", lambda **_: SimpleNamespace(capture=lambda **kw: sent.append(kw)))
+    monkeypatch.setattr(ProductTelemetry, "_instance", None)
+    monkeypatch.setattr(events, "telemetry", ProductTelemetry())
+    project = tmp_path / "my-project"
+    project.mkdir()
+
+    events.track_tech_stack(project, 100, [])
+    track_lsp_result(
+        repo_path=project, language="python", loc=0, status="success", duration_ms=1, analysis={}, diagnostics={}
+    )
+
+    assert [kw["properties"]["repo"] for kw in sent] == sent_repos
+
+
 def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
     monkeypatch.setenv("CODEBOARDING_RUN_ID", "lsp-run")
 
@@ -152,6 +192,7 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
     }
 
     track_lsp_result(
+        repo_path="/repo",
         language="python",
         loc=42,
         status="success",
@@ -171,7 +212,9 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
 
 
 def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog):
-    track_lsp_result(language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={})
+    track_lsp_result(
+        repo_path="/repo", language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={}
+    )
 
     assert "LSP analysis result for python is degraded: missing call graph, missing source files" in caplog.text
     props = props_for(captured, "lsp_analysis_result")
@@ -182,9 +225,9 @@ def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog)
 
 
 @pytest.mark.parametrize("errors,quality", [([0, 0, 0], "ok"), ([0, 2, 5], "warning")])
-def test_lsp_analysis_result_reports_parser_quality(captured, monkeypatch, errors, quality):
-    monkeypatch.setenv("CODEBOARDING_PROJECT_ID", "project-123")
+def test_lsp_analysis_result_reports_parser_quality(captured, errors, quality):
     track_lsp_result(
+        repo_path="/repo",
         language="cpp",
         loc=100,
         status="success",
@@ -200,7 +243,6 @@ def test_lsp_analysis_result_reports_parser_quality(captured, monkeypatch, error
         diagnostics={},
     )
     props = props_for(captured, "lsp_analysis_result")
-    assert props["project_id"] == "project-123"
     assert props["parsed_file_count"] == 3
     assert props["parse_error_file_count"] == (2 if quality == "warning" else 0)
     assert props["parse_error_node_count"] == (7 if quality == "warning" else 0)

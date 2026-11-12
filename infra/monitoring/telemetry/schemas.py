@@ -20,6 +20,7 @@ class RepoScanned(BaseModel):
     languages: list[LanguageStat]
     stack: str
     run_id: str | None = None
+    repo: str | None = None
 
 
 class LspAnalysisResult(BaseModel):
@@ -38,11 +39,11 @@ class LspAnalysisResult(BaseModel):
     parse_error_file_count: int = 0
     parse_error_node_count: int = 0
     parse_error_samples: list[dict] = []
-    project_id: str | None = None
     quality_status: str = "ok"
     zero_nodes_with_loc: bool = False
     zero_edges_with_loc: bool = False
     run_id: str | None = None
+    repo: str | None = None
 
 
 class AnalysisStarted(BaseModel):

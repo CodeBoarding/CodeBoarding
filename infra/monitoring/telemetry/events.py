@@ -50,6 +50,11 @@ def _app_version() -> str:
 _scanned_repos: set[str] = set()
 
 
+def _repo_name(repo_path: str | Path) -> str | None:
+    """Basename of the analysed project directory; its full path and Git remote are never sent."""
+    return Path(repo_path).resolve().name or None
+
+
 def _resolve_run_id() -> str | None:
     """Correlation id from the subprocess env, then the run-scoped ContextVar."""
     return os.getenv("CODEBOARDING_RUN_ID") or _current_run_id.get()
@@ -81,6 +86,7 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> 
     event = RepoScanned(
         version=_app_version(),
         run_id=_resolve_run_id(),
+        repo=_repo_name(repo_path),
         total_loc=total_loc,
         language_count=len(languages),
         languages=[
@@ -93,6 +99,7 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> 
 
 def track_lsp_result(
     *,
+    repo_path: str | Path,
     language: str,
     loc: int,
     status: str,
@@ -145,6 +152,7 @@ def track_lsp_result(
     event = LspAnalysisResult(
         version=_app_version(),
         run_id=_resolve_run_id(),
+        repo=_repo_name(repo_path),
         language=language,
         loc=loc,
         status=status,
@@ -163,7 +171,6 @@ def track_lsp_result(
             for file_index, samples in enumerate(analysis.get("parse_error_samples", {}).values())
             for sample in samples
         ][:20],
-        project_id=os.getenv("CODEBOARDING_PROJECT_ID", "").strip() or None,
         quality_status=quality_status,
         zero_nodes_with_loc=zero_nodes_with_loc,
         zero_edges_with_loc=zero_edges_with_loc,
