@@ -37,6 +37,8 @@ env/
 # their ``.codeboardingignore`` continue to skip it even after edits.
 target/
 bin/
+# Dart command-line entrypoints are source, not compiled output.
+!**/bin/*.dart
 out/
 
 # .NET / C# build output

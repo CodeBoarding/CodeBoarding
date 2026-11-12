@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import math
 import time
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -21,6 +21,30 @@ from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
 logger = logging.getLogger(__name__)
+
+
+def build_package_dependencies(
+    adapter: LanguageAdapter,
+    source_files: list[Path],
+    repository: Path,
+    edges: Iterable[tuple[Path, Path]],
+) -> dict[str, dict]:
+    """Infer package dependencies from live source files and cross-file edges."""
+    packages = adapter.get_all_packages(source_files, repository)
+    imports: dict[str, set[str]] = {package: set() for package in packages}
+    imported_by: dict[str, set[str]] = {package: set() for package in packages}
+    for source, destination in edges:
+        src = adapter.get_package_for_file(source, repository)
+        dst = adapter.get_package_for_file(destination, repository)
+        if src != dst:
+            if src in imports:
+                imports[src].add(dst)
+            if dst in imported_by:
+                imported_by[dst].add(src)
+    return {
+        package: {"imports": sorted(imports[package]), "imported_by": sorted(imported_by[package])}
+        for package in sorted(packages)
+    }
 
 
 class CallGraphBuilder:
@@ -94,7 +118,17 @@ class CallGraphBuilder:
             next_phase += 1
 
         t_pre_pkgdeps = time.monotonic()
-        package_deps = self._build_package_deps(edge_set, source_files)
+        symbols = self._symbol_table.symbols
+        package_deps = build_package_dependencies(
+            self._adapter,
+            source_files,
+            self._repository,
+            (
+                (symbols[src].file_path, symbols[dst].file_path)
+                for src, dst in edge_set
+                if src in symbols and dst in symbols
+            ),
+        )
         logger.info("Phase %d (package deps): %.1fs", next_phase, time.monotonic() - t_pre_pkgdeps)
 
         # Build references from primary symbols only (not unqualified aliases).
@@ -372,31 +406,3 @@ class CallGraphBuilder:
             edge_set[edge] = sites
 
         return edge_set
-
-    def _build_package_deps(self, edge_set: EdgeMap, source_files: list[Path]) -> dict[str, dict]:
-        """Phase 4: Infer package dependencies from cross-package edges."""
-        all_packages = self._adapter.get_all_packages(source_files, self._repository)
-
-        package_deps: dict[str, dict] = {}
-        for pkg in sorted(all_packages):
-            package_deps[pkg] = {"imports": [], "imported_by": []}
-
-        st = self._symbol_table
-        for src, dst in edge_set:
-            src_sym = st.symbols.get(src)
-            dst_sym = st.symbols.get(dst)
-            if not src_sym or not dst_sym:
-                continue
-            src_pkg = self._adapter.get_package_for_file(src_sym.file_path, self._repository)
-            dst_pkg = self._adapter.get_package_for_file(dst_sym.file_path, self._repository)
-            if src_pkg != dst_pkg:
-                if src_pkg in package_deps and dst_pkg not in package_deps[src_pkg]["imports"]:
-                    package_deps[src_pkg]["imports"].append(dst_pkg)
-                if dst_pkg in package_deps and src_pkg not in package_deps[dst_pkg]["imported_by"]:
-                    package_deps[dst_pkg]["imported_by"].append(src_pkg)
-
-        for pkg_info in package_deps.values():
-            pkg_info["imports"].sort()
-            pkg_info["imported_by"].sort()
-
-        return package_deps

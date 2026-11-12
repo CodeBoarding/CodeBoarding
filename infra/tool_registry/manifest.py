@@ -28,7 +28,7 @@ from .installers import (
     package_manager_tool_dir,
     package_manager_tool_is_current,
 )
-from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
+from .paths import dart_binary, exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
     ALL_LANGUAGE_KEYS,
     BASE_TOOL_KEYS,
@@ -80,6 +80,8 @@ def tool_fingerprint(dep: ToolDependency) -> str:
         parts.append(f"{dep.source.manager_binary}:{dep.source.tag}:{'|'.join(dep.source.install_args)}")
     if dep.kind is ToolKind.NODE:
         parts.extend([f"node:{PINNED_NODE_VERSION}", *sorted(dep.npm_packages)])
+    elif dep.kind is ToolKind.SDK:
+        parts.append(f"sdk:{dep.binary_name}")
     return ",".join(parts)
 
 
@@ -257,7 +259,9 @@ def resolve_config_from_path() -> dict[str, Any]:
 
     for dep in TOOL_REGISTRY:
         path = None
-        if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER) or (
+        if dep.kind is ToolKind.SDK:
+            path = dart_binary()
+        elif dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER) or (
             dep.kind is ToolKind.ARCHIVE and dep.archive_entry
         ):
             path = shutil.which(dep.binary_name)
@@ -292,6 +296,8 @@ def has_required_tools(base_dir: Path, deps: Collection[ToolDependency] = TOOL_R
         return False
 
     for dep in deps:
+        if dep.kind is ToolKind.SDK:
+            continue  # Setup cannot install user SDKs; the adapter checks at analysis time.
         if dep.kind is ToolKind.NATIVE:
             # Skip the check when the installer would also skip the download,
             # otherwise ``needs_install`` loops forever on unsupported hosts.

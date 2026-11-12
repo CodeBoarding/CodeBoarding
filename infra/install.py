@@ -41,6 +41,7 @@ from infra.tool_registry import (
     tool_fingerprint,
     write_manifest,
 )
+from infra.tool_registry.paths import dart_binary
 from infra.tool_registry.java import find_java_21_or_later
 from infra.tool_registry.manifest import _recorded_tools
 from infra.tool_registry.registry import ConfigSection, PackageManagerToolSource
@@ -830,7 +831,11 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
         reason_requirement = f"{dep.binary_name} not installed"
         reason_binary = f"{dep.binary_name} binary not found"
 
-        if dep.kind is ToolKind.NATIVE:
+        if dep.kind is ToolKind.SDK:
+            fallback_available = bool(dart_binary())
+            reason_requirement = "Install Dart SDK, or Flutter SDK for Flutter projects, and add its bin to PATH"
+            reason_binary = reason_requirement
+        elif dep.kind is ToolKind.NATIVE:
             if platform_bin_dir is not None:
                 paths.append(platform_bin_dir / f"{dep.binary_name}{native_ext}")
             else:
