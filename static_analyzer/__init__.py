@@ -896,7 +896,7 @@ class StaticAnalyzer:
                 try:
                     logger.info(f"Starting engine analysis for {adapter.language} in {project_path}")
                     analyses.append(self._run_full_analysis(part, engine_client))
-                    self._collect_diagnostics_for(adapter, engine_client, analyses[-1])
+                    self._collect_diagnostics_for(part, engine_client, analyses[-1])
                 finally:
                     if server is None:
                         engine_client.shutdown()
@@ -995,7 +995,7 @@ class StaticAnalyzer:
                 engine_client.check_alive()
                 carried[language] = analysis
                 carried_adapters[language] = adapter
-                self._collect_diagnostics_for(adapter, engine_client, analysis)
+                self._collect_diagnostics_for(engine_config, engine_client, analysis)
             finally:
                 if resident_client is None:
                     engine_client.shutdown()
@@ -1091,7 +1091,7 @@ class StaticAnalyzer:
         results.add_package_dependencies(language, analysis.get("package_relations", {}))
         results.add_source_files(language, [str(f) for f in analysis.get("source_files", [])])
 
-    def _collect_diagnostics_for(self, adapter: LanguageAdapter, engine_client: LSPClient, analysis: dict) -> None:
+    def _collect_diagnostics_for(self, engine_config: EngineConfig, engine_client: LSPClient, analysis: dict) -> None:
         """Merge cached + live diagnostics for one adapter into ``self.collected_diagnostics``.
 
         Why: rust-analyzer / csharp-ls publish diagnostics asynchronously
@@ -1099,9 +1099,10 @@ class StaticAnalyzer:
         per-adapter quiescence signal that prevents us from snapshotting an
         empty ``collected_diagnostics`` map.
         """
+        adapter = engine_config.adapter
         cache_diags: dict = analysis.get("diagnostics") or {}
         t_wait = time.monotonic()
-        adapter.wait_for_diagnostics(engine_client)
+        adapter.wait_for_diagnostics(engine_client, engine_config.project_path)
         logger.debug(f"wait_for_diagnostics for {adapter.language}: {time.monotonic() - t_wait:.1f}s")
         live_diags = engine_client.get_collected_diagnostics()
         merged_diags: dict = dict(cache_diags)

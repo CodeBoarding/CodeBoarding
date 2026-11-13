@@ -617,7 +617,7 @@ class TestWaitForDiagnostics:
                 called["idle"] = idle_seconds
                 called["max"] = max_wait
 
-        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
+        adapter.wait_for_diagnostics(FakeClient(), Path.cwd())  # type: ignore[arg-type]
         assert called.get("idle", 0) > 0, "csharp-ls needs an idle wait or diagnostics will be missed"
         assert called.get("max", 0) >= called.get("idle", 0)
 

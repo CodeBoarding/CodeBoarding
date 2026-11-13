@@ -166,6 +166,7 @@ class LSPClient:
         self._server_health_message: str | None = None
         self._work_done_progress_titles: dict[ProgressToken, str] = {}
         self._work_done_progress_failures: set[ProgressToken] = set()
+        self._completed_work_done_progress: set[ProgressToken] = set()
         # Set when ``initialize`` returned an error response. ``wait_for_server_ready``
         # bails out immediately when this is set so callers don't burn 5 minutes
         # waiting on an LSP that already reported a fatal startup error
@@ -351,6 +352,7 @@ class LSPClient:
         self._server_health_message = None
         self._work_done_progress_titles.clear()
         self._work_done_progress_failures.clear()
+        self._completed_work_done_progress.clear()
         self._init_failed = False
         self.server_failure = ""
         # Drop responses the dead server never got to be asked about, so a
@@ -656,6 +658,39 @@ class LSPClient:
                 return True
             time.sleep(0.2)
         return False
+
+    def wait_for_diagnostic_progress(
+        self, token_prefix: str, timeout: float = 300, idle_seconds: float = 3, require_completion: bool = True
+    ) -> None:
+        """Wait for completed work and quiet diagnostics, accounting for restarted checks."""
+        deadline = time.monotonic() + timeout
+        quiet_since = time.monotonic()
+        generation = self.get_diagnostics_generation()
+        while time.monotonic() < deadline:
+            self.check_alive()
+            completed = any(
+                isinstance(token, str) and token.startswith(token_prefix)
+                for token in self._completed_work_done_progress.copy()
+            )
+            active = any(
+                isinstance(token, str) and token.startswith(token_prefix)
+                for token in list(self._work_done_progress_titles)
+            )
+            current_generation = self.get_diagnostics_generation()
+            now = time.monotonic()
+            if (require_completion and not completed) or active or current_generation != generation:
+                quiet_since = now
+            elif now - quiet_since >= idle_seconds:
+                return
+            generation = current_generation
+            time.sleep(0.1)
+        self.check_alive()
+        logger.warning(
+            "LSP diagnostic work %r did not settle within %ss; continuing with available diagnostics, "
+            "but compiler diagnostics and health checks may be incomplete.",
+            token_prefix,
+            timeout,
+        )
 
     # ---- JDTLS server-ready wait ----
 
@@ -1118,6 +1153,7 @@ class LSPClient:
                 title = value.get("title", "") or ""
                 self._work_done_progress_titles[token] = title
                 self._work_done_progress_failures.discard(token)
+                self._completed_work_done_progress.discard(token)
                 # A server that reports its build import is ready once that import ends; its later
                 # indexing passes (kotlin-lsp runs them continually) are waited for separately.
                 if "indexing" in title.lower() and not self.import_finished.is_set():
@@ -1131,6 +1167,7 @@ class LSPClient:
                 ) or _progress_indicates_failure(message_text)
                 if token is not None:
                     self._work_done_progress_failures.discard(token)
+                    self._completed_work_done_progress.add(token)
                 if "project file(s) loaded" in message_text and not failed:
                     self._server_ready.set()
                     logger.info("LSP server: workspace loaded (%s)", " ".join(filter(None, [title, message_text])))

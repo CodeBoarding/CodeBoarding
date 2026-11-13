@@ -11,6 +11,32 @@ import pytest
 from static_analyzer.config import Language
 from static_analyzer.engine.adapters import get_adapter
 from static_analyzer.engine.adapters.rust_adapter import RustAdapter, _normalize_parent
+from static_analyzer.engine.lsp_client import LSPClient
+
+
+@pytest.mark.parametrize("manifest", ["Cargo.toml", "rust-project.json", ".rust-project.json"])
+@pytest.mark.parametrize("override", [False, True])
+def test_diagnostic_wait_requires_only_scheduled_workspace_checks(tmp_path: Path, manifest: str, override: bool):
+    (tmp_path / manifest).write_text("")
+    client = LSPClient(["rust-analyzer"], tmp_path)
+    client._process = Mock()
+    client._process.poll.return_value = None
+    options = {"check": {"overrideCommand": ["custom-check"]}} if override else {}
+    clock = 0
+
+    def advance(_seconds):
+        nonlocal clock
+        clock += 1
+        if clock == 5:
+            client._handle_notification("$/progress", {"token": "rust-analyzer/flycheck/0", "value": {"kind": "end"}})
+
+    with (
+        patch.object(RustAdapter, "get_lsp_init_options", return_value=options),
+        patch("static_analyzer.engine.lsp_client.time.monotonic", side_effect=lambda: clock),
+        patch("static_analyzer.engine.lsp_client.time.sleep", side_effect=advance),
+    ):
+        RustAdapter().wait_for_diagnostics(client, tmp_path)
+    assert (clock >= 5) == (manifest == "Cargo.toml" or override)
 
 
 class TestRustAdapterProperties:
@@ -142,55 +168,6 @@ class TestLspInitOptions:
 
     def test_enables_all_cargo_targets(self):
         assert RustAdapter().get_lsp_init_options()["cargo"]["allTargets"] is True
-
-
-class TestWaitForDiagnostics:
-    """Rust reuses ``wait_for_server_ready`` after resetting the ready signal,
-    relying on rust-analyzer's ``experimental/serverStatus.quiescent`` flag.
-    Falls back to debouncing if no signal arrives quickly."""
-
-    def test_uses_ready_signal_when_available(self):
-        """When rust-analyzer transitions to quiescent within 10s, the
-        signal-based path is taken (no debounce fallback)."""
-        adapter = RustAdapter()
-        events: list = []
-
-        class FakeClient:
-            def reset_ready_signal(self):
-                events.append("reset")
-
-            def wait_for_server_ready(self, timeout: int = 300) -> bool:
-                events.append("wait")
-                return True  # signal arrived
-
-            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
-                events.append("quiesce")
-
-        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
-        assert "reset" in events
-        assert "wait" in events
-        assert "quiesce" not in events, "should NOT fall back to debounce when signal fires"
-
-    def test_falls_back_to_debounce_when_no_signal(self):
-        """When rust-analyzer stays quiescent (no transition), falls back
-        to debouncing instead of blocking 120s."""
-        adapter = RustAdapter()
-        events: list = []
-
-        class FakeClient:
-            def reset_ready_signal(self):
-                events.append("reset")
-
-            def wait_for_server_ready(self, timeout: int = 300) -> bool:
-                events.append("wait")
-                return False  # timed out
-
-            def wait_for_diagnostics_quiesce(self, idle_seconds, max_wait):
-                events.append("quiesce")
-
-        adapter.wait_for_diagnostics(FakeClient())  # type: ignore[arg-type]
-        assert "reset" in events
-        assert "quiesce" in events, "should fall back to debounce when no signal arrives"
 
 
 class TestValidateWorkspaceReady:
