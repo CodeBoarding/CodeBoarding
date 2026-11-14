@@ -4,8 +4,8 @@ Two layers, both backing the warm-start incremental flow:
 
 * :class:`StaticAnalysisCache` — the on-disk pickle of a prior
   ``StaticAnalysisResults``, paired with a SHA tag file (``static_analysis.sha``)
-  that records the source state the pkl reflects. The tag is a *diff base*
-  for the next run, not an exact-match gate.
+  that records the source state the pkl reflects. The warm start does not gate
+  on it: it diffs the per-file hashes the pkl itself records.
 * :func:`invalidate_files` / :func:`merge_results` — pure in-memory operations
   used by ``update_cfg_for_changed_files``: drop every node/edge/reference
   from a changed file, re-LSP just those files, and merge the fresh state
@@ -47,9 +47,10 @@ STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 _LEGACY_PKL_NAME = "static_analysis_results.pkl"
 _LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump when the on-disk pickle layout changes, and when the engine
-# starts producing a materially different graph from the same source. The freshness gate is
-# the source SHA, so without a bump an unchanged tree keeps serving the graph the previous
-# engine built and an upgrade never reaches the user.
+# starts producing a different graph from the same source. A warm start re-analyses only the
+# files whose recorded hash moved, so without a bump every unchanged file keeps the graph the
+# previous engine built, under a pkl stamped current. ``test_engine_sources_match_tag_version``
+# fails when the engine sources change and this tag does not.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage.
 # v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the edge
@@ -77,8 +78,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v14: handlers, runtime type tests, and variant patterns contribute dependencies without invoking their targets.
 # v15: C++ compiler identities unify declarations and definitions; nodes retain declared names and owners.
 # v16: compiler-identity metadata is explicit; other languages retain their existing name resolution.
+# v17: Java resolves JDK types past JDTLS's own Java version and keeps the call sites around a compiler
+# crash; Rust diagnostics wait for cargo check; the pkl records each file's hash for the warm start.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v16"
+_TAG_VERSION = "v17"
 
 
 class StaticAnalysisCache:
@@ -146,10 +149,8 @@ class StaticAnalysisCache:
         Format on disk: ``<version>\\n<sha>\\n``. Unknown versions return
         ``None`` so callers treat them as a cache miss without unpickling.
 
-        Role: the SHA is a **diff base**, not an exact-match gate. The
-        warm-start flow loads the pkl regardless of the tag value, then asks
-        ``git diff <tag_sha>..HEAD`` for the file list to re-LSP. Pure
-        all-or-nothing callers can still use ``get(expected_sha=...)``.
+        The warm start loads the pkl whatever the SHA; all-or-nothing callers
+        gate on it with ``get(expected_sha=...)``.
         """
         if not self.sha_path.exists():
             return None
@@ -176,10 +177,7 @@ class StaticAnalysisCache:
     def load_with_sha(self) -> tuple[StaticAnalysisResults, str] | None:
         """Load the pkl and its tag SHA together; returns ``None`` if either is absent.
 
-        Used by the warm-start flow: the SHA is needed as a git diff base
-        (see ``read_tag_sha``) so the caller can compute "what changed since
-        this pkl was saved" and bring the cached CFG up to date in memory.
-
+        Used by the warm-start flow, which needs a tagged pkl and logs the SHA.
         Differs from ``get(expected_sha=...)``: this never gates on the SHA,
         it just hands it back along with the loaded results.
         """

@@ -55,6 +55,7 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         analysis_path = run_incremental(run_paths, run_context, monitoring_enabled=should_monitor)
     except EngineChangedError as exc:
         # Why: an engine release reaches CI unasked, and nobody is there to answer a prompt.
+        # Not forced: the static-analysis cache is checked again and rebuilt only if it is refused.
         logger.warning("%s Running a full analysis instead.", exc)
         mode = RunMode.FULL
         analysis_path = run_full(
@@ -62,7 +63,6 @@ def run_from_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
             run_context,
             depth_cap=exc.depth_cap,
             monitoring_enabled=should_monitor,
-            force_full=True,
         )
     except BaselineUnavailableError as exc:
         # Expected: no baseline, or diff failed against the requested base ref.

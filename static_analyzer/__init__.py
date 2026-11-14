@@ -8,9 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from infra.install import ensure_language_servers
-from infra.repo_utils.git_ops import get_changed_files_since
 from infra.repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.analysis_cache import StaticAnalysisCache
+from static_analyzer.analysis_cache import StaticAnalysisCache, invalidate_files
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.cfg import CallGraph
 from static_analyzer.config import AdapterName, Language
@@ -62,6 +61,12 @@ class EngineConfig:
     excluded_roots: list[Path] = field(default_factory=list)
     # Configs a full pass or full re-analysis runs in its place, each on a server of its own.
     split: list["EngineConfig"] = field(default_factory=list)
+
+    def owns(self, path: Path) -> bool:
+        """Whether *path*, present or deleted, lies in this config's part of the repository."""
+        return path.is_relative_to(self.project_path) and not any(
+            path.is_relative_to(root) for root in self.excluded_roots
+        )
 
 
 TYPESCRIPT_SPLIT_MIN_FILES = 1000
@@ -312,9 +317,9 @@ class StaticAnalyzer:
         self.collected_diagnostics: dict[Language, FileDiagnosticsMap] = {}
         self._clients_started: bool = False
         self._cached_results: StaticAnalysisResults | None = None
-        # Git-free changed-file set (absolute paths) scoping the warm-start re-LSP,
-        # e.g. the incremental fingerprint diff. ``None`` means "detect via git"
-        # (the legacy CLI-on-a-real-checkout path); an empty set re-LSPs nothing.
+        # Changed-file set (absolute paths) the caller knows of, e.g. the incremental
+        # fingerprint diff; the warm start adds what the pkl's recorded hashes show.
+        # ``None`` means the caller knows of none.
         self.changed_files = changed_files
         # Resolved here so an unusable value fails before any engine starts, where
         # the per-language handlers would turn it into "skip this language".
@@ -739,6 +744,7 @@ class StaticAnalyzer:
         cache_dir: Path,
         skip_cache: bool = False,
         source_sha: str | None = None,
+        source_file_hashes: dict[str, str] | None = None,
     ) -> StaticAnalysisResults:
         """Analyze the repository, warm-starting from the SHA-tagged pkl when present.
 
@@ -746,9 +752,15 @@ class StaticAnalyzer:
 
         1. In-memory cache hit -> return.
         2. ``skip_cache=True`` -> full LSP analysis.
-        3. Pkl present -> load it, scope the warm-start to ``self.changed_files``
-           (or git when that is ``None``), re-LSP just those, merge in memory.
+        3. Pkl present -> load it, scope the warm-start to the files whose content hash
+           differs from the one the pkl recorded, plus ``self.changed_files``; re-LSP
+           just those, merge in memory. Without both sets of hashes only
+           ``self.changed_files`` is known, and ``None`` re-analyses every language.
         4. No pkl -> full LSP.
+
+        *source_file_hashes* is the caller's repo-relative fingerprint of the tree, taken
+        before the run. The results record it when they reflect that whole tree, so the
+        next warm start can diff against it.
 
         Clients must be running before calling this method. Use ``start_clients()``
         or the context manager (``with StaticAnalyzer(...) as sa:``).
@@ -766,6 +778,7 @@ class StaticAnalyzer:
         logger.info(f"analyze() called with skip_cache={skip_cache}, source_sha={'<set>' if source_sha else None}")
 
         cache = StaticAnalysisCache(cache_dir, self.repository_path)
+        reflects_tree = True
 
         if skip_cache:
             logger.info("static_analysis_cache: outcome=bypass (skip_cache=True)")
@@ -786,14 +799,27 @@ class StaticAnalyzer:
                 results = self._run_full_lsp_pass()
             else:
                 cached_results, cached_sha = warm_start
+                recorded = cached_results.source_file_hashes
+                if recorded is not None and source_file_hashes is not None:
+                    # Every change since the pkl, whether or not the caller's set saw it.
+                    changed_files = (self.changed_files or set()) | {
+                        self.repository_path / path
+                        for path in recorded.keys() | source_file_hashes.keys()
+                        if recorded.get(path) != source_file_hashes.get(path)
+                    }
+                else:
+                    # Only the caller's changes reach the pkl, so it cannot claim to match the tree.
+                    changed_files = self.changed_files
+                    reflects_tree = changed_files is None
                 logger.info(
                     "static_analysis_cache: outcome=warmstart (cached_sha=%s, current_sha=%s, changes=%s)",
                     cached_sha,
                     source_sha or "<none>",
-                    "supplied" if self.changed_files is not None else "git",
+                    "unknown, rebuilding every language" if changed_files is None else len(changed_files),
                 )
-                results = self._update_cached_results(cached_results, cached_sha)
+                results = self._update_cached_results(cached_results, changed_files)
 
+        results.source_file_hashes = source_file_hashes if reflects_tree else None
         self._validate_analysis_results(results)
         results.diagnostics = self.collected_diagnostics
         self._cached_results = results
@@ -919,49 +945,79 @@ class StaticAnalyzer:
     def _update_cached_results(
         self,
         cached_results: StaticAnalysisResults,
-        cached_sha: str,
+        changed_files: set[Path] | None,
     ) -> StaticAnalysisResults:
-        """Bring *cached_results* up to date in-memory, scoped to the changed files.
+        """Bring *cached_results* up to date in-memory, scoped to *changed_files*.
 
-        Per language: determine the changed-file list, hand it to
-        ``update_cfg_for_changed_files`` along with the language's portion of the
-        cached state, and put the merged result back into a fresh
-        ``StaticAnalysisResults``.
-
-        Changed-file source: ``self.changed_files`` when set at construction
-        (git-free — e.g. the wrapper's fingerprint diff), else ``git diff`` via
-        ``get_changed_files_since``. If git fails (*cached_sha* unreachable, a
-        non-git frozen copy, or a content-hash SHA that isn't a git object), fall
-        back to a full re-LSP for that language so the run still produces valid
-        output.
+        Per language: scope the repo-wide set to each config's part of the repository, hand
+        it to ``update_cfg_for_changed_files`` along with the language's cached state, and put
+        the merged result back into a fresh ``StaticAnalysisResults``. A language with a
+        config that must be analysed in full is re-analysed in full; ``None`` means the
+        changes are unknown, so every language is.
         """
         results = StaticAnalysisResults()
-        # One dict per language, threaded through every engine config of that language and
-        # absorbed once. Why: each config re-LSPs only the changed files under its own root,
-        # so a config that took its own copy of the cache would hand back the nodes another
-        # config had just invalidated, and the merge would resurrect deleted files.
-        carried: dict[Language, dict] = {}
-        carried_adapters: dict[Language, LanguageAdapter] = {}
-        rebuilt: list[tuple[LanguageAdapter, dict]] = []
         engines = (
             [(config, None) for config in self._engine_configs if config.source_files]
             if self._server_slots
             else self._live_clients("warm-start")
         )
+        # One dict per language, threaded through every engine config of that language and
+        # absorbed once. Why: each config re-LSPs only the changed files under its own root,
+        # so a config that took its own copy of the cache would hand back the nodes another
+        # config had just invalidated, and the merge would resurrect deleted files.
+        carried: dict[Language, dict] = {}
+        planned: list[tuple[EngineConfig, LSPClient | None, set[Path] | None]] = []
         for engine_config, resident_client in engines:
             adapter, project_path = engine_config.adapter, engine_config.project_path
             language = adapter.results_language
-            changed_files = self._changed_files_for_language(project_path, cached_sha, adapter.language)
-            if changed_files is not None and adapter.rebuilds_for(changed_files, project_path):
+            if language not in carried:
+                carried[language] = self._extract_language_dict(cached_results, language)
+            cached_files = {str(path) for path in carried[language].get("source_files", [])}
+            # Why: a config whose server failed last time, or a language this pkl predates, has nothing to update.
+            uncovered = bool(engine_config.source_files) and not any(
+                str(path) in cached_files for path in engine_config.source_files
+            )
+            # Scoped to this config so a multi-language repo doesn't re-LSP every changed file per engine.
+            config_changes = (
+                None
+                if changed_files is None or uncovered
+                else {path for path in changed_files if engine_config.owns(path)}
+            )
+            if config_changes is not None and adapter.rebuilds_for(config_changes, project_path):
                 logger.info(f"warmstart {adapter.language}: a change alters how imports resolve; rebuilding")
-                changed_files = None
+                config_changes = None
                 if resident_client is not None:
                     # Why: a server resolves imports as the project was when it started; a stopped one is replaced.
                     resident_client.shutdown()
+            planned.append((engine_config, resident_client, config_changes))
+        # Why the whole language: its configs share one cached bucket, so a rebuilt config's old nodes left in it
+        # would come back on the merge, and cutting them out would drop its siblings' cached calls into it.
+        rebuilding = {config.adapter.results_language for config, _, changes in planned if changes is None}
+        for language in rebuilding:
+            del carried[language]
+        for language, bucket in carried.items():
+            configs = [config for config, _, _ in planned if config.adapter.results_language == language]
+            # Why: a full pass analyses no project whose config is gone, deleted files and all.
+            orphaned = {
+                Path(path)
+                for path in bucket.get("source_files", [])
+                if not any(config.owns(Path(path)) for config in configs)
+            }
+            if orphaned:
+                carried[language] = invalidate_files(bucket, orphaned).analysis.to_dict()
+
+        rebuilt: list[tuple[LanguageAdapter, dict]] = []
+        answered: set[Language] = set()  # the languages with a config not left out
+        for engine_config, resident_client, config_changes in planned:
+            adapter, project_path = engine_config.adapter, engine_config.project_path
+            language = adapter.results_language
             # A full re-analysis is the full pass's, so a split config runs as its parts. Changed files stay on the
             # config's own server: tsserver loads only the projects of the files it opens.
-            if changed_files is None:
+            if language in rebuilding:
                 rebuilt += self._analyse_config(engine_config, resident_client)
+                continue
+            if not config_changes:
+                answered.add(language)  # nothing for a server to answer, so none is started: the cached state stands
                 continue
             t_lang_start = time.monotonic()
             if resident_client is not None and not resident_client.alive:  # see ``_analyse_config``
@@ -972,20 +1028,19 @@ class StaticAnalyzer:
             except StaticAnalysisFatalError:
                 raise
             except Exception:
-                # Same rule as the full pass: a language whose server cannot start is left out.
+                # Same rule as the full pass: a config whose server cannot start is left out. Why its cached part
+                # goes too: kept, it would pass for current under the hashes recorded for the whole tree, while
+                # without it the next warm start finds the config uncovered and analyses it.
                 logger.exception(f"Could not start the {adapter.language} server for {project_path}; skipping it")
+                bucket = carried[language]
+                owned = {Path(path) for path in bucket.get("source_files", []) if engine_config.owns(Path(path))}
+                carried[language] = invalidate_files(bucket, owned).analysis.to_dict()
                 continue
             try:
-                changed_files = {
-                    path
-                    for path in changed_files
-                    if not any(path.is_relative_to(root) for root in engine_config.excluded_roots)
-                }
-                logger.info(f"warmstart {adapter.language}: re-LSPing {len(changed_files)} changed file(s)")
-                cached_lang_dict = carried.get(language) or self._extract_language_dict(cached_results, language)
+                logger.info(f"warmstart {adapter.language}: re-LSPing {len(config_changes)} changed file(s)")
                 analysis = update_cfg_for_changed_files(
-                    cached_lang_dict,
-                    changed_files,
+                    carried[language],
+                    config_changes,
                     adapter,
                     project_path,
                     self.repository_path,
@@ -994,7 +1049,7 @@ class StaticAnalyzer:
                 )
                 engine_client.check_alive()
                 carried[language] = analysis
-                carried_adapters[language] = adapter
+                answered.add(language)
                 self._collect_diagnostics_for(engine_config, engine_client, analysis)
             finally:
                 if resident_client is None:
@@ -1008,31 +1063,17 @@ class StaticAnalyzer:
                 analysis=analysis,
                 diagnostics=self.collected_diagnostics.get(adapter.results_language, {}),
             )
-        self._absorb_and_link(
-            results, rebuilt + [(carried_adapters[language], analysis) for language, analysis in carried.items()]
-        )
+        adapters = {config.adapter.results_language: config.adapter for config, _, _ in planned}
+        # A language whose every config was left out is left out, as in the full pass.
+        carried = {language: bucket for language, bucket in carried.items() if language in answered}
+        for language, bucket in carried.items():
+            # The cached diagnostics of files no server answered for this time, under any a server did answer for.
+            collected = self.collected_diagnostics.setdefault(language, {})
+            for path, diagnostics in (bucket.get("diagnostics") or {}).items():
+                collected.setdefault(path, diagnostics)
+        self._absorb_and_link(results, rebuilt + [(adapters[language], bucket) for language, bucket in carried.items()])
         results.incremental_base_results = cached_results
         return results
-
-    def _changed_files_for_language(self, project_path: Path, cached_sha: str, language: str) -> set[Path] | None:
-        """The warm-start changed-file set scoped to one language's project root.
-
-        ``self.changed_files`` when set (git-free), else ``git diff`` via
-        ``get_changed_files_since``. ``None`` means "detect failed / no set" and
-        the caller does a full re-LSP for the language.
-        """
-        if self.changed_files is not None:
-            # Scope the repo-wide set to this language's project root so a
-            # multi-language repo doesn't re-LSP every changed file per engine.
-            return {f for f in self.changed_files if f.is_relative_to(project_path)}
-        try:
-            return set(get_changed_files_since(project_path, cached_sha))
-        except Exception as e:
-            logger.warning(
-                f"get_changed_files_since failed for {language} (cached_sha={cached_sha}): {e}; "
-                "falling back to full re-LSP for this language"
-            )
-            return None
 
     def _extract_language_dict(self, cached_results: StaticAnalysisResults, language: Language) -> dict:
         """Project a single language's bucket out of ``StaticAnalysisResults`` into the dict shape ``update_cfg_for_changed_files`` expects."""
@@ -1221,6 +1262,7 @@ def get_static_analysis(
     skip_cache: bool = False,
     source_sha: str | None = None,
     changed_files: set[Path] | None = None,
+    source_file_hashes: dict[str, str] | None = None,
 ) -> StaticAnalysisResults:
     """CLI orchestrator: get static analysis results with full LSP lifecycle management.
 
@@ -1234,6 +1276,7 @@ def get_static_analysis(
         skip_cache: If True, bypass the SHA-tagged pkl warm-start and re-LSP
             the entire repository from scratch.
         source_sha: Canonical source-state identifier used in cache diagnostics.
+        source_file_hashes: Repo-relative fingerprint of the tree taken before the run; see ``analyze``.
 
     Returns:
         StaticAnalysisResults reflecting the live source state.
@@ -1245,6 +1288,7 @@ def get_static_analysis(
             cache_dir=cache_dir,
             skip_cache=skip_cache,
             source_sha=source_sha,
+            source_file_hashes=source_file_hashes,
         )
     results.diagnostics = analyzer.collected_diagnostics
     return results

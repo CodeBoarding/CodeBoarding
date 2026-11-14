@@ -278,7 +278,8 @@ class TestStartClientsGracefulDegradation:
         analyzer._engine_clients = [(python, python_client), (rust, client)]
         analyzer._server_slots = slots
         analyzer._clients_started = True
-        analyzer.changed_files = set()
+        # Both files changed, so the warm start has a question for each server: an unchanged config starts none.
+        analyzer.changed_files = {python.source_files[0], rust.source_files[0]}
         with (
             patch.object(client, "shutdown"),
             patch.object(
