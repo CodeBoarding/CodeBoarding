@@ -59,7 +59,7 @@ from diagram_analysis.io_utils import load_analysis_metadata, load_full_analysis
 from diagram_analysis.incremental_changes import compute_changed_members
 from diagram_analysis.scope_assembly import ScopeAssembler
 from infra.repo_utils.path_utils import normalize_repo_path
-from infra.utils import sanitize
+from infra.utils import ANALYSIS_FILENAME, sanitize
 from diagram_analysis.scope_plan import plan_scope_result_update
 from diagram_analysis.tree_shape import absorb_single_child_components
 from health.config import initialize_health_dir, load_health_config
@@ -762,8 +762,14 @@ class DiagramGenerator:
             stored_spec = (load_analysis_metadata(Path(self.output_dir)) or {}).get("tree_spec")
             spec = TreeSpec.from_dict(stored_spec) if stored_spec else None
         except Exception as error:
-            # An unreadable previous analysis only costs the names it held.
-            logger.info("Not carrying names from the previous analysis: %s", error)
+            # Not fatal: the run rewrites the file and loses only the names it held, while a non-zero exit would fail
+            # the GitHub Action.
+            logger.warning(
+                "Not carrying names from %s (expected when an older format wrote it): %s",
+                Path(self.output_dir) / ANALYSIS_FILENAME,
+                error,
+                exc_info=True,
+            )
             return {}, None
         if loaded is None or not loaded[0].components:
             return {}, None
@@ -801,11 +807,15 @@ class DiagramGenerator:
             for scope in (previous_spec.scopes.values() if previous_spec is not None else ())
             for rule in scope.rules
         }
-        live_hashes = self._source_tree_fingerprint or {}
-        self._previous_changed_files = {
-            normalize_repo_path(file_path, self.repo_location)
+        previous_hashes = {
+            normalize_repo_path(file_path, self.repo_location): entry.content_hash
             for file_path, entry in root_analysis.files.items()
-            if live_hashes.get(normalize_repo_path(file_path, self.repo_location)) != entry.content_hash
+        }
+        # A file the previous analysis never held is as changed as one it held with other contents.
+        self._previous_changed_files = {
+            file_path
+            for file_path, content_hash in self._source_tree_fingerprint_map().items()
+            if previous_hashes.get(file_path) != content_hash
         }
 
     def _stored_tree_spec(self) -> TreeSpec:
@@ -957,10 +967,7 @@ class DiagramGenerator:
     ) -> tuple[set[str], frozenset[str]]:
         """The groups the model may describe, and those of them that keep their predecessor's name.
 
-        A group is editable when it is refreshed, holds a changed file or member, or carries a directory or
-        identifier name: locked or carried forward, such a name would ship on every later run. It keeps its name
-        when it still holds ``NAME_LOCK_OVERLAP`` of what its predecessor (``predecessors``: group id -> baseline
-        component id) held.
+        Why a directory or identifier name is always editable: locked or carried forward, it would ship on every run.
         """
         unnatural_ids = {
             component.component_id for component in analysis.components if not is_natural_name(component.name)
@@ -990,6 +997,7 @@ class DiagramGenerator:
             self._enrich_scope(scope, analysis, group_ids)
             return
         carried: dict[str, str] = {}
+        carried_names: set[str] = set()
         for component in analysis.components:
             old_id = self._carried_from.get(component.component_id)
             meta = previous.meta_by_id.get(old_id) if old_id else None
@@ -997,18 +1005,27 @@ class DiagramGenerator:
                 continue
             # The save may have told two expanded components apart with their id; that is no part of the name.
             name = re.sub(rf" \({re.escape(old_id)}\)_*$", "", meta.name)
-            placeholder = self._previous_rule_names.get(old_id)
-            if not is_natural_name(name) or (
-                placeholder and (name == placeholder or name.startswith(f"{placeholder} {old_id}"))
+            # The drafted name is this run's placeholder; it is the only one known for a previous analysis saved
+            # without its specification.
+            placeholders = {component.name, self._previous_rule_names.get(old_id, component.name)}
+            # Two components carried from different previous scopes may share a name only one of them can keep.
+            if (
+                not is_natural_name(name)
+                or any(
+                    name == placeholder or name.startswith(f"{placeholder} {old_id}") for placeholder in placeholders
+                )
+                or name in carried_names
             ):
                 continue
             carried[component.component_id] = old_id
+            carried_names.add(name)
             component.name = name
             component.description = meta.description
-            live_qnames = {qname for _path, qname in _member_keys(component)}
-            component.key_entities = [
-                entity.model_copy(deep=True) for entity in meta.key_entities if entity.qualified_name in live_qnames
-            ]
+            component.key_entities = [entity.model_copy(deep=True) for entity in meta.key_entities]
+        assert self.static_analysis is not None
+        resolver = StaticReferenceResolver(self.repo_location, self.static_analysis)
+        # A carried key entity may since have moved to another file or line, or out of the component.
+        resolver.fix_key_entities_refs(analysis, set(carried))
         previous_scope = self._previous_scopes.get(
             ROOT_SCOPE_ID if scope.scope_id == ROOT_SCOPE_ID else self._carried_from.get(scope.scope_id, "")
         )
@@ -1026,19 +1043,33 @@ class DiagramGenerator:
             pair = (carrier(relation.src_id), carrier(relation.dst_id))
             if pair[0] and pair[1] and pair[0] != pair[1]:
                 labels.setdefault(pair, relation)
-        names = {component.component_id: component.name for component in analysis.components}
-        analysis.components_relations = [
-            relation.model_copy(
+        components = {component.component_id: component for component in analysis.components}
+        ownership = ComponentOwnershipIndex.from_analysis(analysis)
+        carried_relations: list[Relation] = []
+        for (source, target), previous_relation in sorted(labels.items()):
+            relation = previous_relation.model_copy(
                 deep=True,
                 update={
                     "src_id": source,
                     "dst_id": target,
-                    "src_name": names[source],
-                    "dst_name": names[target],
+                    "src_name": components[source].name,
+                    "dst_name": components[target].name,
                 },
             )
-            for (source, target), relation in sorted(labels.items())
-        ]
+            # A still-connected pair has its key edges grounded in today's calls when merged below. One no call joins
+            # any more stands, as in a fresh run, only on evidence whose edges still resolve; a static relation's
+            # edges were the calls that are gone.
+            if scope.connection_between(source, target) is None:
+                if previous_relation.is_static or not previous_relation.evidence.strip():
+                    continue
+                relation.key_edges = ScopeAssembler.resolve_semantic_edges(
+                    relation.key_edges, components[source], components[target], ownership, resolver
+                )
+                if not relation.key_edges:
+                    continue
+            carried_relations.append(relation)
+        carried_pairs = {(relation.src_id, relation.dst_id) for relation in carried_relations}
+        analysis.components_relations = carried_relations
         self.scope_assembler.merge_scope_relations(analysis, scope)
 
         refreshed_ids = {
@@ -1055,7 +1086,7 @@ class DiagramGenerator:
         label_only = {
             endpoint
             for relation in analysis.components_relations
-            if (relation.src_id, relation.dst_id) not in labels
+            if (relation.src_id, relation.dst_id) not in carried_pairs
             and relation.src_id not in editable_ids
             and relation.dst_id not in editable_ids
             for endpoint in (relation.src_id, relation.dst_id)

@@ -60,8 +60,8 @@ MemberKey = tuple[str, str]
 """``(repo-relative file, qualified name)`` of one member."""
 
 
-def membership_overlap(live: Collection[MemberKey], previous: Collection[MemberKey]) -> float:
-    """Jaccard over files, each weighing the most members it holds on either side.
+def file_overlap(live: Collection[MemberKey], previous: Collection[MemberKey]) -> float:
+    """Jaccard over files, each weighing the most members it holds on either side; decides which id continues.
 
     Why files: a file is the clustering unit, and an engine release may respell the qualified names in it.
     """
@@ -71,6 +71,17 @@ def membership_overlap(live: Collection[MemberKey], previous: Collection[MemberK
     union = sum(weights.values())
     shared = sum(weights[path] for path in live_counts.keys() & previous_counts.keys())
     return shared / union if union else 0.0
+
+
+def membership_overlap(live: Collection[MemberKey], previous: Collection[MemberKey]) -> float:
+    """Jaccard over members; decides whether a continued component keeps its name.
+
+    Why members, not files: a file that keeps its path while its methods are replaced holds new responsibilities,
+    and the name it earned for the old ones must not lock.
+    """
+    live_keys, previous_keys = set(live), set(previous)
+    union = len(live_keys | previous_keys)
+    return len(live_keys & previous_keys) / union if union else 0.0
 
 
 def file_leaf_clusters(graph: CallGraph) -> ClusterResult:
@@ -289,8 +300,8 @@ class ClusteringService:
     ) -> None:
         """Renumber the drafted specification so every component that continues a previous one keeps its id.
 
-        Scopes are paired top-down, so a kept id keeps its parent's prefix. Every other component gets an id above
-        any the previous scope used, so a retired id never comes back meaning something else.
+        Why top-down, and new ids above any the scope used: a kept id keeps its parent's prefix, and a retired id
+        never comes back meaning something else.
         """
         role_words = role_words_for(self.spec.machinery)
         previous_keys = {
@@ -316,7 +327,9 @@ class ClusteringService:
                 rule.component_id: self._member_keys(partition.members.get(rule.component_id, []), graphs)
                 for rule in scope.rules
             }
-            previous_scope = previous.get(previous_id) if previous_id is not None else None
+            # Past max_depth the draft has rules this run never builds: they continue nothing.
+            built = depth <= max_depth
+            previous_scope = previous.get(previous_id) if built and previous_id is not None else None
             siblings = [
                 component.component_id
                 for component in (previous_scope.components if previous_scope is not None else [])
@@ -328,7 +341,7 @@ class ClusteringService:
             lone_scope = self.spec.scope(drawn[0]) if len(drawn) == 1 and depth < max_depth else None
             lone = lone_scope is not None and not lone_scope.is_leaf
             candidates = [
-                (membership_overlap(live[rule_id], previous_keys[old_id]), rule_id, old_id)
+                (file_overlap(live[rule_id], previous_keys[old_id]), rule_id, old_id)
                 for rule_id in ([] if lone else drawn)
                 for old_id in siblings
                 if old_id.rpartition(".")[2].isdigit()
@@ -339,8 +352,12 @@ class ClusteringService:
                     matched[rule_id] = old_id
             prefix = CodeBoardingClusterIds.prefix_for_scope(final_id)
             used = [int(old_id.rpartition(".")[2]) for old_id in siblings if old_id.rpartition(".")[2].isdigit()]
+            # Only a scope the previous run built published ids; the last_id of one it only drafted counts rules
+            # nobody saw, so honouring it would skip ids on a first expansion.
             previous_last = (
-                previous_spec.scope(previous_id) if previous_spec is not None and previous_id is not None else None
+                previous_spec.scope(previous_id)
+                if previous_spec is not None and previous_id is not None and previous_scope is not None
+                else None
             )
             last = max([*used, previous_last.last_id if previous_last is not None else 0], default=0)
             for rule in scope.rules:
@@ -353,7 +370,7 @@ class ClusteringService:
                     new_id = CodeBoardingClusterIds.qualify_local_id(str(last), prefix)
                     # A component whose parent changed keeps no id, but identical members still carry its name.
                     same = by_members.get(live[rule.component_id])
-                    if same is not None and same not in self.carried_from.values():
+                    if built and same is not None and same not in self.carried_from.values():
                         self.carried_from[new_id] = same
                 ids[rule.component_id] = new_id
                 child_previous = previous_id if lone else old_id

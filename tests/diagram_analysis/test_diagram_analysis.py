@@ -2502,6 +2502,59 @@ class TestDiagramGenerator(unittest.TestCase):
         self.assertEqual(call.args[2], {"1", "2"})
         self.assertEqual(call.args[3], frozenset())
 
+    def test_an_incremental_name_locks_on_most_members_not_on_the_same_file(self):
+        previous = [f"pkg.old_{index}" for index in range(10)]
+        for live, locked in (
+            ([*previous, "pkg.added"], frozenset({"1"})),
+            ([*previous[:2], *(f"pkg.new_{index}" for index in range(8))], frozenset()),
+        ):
+            with self.subTest(locked=bool(locked)):
+                gen = DiagramGenerator(
+                    repo_location=self.repo_location,
+                    temp_folder=self.temp_folder,
+                    repo_name="test_repo",
+                    output_dir=self.output_dir,
+                    depth_cap=1,
+                    run_id="test-run-id",
+                    log_path="test_repo/test-run-log",
+                )
+                graph = CallGraph(language="python")
+                for line, qualified_name in enumerate(live):
+                    graph.add_node(Node(qualified_name, NodeType.FUNCTION, "service.py", line, line))
+                hierarchy = ClusterScopeResult(
+                    scope_id=ROOT_SCOPE_ID,
+                    graphs_by_language={"python": graph},
+                    groups=[
+                        ClusterGroup(group_id="1", cluster_ids=[1], symbol_members_by_language={"python": set(live)})
+                    ],
+                )
+                static_analysis = StaticAnalysisResults()
+                static_analysis.add_cfg(Language.PYTHON, graph)
+                gen.static_analysis = static_analysis
+                gen._changed_members = {"pkg.added", "pkg.new_0"}
+                root_analysis = AnalysisInsights(
+                    description="root",
+                    components=[Component(name="Billing Service", description="", key_entities=[], component_id="1")],
+                    components_relations=[],
+                )
+                baseline = _MembershipBaseline(
+                    meta_by_id={
+                        "1": _ComponentBaseline(
+                            name="Billing Service",
+                            description="",
+                            key_entities=[],
+                            source_cluster_ids=[],
+                            member_keys=frozenset(("service.py", qualified_name) for qualified_name in previous),
+                            member_qnames=frozenset(previous),
+                        )
+                    }
+                )
+                gen._enrich_scope = Mock()
+
+                gen._enrich_incremental_scopes(hierarchy, root_analysis, {}, {"1"}, baseline)
+
+                self.assertEqual(gen._enrich_scope.call_args.args[3], locked)
+
     def test_refresh_files_index_reuses_sources_and_copies_sub_entries(self):
         gen = DiagramGenerator(
             repo_location=self.repo_location,

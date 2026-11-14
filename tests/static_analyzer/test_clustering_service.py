@@ -15,6 +15,7 @@ from static_analyzer.clustering.names import ComponentRule, ScopeSpec, TreeSpec
 from static_analyzer.clustering.service import (
     NEW_SCOPE,
     ClusteringService,
+    file_overlap,
     hierarchy_differs,
     membership_overlap,
     unit_links,
@@ -433,13 +434,41 @@ class TestFullHierarchyOverPrevious(unittest.TestCase):
         self.assertNotIn("legacy_component_1", service.carried_from)
         self.assertEqual(service.carried_from.get("6"), "legacy_component_1")
 
-    def test_overlap_weighs_each_file_by_its_members(self):
+    def test_id_overlap_weighs_each_file_by_its_members(self):
+        old = {("a.py", "a.f"), ("a.py", "a.g"), ("b.py", "b.f")}
+        self.assertEqual(file_overlap(old, old), 1.0)
+        self.assertEqual(file_overlap({("c.py", "c.f")}, old), 0.0)
+        # A respelled qualified name in the same file is still the same file's code, so the id continues.
+        self.assertEqual(file_overlap({("a.py", "A.f"), ("a.py", "A.g"), ("b.py", "B.f")}, old), 1.0)
+
+    def test_name_overlap_counts_members_not_files(self):
         old = {("a.py", "a.f"), ("a.py", "a.g"), ("b.py", "b.f")}
         self.assertEqual(membership_overlap(old, old), 1.0)
         self.assertEqual(membership_overlap({("c.py", "c.f")}, old), 0.0)
         self.assertAlmostEqual(membership_overlap({("a.py", "a.f"), ("a.py", "a.g")}, old), 2 / 3)
-        # A respelled qualified name in the same file is still the same file's code.
-        self.assertEqual(membership_overlap({("a.py", "A.f"), ("a.py", "A.g"), ("b.py", "B.f")}, old), 1.0)
+        # Same files, mostly other methods: a new responsibility, not the old component.
+        grown = old | {("a.py", f"a.new_{index}") for index in range(9)}
+        self.assertAlmostEqual(membership_overlap(grown, old), 3 / 12)
+
+    def test_a_first_expansion_numbers_its_children_from_one(self):
+        """A depth-1 run drafts depth-2 rules it never builds; they must not push the first built children's ids up."""
+        shallow = ClusteringService(repo_dir=REPO)
+        baseline = shallow.build_full_hierarchy(analysis_for(graph("csharp", eshop())), max_depth=1)
+        spec = TreeSpec.from_dict(shallow.spec.to_dict())
+        service = ClusteringService(repo_dir=REPO)
+        hierarchy = service.build_full_hierarchy(
+            analysis_for(graph("csharp", eshop())), 2, persisted_from(baseline), spec
+        )
+        children = {group.group_id: group.children.groups for group in hierarchy.groups if group.children is not None}
+        self.assertTrue(any(children.values()))
+        for parent_id, groups in children.items():
+            if groups:
+                self.assertEqual(min(int(child.group_id.rpartition(".")[2]) for child in groups), 1, parent_id)
+
+    def test_only_built_components_continue_previous_ones(self):
+        service = ClusteringService(repo_dir=REPO)
+        hierarchy = service.build_full_hierarchy(analysis_for(graph("csharp", eshop())), 1, self.previous, self.spec)
+        self.assertEqual(set(service.carried_from), {group.group_id for group in hierarchy.groups})
 
 
 class TestScopeHierarchy(unittest.TestCase):
