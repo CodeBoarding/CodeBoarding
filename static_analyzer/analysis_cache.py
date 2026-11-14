@@ -47,9 +47,10 @@ STATIC_ANALYSIS_LOCK = "static_analysis.lock"
 _LEGACY_PKL_NAME = "static_analysis_results.pkl"
 _LEGACY_CACHE_SUBDIR = "cache"
 # Tag file format prefix; bump when the on-disk pickle layout changes, and when the engine
-# starts producing a materially different graph from the same source. The freshness gate is
-# the source SHA, so without a bump an unchanged tree keeps serving the graph the previous
-# engine built and an upgrade never reaches the user.
+# starts producing a different graph from the same source. A warm start re-analyses only the
+# files whose recorded hash moved, so without a bump every unchanged file keeps the graph the
+# previous engine built, under a pkl stamped current. ``test_engine_sources_match_tag_version``
+# fails when the engine sources change and this tag does not.
 # v2: StaticAnalysisResults switched from dict-of-dicts to LanguageResults
 # dataclass storage.
 # v3: MethodClusterPaths moved to static_analyzer.clustering, then CallGraph and the edge
@@ -77,8 +78,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v14: handlers, runtime type tests, and variant patterns contribute dependencies without invoking their targets.
 # v15: C++ compiler identities unify declarations and definitions; nodes retain declared names and owners.
 # v16: compiler-identity metadata is explicit; other languages retain their existing name resolution.
+# v17: Java resolves JDK types past JDTLS's own Java version and keeps the call sites around a compiler
+# crash; Rust diagnostics wait for cargo check; the pkl records each file's hash for the warm start.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v16"
+_TAG_VERSION = "v17"
 
 
 class StaticAnalysisCache:

@@ -186,7 +186,13 @@ def _analyzer(tmp_path: Path, resident_servers: bool) -> tuple[StaticAnalyzer, _
 
 def _cached(analyzer: StaticAnalyzer) -> dict:
     """A cached language state that already holds every config's files."""
-    return {"source_files": [path for config in analyzer._engine_configs for path in config.source_files]}
+    return {
+        "call_graph": CallGraph(),
+        "class_hierarchies": {},
+        "package_relations": {},
+        "references": [],
+        "source_files": [path for config in analyzer._engine_configs for path in config.source_files],
+    }
 
 
 @contextmanager

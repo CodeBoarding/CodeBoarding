@@ -14,6 +14,7 @@ from static_analyzer import (
     _adapter_names_for,
     _create_engine_configs,
 )
+from static_analyzer.analysis_cache import _TAG_VERSION, StaticAnalysisCache
 from static_analyzer.analysis_result import StaticAnalysisResults
 from static_analyzer.config import Language
 from static_analyzer.engine.adapters.python_adapter import PythonAdapter
@@ -186,6 +187,24 @@ class TestIncrementalRefusesAnIncompatibleCache(unittest.TestCase):
         with self.assertRaises(StaticAnalysisFatalError) as caught:
             analyzer.analyze(artifacts)
         self.assertIn("full analysis", str(caught.exception))
+
+    def test_a_full_run_rebuilds_an_artifact_from_another_engine_version(self):
+        # Why: after a tag bump the Action's full run must re-analyse everything and succeed, not fail the job.
+        tmp = Path(tempfile.mkdtemp()).resolve()
+        artifacts = tmp / ".codeboarding"
+        artifacts.mkdir()
+        StaticAnalysisCache(artifacts, tmp).save(StaticAnalysisResults(source_file_hashes={"a.py": "1"}), "sha")
+        tag = artifacts / "static_analysis.sha"
+        tag.write_text(tag.read_text().replace(_TAG_VERSION, "v16"))
+
+        with patch.object(ProjectScanner, "scan", return_value=[]):
+            analyzer = StaticAnalyzer(tmp)
+        analyzer._clients_started = True
+        rebuilt = StaticAnalysisResults()
+
+        with patch.object(analyzer, "_run_full_lsp_pass", return_value=rebuilt) as full:
+            self.assertIs(analyzer.analyze(artifacts, source_file_hashes={"a.py": "1"}), rebuilt)
+        full.assert_called_once()
 
 
 class TestAnalyzerInstallsItsLanguagesServers(unittest.TestCase):

@@ -14,7 +14,10 @@ from unittest.mock import MagicMock, patch
 
 from static_analyzer import EngineConfig, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg import CallGraph
+from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
+from static_analyzer.node import Node
 
 
 def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | None) -> StaticAnalyzer:
@@ -34,6 +37,20 @@ def _analyzer_with_one_engine(project_path: Path, changed_files: set[Path] | Non
     analyzer._clients_started = True
     analyzer._cached_results = None
     return analyzer
+
+
+def _bucket(*paths: Path) -> dict:
+    """A cached language state with one node per file."""
+    graph = CallGraph()
+    for path in paths:
+        graph.add_node(Node(path.stem, 12, str(path), 1, 1))
+    return {
+        "call_graph": graph,
+        "class_hierarchies": {},
+        "package_relations": {},
+        "references": [],
+        "source_files": list(paths),
+    }
 
 
 class TestAnalyzeScopesTheWarmStart(unittest.TestCase):
@@ -254,6 +271,67 @@ class TestWarmStartChangedFiles(unittest.TestCase):
         mock_full.assert_called_once_with(config, fresh)
         mock_update.assert_not_called()
         self.assertEqual(analyzer._engine_clients, [(config, fresh)])
+
+
+class TestWarmStartOverSeveralConfigsOfOneLanguage(unittest.TestCase):
+    """Configs of one language share a cached bucket, so what one config does decides what the others may carry."""
+
+    def setUp(self) -> None:
+        self.project = Path("/proj").resolve()
+        self.first, self.second = self.project / "first" / "A.java", self.project / "second" / "B.java"
+        self.analyzer = _analyzer_with_one_engine(self.project / "first", changed_files=set())
+        ((config, client),) = self.analyzer._engine_clients
+        config.source_files = [self.first]
+        sibling = EngineConfig(config.adapter, self.project / "second", source_files=[self.second])
+        self.analyzer._engine_clients.append((sibling, client))
+
+    def _absorbed(self, cached: dict, changed_files: set[Path]) -> list[tuple]:
+        """Every (adapter, analysis) the warm start hands the final merge."""
+        with (
+            patch.object(self.analyzer, "_extract_language_dict", return_value=cached),
+            patch.object(self.analyzer, "_absorb_and_link") as absorb,
+            patch.object(self.analyzer, "_collect_diagnostics_for"),
+            patch("static_analyzer.track_lsp_result"),
+        ):
+            self.analyzer._update_cached_results(StaticAnalysisResults(), changed_files)
+        return absorb.call_args.args[1]
+
+    @patch("static_analyzer.update_cfg_for_changed_files")
+    def test_a_config_that_rebuilds_rebuilds_its_language_without_the_cached_bucket(self, update) -> None:
+        """Why: carried beside the rebuild, the bucket's old nodes of the rebuilt config would come back."""
+        renamed = self.project / "first" / "Old.java"
+        fresh = {"source_files": [self.first]}
+        with patch.object(self.analyzer, "_run_full_analysis", return_value=fresh) as full:
+            absorbed = self._absorbed(_bucket(renamed, self.second), {renamed, self.first})
+        update.assert_not_called()
+        self.assertEqual(full.call_count, 2)
+        self.assertEqual([analysis for _adapter, analysis in absorbed], [fresh, fresh])
+
+    def test_the_files_of_a_config_that_is_gone_leave_the_bucket(self) -> None:
+        """Why: a full pass analyses no project whose config is gone, so its deleted files must not survive."""
+        gone = self.project / "gone" / "C.java"
+        ((_adapter, bucket),) = self._absorbed(_bucket(self.first, self.second, gone), {gone})
+        self.assertEqual(bucket["source_files"], [self.first, self.second])
+        self.assertNotIn("C", bucket["call_graph"].nodes)
+
+    @patch("static_analyzer.update_cfg_for_changed_files", side_effect=lambda cached, *_args: cached)
+    def test_a_config_whose_server_cannot_start_leaves_its_part_of_the_bucket(self, update) -> None:
+        """Why: kept, its stale part would pass for current under the hashes recorded for the whole tree."""
+        ((first, client), (second, _)) = self.analyzer._engine_clients
+        self.analyzer._server_slots = 1
+        self.analyzer._engine_configs = [first, second]
+
+        def spawn(config: EngineConfig) -> LSPClient:
+            if config is first:
+                raise RuntimeError("no jdtls")
+            return client
+
+        with patch.object(self.analyzer, "_spawn_engine_client", side_effect=spawn):
+            ((_adapter, bucket),) = self._absorbed(_bucket(self.first, self.second), {self.first, self.second})
+        self.assertEqual(update.call_count, 1)
+        # Without its files the next warm start finds the config uncovered and analyses it in full.
+        self.assertEqual(bucket["source_files"], [self.second])
+        self.assertNotIn("A", bucket["call_graph"].nodes)
 
 
 if __name__ == "__main__":
