@@ -12,10 +12,12 @@ from infra.tool_registry.manifest import has_required_tools, resolve_config_from
 from infra.tool_registry.installers import archive_stamp, ARCHIVE_VERSION_STAMP
 from infra.tool_registry.paths import exe_suffix
 from infra.tool_registry.registry import TOOL_REGISTRY
+from infra.vscode_constants import VSCODE_CONFIG
 
 
 @pytest.fixture
 def managed_dart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setitem(VSCODE_CONFIG["lsp_servers"]["dart"], "command", ["dart", "language-server"])
     binary = tmp_path / f"servers/bin/flutter/bin/cache/dart-sdk/bin/dart{exe_suffix()}"
     binary.parent.mkdir(parents=True)
     binary.touch(mode=0o755)

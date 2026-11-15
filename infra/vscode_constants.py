@@ -57,6 +57,11 @@ def update_command_paths(bin_dir):
             elif key == "cpp":
                 launcher = "clangd.exe" if is_windows else "clangd"
                 cmd[0] = find_runnable(bin_dir, launcher, os.path.join("clangd", "bin")) or cmd[0]
+            elif key == "dart":
+                launcher = "dart.exe" if is_windows else "dart"
+                cmd[0] = os.path.abspath(
+                    os.path.join(bin_dir, "bin", "flutter", "bin", "cache", "dart-sdk", "bin", launcher)
+                )
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])

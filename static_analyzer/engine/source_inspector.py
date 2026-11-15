@@ -937,7 +937,7 @@ class SourceInspector:
                 continue
             pos = parsed.lsp_position(member.start_point)
             parent = node.parent
-            if parent is not None and parent.type == "assignable_expression":
+            if parent is not None and parent.type == "assignable_expression" and node == parent.named_children[-1]:
                 node, parent = parent, parent.parent
             written = (
                 parent is not None
@@ -946,7 +946,9 @@ class SourceInspector:
             )
             if parent is not None and parent.type == "cascade_section":
                 written = any(
-                    child.type.endswith("assignment_operator") or child.type == "=" for child in parent.children
+                    (child.type.endswith("assignment_operator") or child.type == "=")
+                    and child.prev_named_sibling == node
+                    for child in parent.children
                 )
             (writes if written else reads).append(
                 CallSite.from_lsp_position(file=str(file_path), line=pos[0], column=pos[1])
@@ -1378,7 +1380,10 @@ class SourceInspector:
             )
         if node.type in {"initializer_list_entry", "redirection"}:
             if any(child.type in {"super", "this"} for child in node.named_children):
-                return self._last_named_child_of_type(node, frozenset({"identifier", "super", "this"}))
+                return next(
+                    (child for child in reversed(node.named_children) if child.type in {"identifier", "super", "this"}),
+                    None,
+                )
         if node.type in _CALL_NODE_TYPES:
             function = (
                 node.child_by_field_name("function")

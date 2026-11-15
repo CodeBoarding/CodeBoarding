@@ -9,9 +9,11 @@ from infra.repo_utils.ignore import RepoIgnoreManager
 from infra.tool_registry.installers import archive_launcher_path
 from infra.tool_registry.paths import get_servers_dir, native_binary_ok
 from infra.tool_registry.registry import TOOL_REGISTRY
+from infra.vscode_constants import VSCODE_CONFIG
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
@@ -35,11 +37,16 @@ class DartAdapter(LanguageAdapter):
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
         dependency = next(dep for dep in TOOL_REGISTRY if dep.key == "dart")
-        binary = archive_launcher_path(get_servers_dir(), dependency)
+        configured = Path(VSCODE_CONFIG["lsp_servers"]["dart"]["command"][0])
+        binary = configured if configured.is_absolute() else archive_launcher_path(get_servers_dir(), dependency)
         assert binary is not None
         if not native_binary_ok(binary):
             raise RuntimeError("Managed Dart SDK not found. Run codeboarding-setup.")
         return [str(binary), "language-server"]
+
+    def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
+        """Named and unnamed constructors are siblings despite their qualified-name prefixes."""
+        return a.kind == b.kind == NodeType.CONSTRUCTOR and a.definition_location != b.definition_location
 
     def refine_document_symbols(
         self,
