@@ -87,9 +87,10 @@ class DartAdapter(LanguageAdapter):
                 if not snapshot.is_file():
                     raise RuntimeError("Managed Flutter SDK is incomplete. Run codeboarding-setup.")
                 command.extend([str(snapshot), "--suppress-analytics"])
+            command.extend(["pub", "get"])
             try:
                 subprocess.run(
-                    [*command, "pub", "get"],
+                    command,
                     cwd=manifest.parent,
                     check=True,
                     capture_output=True,
@@ -99,5 +100,5 @@ class DartAdapter(LanguageAdapter):
                 )
             except (OSError, subprocess.SubprocessError) as error:
                 raise RuntimeError(
-                    f"Dependency resolution failed for {manifest}; run '{' '.join(command)} pub get'."
+                    f"Dependency resolution failed for {manifest}; run '{' '.join(command)}'."
                 ) from error

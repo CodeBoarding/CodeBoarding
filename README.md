@@ -252,15 +252,8 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
   - Java needs a JDK (21 recommended).
   - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. JetBrains' builds expire after about 30 days, so a run that needs Kotlin reads the current build number and checksums from this repository, and keeps the build it has when it cannot. Kotlin calls into Java are not drawn yet.
   - C++ and CUDA are analysed with [clangd](https://clangd.llvm.org/), bundled on Linux x86-64, macOS and Windows x64; other platforms need clangd 20 or newer on `PATH`. Provide `compile_commands.json`, `compile_flags.txt` or `.clangd` for full coverage, since CodeBoarding does not build the project. Incremental updates, and so PR reviews, can still miss or keep stale relations for out-of-line class members and header templates.
+  - Dart and Flutter use a managed Flutter 3.27.4 SDK (Dart 3.6.2), installed automatically on Linux x86-64, macOS x86-64/arm64 and Windows x64. Analysis restores pub dependencies; no preinstalled SDK, emulator or native build is required. Flutter-specific widget and navigation graphs are not included.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
-
-Dart analysis uses a managed Flutter 3.27.4 SDK (including Dart 3.6.2), downloaded
-by `codeboarding-setup` or on demand by the CLI. No SDK on `PATH`
-or environment-variable configuration is required. Supported hosts are Linux x86_64,
-macOS x86_64/arm64, and Windows x86_64.
-Analysis runs `dart pub get` or `flutter pub get` before starting the language server.
-No emulator or native app build is required. Support covers standard Dart symbols,
-inheritance and call relationships, not Flutter-specific widget or navigation graphs.
 
 ## Examples
 
