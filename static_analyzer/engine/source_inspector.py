@@ -955,6 +955,15 @@ class SourceInspector:
 
     def _method_group_candidates(self, node: TreeSitterNode) -> list[TreeSitterNode]:
         """Names in a position where naming something callable passes it as a value."""
+        if node.type in {"constructor_tearoff", "dot_shorthand"} and any(
+            child.type == "new" for child in node.children
+        ):
+            return [node]
+        if node.type == "unconditional_assignable_selector" and any(
+            child.type == "identifier" and child.text == b"new" for child in node.named_children
+        ):
+            # Dart's unnamed constructor tear-off has no member named "new" in the symbol table.
+            return [node]
         if node.type in _CALLABLE_USAGE_ANCESTORS and self._parent_is_call_like(node):
             return [name for child in node.named_children for name in self._value_names(child)]
 
@@ -1363,7 +1372,10 @@ class SourceInspector:
         if node.type == "const_object_expression" or (
             node.type == "new_expression" and any(child.type == "type_identifier" for child in node.named_children)
         ):
-            return self._last_named_child_of_type(node, frozenset({"identifier", "type_identifier"}))
+            return next(
+                (child for child in reversed(node.named_children) if child.type in {"identifier", "type_identifier"}),
+                None,
+            )
         if node.type in {"initializer_list_entry", "redirection"}:
             if any(child.type in {"super", "this"} for child in node.named_children):
                 return self._last_named_child_of_type(node, frozenset({"identifier", "super", "this"}))
@@ -1426,6 +1438,10 @@ class SourceInspector:
     def _select_query_node(self, node: TreeSitterNode | None) -> TreeSitterNode | None:
         if node is None:
             return None
+        if node.type in {"constructor_tearoff", "dot_shorthand"}:
+            keyword = next((child for child in node.children if child.type == "new"), None)
+            if keyword is not None:
+                return keyword
         for field_name in _CALL_TARGET_FIELD_NAMES:
             child = node.child_by_field_name(field_name)
             selected = self._select_query_node(child)

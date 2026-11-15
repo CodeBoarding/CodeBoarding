@@ -9,67 +9,59 @@ from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 from infra.tool_registry.manifest import has_required_tools, resolve_config_from_path
-from infra.tool_registry.paths import dart_binary
+from infra.tool_registry.installers import archive_stamp, ARCHIVE_VERSION_STAMP
+from infra.tool_registry.paths import exe_suffix
 from infra.tool_registry.registry import TOOL_REGISTRY
 
 
+@pytest.fixture
+def managed_dart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    binary = tmp_path / f"servers/bin/flutter/bin/cache/dart-sdk/bin/dart{exe_suffix()}"
+    binary.parent.mkdir(parents=True)
+    binary.touch(mode=0o755)
+    (binary.parents[2] / "flutter_tools.snapshot").touch()
+    monkeypatch.setattr("static_analyzer.engine.adapters.dart_adapter.get_servers_dir", lambda: tmp_path / "servers")
+    return binary
+
+
 @pytest.mark.parametrize("system,suffix", [("Linux", ""), ("Darwin", ""), ("Windows", ".exe")])
-def test_prefers_flutter_sdk_over_unrelated_dart(tmp_path: Path, system: str, suffix: str):
-    flutter = tmp_path / "Flutter SDK" / "bin" / "flutter"
-    bundled = flutter.parent / "cache" / "dart-sdk" / "bin" / f"dart{suffix}"
-    bundled.parent.mkdir(parents=True)
-    bundled.touch()
-    bundled.chmod(0o755)
+def test_managed_sdk_without_system_sdk(tmp_path: Path, managed_dart: Path, system: str, suffix: str):
+    binary = managed_dart.rename(managed_dart.with_name(f"dart{suffix}"))
     with (
         patch("infra.tool_registry.paths.platform.system", return_value=system),
-        patch(
-            "infra.tool_registry.paths.shutil.which",
-            side_effect=lambda name: str(flutter) if name == "flutter" else "/other/dart",
-        ),
+        patch("shutil.which", side_effect=AssertionError("SDK discovery must not use PATH")),
     ):
-        assert dart_binary() == str(bundled)
-
-
-def test_standalone_sdk_and_missing_sdk(tmp_path: Path):
-    with patch(
-        "infra.tool_registry.paths.shutil.which", side_effect=lambda name: "/sdk/dart" if name == "dart" else None
-    ):
-        assert DartAdapter().get_lsp_command(tmp_path) == ["/sdk/dart", "language-server"]
-    with patch("infra.tool_registry.paths.shutil.which", return_value=None):
-        with pytest.raises(RuntimeError, match="Dart SDK not found"):
+        assert DartAdapter().get_lsp_command(tmp_path) == [str(binary), "language-server"]
+        binary.unlink()
+        with pytest.raises(RuntimeError, match="Managed Dart SDK not found"):
             DartAdapter().get_lsp_command(tmp_path)
 
 
-def test_windows_dart_wrapper_requires_bundled_executable(tmp_path: Path):
-    wrapper = tmp_path / "bin" / "dart.bat"
-    binary = wrapper.parent / "cache" / "dart-sdk" / "bin" / "dart.exe"
-    with patch(
-        "infra.tool_registry.paths.shutil.which", side_effect=lambda name: str(wrapper) if name == "dart" else None
-    ):
-        assert dart_binary() is None
-        binary.parent.mkdir(parents=True)
-        binary.touch()
-        binary.chmod(0o755)
-        assert dart_binary() == str(binary)
-
-
-def test_sdk_setup_reports_missing_without_reinstall_loop(tmp_path: Path):
+def test_setup_requires_managed_sdk(tmp_path: Path, managed_dart: Path):
     dart = next(dep for dep in TOOL_REGISTRY if dep.key == "dart")
+    servers = tmp_path / "servers"
     with (
-        patch("infra.tool_registry.paths.shutil.which", return_value=None),
+        patch("shutil.which", return_value="/unrelated/sdk/dart"),
         patch("infra.install.TOOL_REGISTRY", [dart]),
     ):
-        assert has_required_tools(tmp_path, [dart])
-        check = install._language_checks_from_registry(tmp_path)[0]
+        assert not has_required_tools(servers, [dart])
+        assert dart.source is not None
+        (servers / "bin/flutter" / ARCHIVE_VERSION_STAMP).write_text(archive_stamp(dart.source))
+        assert has_required_tools(servers, [dart])
+        managed_dart.unlink()
+        assert not has_required_tools(servers, [dart])
+        check = install._language_checks_from_registry(servers)[0]
         available, reason = check.evaluate(npm_available=False)
         assert not available
-        assert reason and "Flutter SDK" in reason
-    with patch("infra.tool_registry.manifest.dart_binary", return_value="/sdk/dart"):
-        assert resolve_config_from_path()["lsp_servers"]["dart"]["command"] == ["/sdk/dart", "language-server"]
+        assert reason
+        assert resolve_config_from_path()["lsp_servers"]["dart"]["command"] != [
+            "/unrelated/sdk/dart",
+            "language-server",
+        ]
 
 
 @pytest.mark.parametrize("flutter", [False, True])
-def test_restores_project_with_matching_sdk(tmp_path: Path, flutter: bool):
+def test_restores_project_with_matching_sdk(tmp_path: Path, managed_dart: Path, flutter: bool):
     manifest = "name: sample\n"
     if flutter:
         manifest += "dependencies:\n  flutter:\n    sdk: flutter\n"
@@ -78,13 +70,15 @@ def test_restores_project_with_matching_sdk(tmp_path: Path, flutter: bool):
     ignored.mkdir()
     (ignored / "pubspec.yaml").write_text(manifest)
     with (
-        patch("static_analyzer.engine.adapters.dart_adapter.dart_binary", return_value="/sdk/dart"),
-        patch("static_analyzer.engine.adapters.dart_adapter.shutil.which", return_value="/sdk/flutter"),
+        patch("shutil.which", side_effect=AssertionError("SDK discovery must not use PATH")),
         patch("static_analyzer.engine.adapters.dart_adapter.subprocess.run") as run,
     ):
         DartAdapter().prepare_project(tmp_path)
+    command = [str(managed_dart)]
+    if flutter:
+        command.extend([str(managed_dart.parents[2] / "flutter_tools.snapshot"), "--suppress-analytics"])
     run.assert_called_once_with(
-        ["/sdk/flutter" if flutter else "/sdk/dart", "pub", "get"],
+        [*command, "pub", "get"],
         cwd=tmp_path,
         check=True,
         capture_output=True,
@@ -94,21 +88,17 @@ def test_restores_project_with_matching_sdk(tmp_path: Path, flutter: bool):
     )
 
 
-def test_flutter_project_requires_flutter_even_with_dart_installed(tmp_path: Path):
+def test_flutter_project_requires_complete_sdk(tmp_path: Path, managed_dart: Path):
     (tmp_path / "pubspec.yaml").write_text("dev_dependencies:\n  flutter_test:\n    sdk: flutter\n")
-    with (
-        patch("static_analyzer.engine.adapters.dart_adapter.dart_binary", return_value="/sdk/dart"),
-        patch("static_analyzer.engine.adapters.dart_adapter.shutil.which", return_value=None),
-        pytest.raises(RuntimeError, match="Flutter SDK required"),
-    ):
+    (managed_dart.parents[2] / "flutter_tools.snapshot").unlink()
+    with pytest.raises(RuntimeError, match="Managed Flutter SDK is incomplete"):
         DartAdapter().prepare_project(tmp_path)
 
 
-def test_restore_failure_keeps_cause(tmp_path: Path):
+def test_restore_failure_keeps_cause(tmp_path: Path, managed_dart: Path):
     (tmp_path / "pubspec.yaml").write_text("name: broken\n")
     error = subprocess.CalledProcessError(1, ["dart", "pub", "get"])
     with (
-        patch("static_analyzer.engine.adapters.dart_adapter.dart_binary", return_value="/sdk/dart"),
         patch("static_analyzer.engine.adapters.dart_adapter.subprocess.run", side_effect=error),
         pytest.raises(RuntimeError, match="Dependency resolution failed") as raised,
     ):
@@ -126,6 +116,10 @@ def test_restore_failure_keeps_cause(tmp_path: Path):
         ("Box<String>();", ["Box"]),
         ("new pkg.Box.named();", ["named"]),
         ("const pkg.Box.named();", ["named"]),
+        ("const Box(visible: true);", ["Box"]),
+        ("const pkg.Box.named(mode: Mode.active);", ["named"]),
+        ("const Box<String>(value: null);", ["Box"]),
+        ("new pkg.Box.named(value: nested());", ["named", "nested"]),
         ("super.run();", ["run"]),
         ("obj.field; 'fake()'; // alsoFake()", []),
     ],
@@ -136,6 +130,15 @@ def test_dart_call_targets(tmp_path: Path, expression: str, targets: list[str]):
     path.write_text(source, encoding="utf-8")
     actual = {(site.line, site.column) for site in SourceInspector().find_call_sites(path)}
     assert actual == {(2, expression.index(target) + 3) for target in targets}
+
+
+@pytest.mark.parametrize("reference", ["Box.new", "Box<int>.new", "pkg.Box<int>.new", "Box. /* factory */ new"])
+def test_dart_constructor_tearoff_targets(tmp_path: Path, reference: str):
+    source = f"void main() {{ register<Box>({reference}); }}"
+    path = tmp_path / "sample.dart"
+    path.write_text(source, encoding="utf-8")
+    actual = {(site.line, site.column) for site in SourceInspector().find_method_group_sites(path)}
+    assert (1, source.index("new") + 1) in actual
 
 
 def test_super_call_does_not_dispatch_to_overrides(tmp_path: Path):

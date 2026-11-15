@@ -612,7 +612,7 @@ def install_archive_tool(
     dep: ToolDependency,
     on_progress: ProgressCallback | None = None,
 ) -> None:
-    """Download and extract an archive tool, a ``.tar.gz`` or a zip (``.zip``, ``.sit``)."""
+    """Download and extract a compressed tar or zip (``.zip``, ``.sit``) tool archive."""
     assert dep.source, f"{dep.key}: source required for archive tools"
     assert dep.archive_subdir, f"{dep.key}: archive_subdir required for archive tools"
 
@@ -657,7 +657,7 @@ def install_archive_tool(
         if is_zip:
             _extract_zip(archive_path, staging)
         else:
-            with tarfile.open(archive_path, "r:gz") as tar:
+            with tarfile.open(archive_path, "r:*") as tar:
                 tar.extractall(path=staging, filter="tar")
         archive_path.unlink()
         root = _single_root(staging)

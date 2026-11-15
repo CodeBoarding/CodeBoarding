@@ -1,18 +1,19 @@
 """Dart and Flutter analysis using the SDK's language server."""
 
-import shutil
 import subprocess
 from pathlib import Path
 
 import yaml
 
 from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.tool_registry.installers import archive_launcher_path
+from infra.tool_registry.paths import get_servers_dir, native_binary_ok
+from infra.tool_registry.registry import TOOL_REGISTRY
 from static_analyzer.config import Language, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
-from infra.tool_registry.paths import dart_binary
 
 
 class DartAdapter(LanguageAdapter):
@@ -33,10 +34,12 @@ class DartAdapter(LanguageAdapter):
         return True
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        binary = dart_binary()
-        if not binary:
-            raise RuntimeError("Dart SDK not found. Install Dart or Flutter and add its bin directory to PATH.")
-        return [binary, "language-server"]
+        dependency = next(dep for dep in TOOL_REGISTRY if dep.key == "dart")
+        binary = archive_launcher_path(get_servers_dir(), dependency)
+        assert binary is not None
+        if not native_binary_ok(binary):
+            raise RuntimeError("Managed Dart SDK not found. Run codeboarding-setup.")
+        return [str(binary), "language-server"]
 
     def refine_document_symbols(
         self,
@@ -70,15 +73,15 @@ class DartAdapter(LanguageAdapter):
                 for section in ("dependencies", "dev_dependencies")
                 for value in (config.get(section) or {}).values()
             )
-            command = binary
+            command = [binary]
             if uses_flutter:
-                flutter = shutil.which("flutter")
-                if not flutter:
-                    raise RuntimeError(f"Flutter SDK required by {manifest}. Install Flutter and add its bin to PATH.")
-                command = flutter
+                snapshot = Path(binary).parents[2] / "flutter_tools.snapshot"
+                if not snapshot.is_file():
+                    raise RuntimeError("Managed Flutter SDK is incomplete. Run codeboarding-setup.")
+                command.extend([str(snapshot), "--suppress-analytics"])
             try:
                 subprocess.run(
-                    [command, "pub", "get"],
+                    [*command, "pub", "get"],
                     cwd=manifest.parent,
                     check=True,
                     capture_output=True,
@@ -87,4 +90,6 @@ class DartAdapter(LanguageAdapter):
                     timeout=300,
                 )
             except (OSError, subprocess.SubprocessError) as error:
-                raise RuntimeError(f"Dependency resolution failed for {manifest}; run '{command} pub get'.") from error
+                raise RuntimeError(
+                    f"Dependency resolution failed for {manifest}; run '{' '.join(command)} pub get'."
+                ) from error

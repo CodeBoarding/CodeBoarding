@@ -87,7 +87,6 @@ class ToolKind(StrEnum):
     NATIVE = "native"  # Pre-built binary downloaded from GitHub releases
     NODE = "node"  # npm package installed via `npm install`
     ARCHIVE = "archive"  # Tarball downloaded and extracted from GitHub releases
-    SDK = "sdk"  # Language server bundled with a user-provided SDK
     PACKAGE_MANAGER = (
         "package_manager"  # Installed by invoking a user-provided package manager (e.g. `dotnet tool install`)
     )
@@ -219,12 +218,6 @@ BASE_TOOL_KEYS = frozenset({"tokei"})
 
 TOOL_REGISTRY: list[ToolDependency] = [
     ToolDependency(
-        key="dart",
-        binary_name="dart",
-        kind=ToolKind.SDK,
-        config_section=ConfigSection.LSP_SERVERS,
-    ),
-    ToolDependency(
         key="cpp",
         binary_name="clangd",
         kind=ToolKind.ARCHIVE,
@@ -246,6 +239,30 @@ TOOL_REGISTRY: list[ToolDependency] = [
         ),
         archive_subdir="clangd",
         archive_entry="bin/clangd",
+    ),
+    ToolDependency(
+        key="dart",
+        binary_name="dart",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=UpstreamToolSource(
+            tag="3.27.4",
+            url_template="https://storage.googleapis.com/flutter_infra_release/releases/{asset}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "stable/linux/flutter_linux_3.27.4-stable.tar.xz",
+                ("Darwin", "x86_64"): "stable/macos/flutter_macos_3.27.4-stable.zip",
+                ("Darwin", "arm64"): "stable/macos/flutter_macos_arm64_3.27.4-stable.zip",
+                ("Windows", "AMD64"): "stable/windows/flutter_windows_3.27.4-stable.zip",
+            },
+            sha256={
+                "stable/linux/flutter_linux_3.27.4-stable.tar.xz": "64df4273de625433c7ba41967932b782f5f9abf3199db8330782d64508379344",
+                "stable/macos/flutter_macos_3.27.4-stable.zip": "4e10b748a01599a79ce414a6257e6465dc71befa128f3868d659d0fca983a485",
+                "stable/macos/flutter_macos_arm64_3.27.4-stable.zip": "cc4d6e6c5b1049e9ca8c7e6444430d916ef08eaf2fd8bca059fa79e424051990",
+                "stable/windows/flutter_windows_3.27.4-stable.zip": "1141d3edb64c454273feac88f31f84945a1f3309a72c58aa9a5f2bb2b0fc8db3",
+            },
+        ),
+        archive_subdir="flutter",
+        archive_entry="bin/cache/dart-sdk/bin/dart",
     ),
     ToolDependency(
         key="tokei",

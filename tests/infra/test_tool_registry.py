@@ -1924,16 +1924,17 @@ class TestArchiveLauncherTools(unittest.TestCase):
             self.assertFalse((base / "bin" / "kotlin-lsp.partial").exists())
 
     def test_the_hosts_tarball_is_extracted_under_one_folder(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            source = base / "src" / "kotlin-server" / "bin"
-            source.mkdir(parents=True)
-            (source / "intellij-server").write_text("#!/bin/sh\n")
-            archive = base / "release.tar.gz"
-            with tarfile.open(archive, "w:gz") as tar:
-                tar.add(base / "src" / "kotlin-server", arcname="kotlin-server")
-            self._install(base, archive, "Linux", "x86_64", f"kotlin-server-{self.VERSION}.tar.gz")
-            self.assertTrue((base / "bin" / "kotlin-lsp" / "bin" / "intellij-server").is_file())
+        for compression in ("gz", "xz"):
+            with self.subTest(compression=compression), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                source = base / "src" / "kotlin-server" / "bin"
+                source.mkdir(parents=True)
+                (source / "intellij-server").write_text("#!/bin/sh\n")
+                archive = base / f"release.tar.{compression}"
+                with tarfile.open(archive, "w:xz" if compression == "xz" else "w:gz") as tar:
+                    tar.add(base / "src" / "kotlin-server", arcname="kotlin-server")
+                self._install(base, archive, "Linux", "x86_64", f"kotlin-server-{self.VERSION}.tar.gz")
+                self.assertEqual((base / "bin/kotlin-lsp/bin/intellij-server").read_text(), "#!/bin/sh\n")
 
     def test_a_host_with_no_build_downloads_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:

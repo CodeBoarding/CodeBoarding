@@ -88,7 +88,7 @@ VSCODE_CONFIG = {
             "command": ["dart", "language-server"],
             "languages": ["dart"],
             "file_extensions": [".dart"],
-            "install_commands": "Install the Dart SDK (or Flutter SDK for Flutter projects) and add its bin to PATH",
+            "install_commands": "codeboarding-setup (downloads Flutter and its bundled Dart SDK automatically)",
         },
         "cpp": {
             "name": "clangd",

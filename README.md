@@ -254,11 +254,10 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
   - C++ and CUDA are analysed with [clangd](https://clangd.llvm.org/), bundled on Linux x86-64, macOS and Windows x64; other platforms need clangd 20 or newer on `PATH`. Provide `compile_commands.json`, `compile_flags.txt` or `.clangd` for full coverage, since CodeBoarding does not build the project. Incremental updates, and so PR reviews, can still miss or keep stale relations for out-of-line class members and header templates.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, LiteLLM proxy, and more.
 
-Dart analysis requires the [Dart SDK](https://dart.dev/get-dart), or the
-[Flutter SDK](https://docs.flutter.dev/get-started/install) for Flutter projects,
-with its `bin` directory on `PATH` on Windows, macOS, or Linux. Run `flutter --version`
-once after installing Flutter to initialize its bundled Dart SDK. `codeboarding-setup`
-detects the SDK-provided language server; it does not download another SDK.
+Dart analysis uses a managed Flutter 3.27.4 SDK (including Dart 3.6.2), downloaded
+by `codeboarding-setup` or on demand by the CLI. No SDK on `PATH`
+or environment-variable configuration is required. Supported hosts are Linux x86_64,
+macOS x86_64/arm64, and Windows x86_64.
 Analysis runs `dart pub get` or `flutter pub get` before starting the language server.
 No emulator or native app build is required. Support covers standard Dart symbols,
 inheritance and call relationships, not Flutter-specific widget or navigation graphs.

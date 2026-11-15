@@ -192,11 +192,12 @@ def build_global_relations(
         else:
             inherited_key_edges = _relation_key_edges_for_pair(llm_relation, src_id, dst_id, node_to_component)
             key_edges, all_edges = ground_relation_edges(inherited_key_edges, static_rel.all_edges)
+            supported_label = (llm_relation.src_id, llm_relation.dst_id) == (src_id, dst_id) or bool(key_edges)
             relation = Relation(
-                relation=llm_relation.relation,
+                relation=llm_relation.relation if supported_label else DEFAULT_STATIC_RELATION_LABEL,
                 src_name=id_to_name.get(src_id, src_id),
                 dst_name=id_to_name.get(dst_id, dst_id),
-                evidence=llm_relation.evidence,
+                evidence=llm_relation.evidence if supported_label else "",
                 key_edges=key_edges,
                 src_id=src_id,
                 dst_id=dst_id,
