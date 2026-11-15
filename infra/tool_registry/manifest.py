@@ -18,6 +18,7 @@ if sys.platform == "win32":
 else:
     import fcntl
 
+from infra.constants import DART_LANGUAGE_KEY
 from infra.vscode_constants import VSCODE_CONFIG, find_runnable
 
 from .installers import (
@@ -256,7 +257,7 @@ def resolve_config_from_path() -> dict[str, Any]:
     config = deepcopy(VSCODE_CONFIG)
 
     for dep in TOOL_REGISTRY:
-        if dep.key == "dart":
+        if dep.key == DART_LANGUAGE_KEY:
             continue  # Dart and Flutter must come from the same managed SDK.
         path = None
         if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER) or (

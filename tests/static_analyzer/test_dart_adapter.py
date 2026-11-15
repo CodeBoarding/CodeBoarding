@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from infra import install
+from static_analyzer.config import Language
 from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -17,7 +18,7 @@ from infra.vscode_constants import VSCODE_CONFIG
 
 @pytest.fixture
 def managed_dart(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    monkeypatch.setitem(VSCODE_CONFIG["lsp_servers"]["dart"], "command", ["dart", "language-server"])
+    monkeypatch.setitem(VSCODE_CONFIG["lsp_servers"][Language.DART], "command", ["dart", "language-server"])
     binary = tmp_path / f"servers/bin/flutter/bin/cache/dart-sdk/bin/dart{exe_suffix()}"
     binary.parent.mkdir(parents=True)
     binary.touch(mode=0o755)
@@ -40,7 +41,7 @@ def test_managed_sdk_without_system_sdk(tmp_path: Path, managed_dart: Path, syst
 
 
 def test_setup_requires_managed_sdk(tmp_path: Path, managed_dart: Path):
-    dart = next(dep for dep in TOOL_REGISTRY if dep.key == "dart")
+    dart = next(dep for dep in TOOL_REGISTRY if dep.key == Language.DART)
     servers = tmp_path / "servers"
     with (
         patch("shutil.which", return_value="/unrelated/sdk/dart"),
@@ -56,7 +57,7 @@ def test_setup_requires_managed_sdk(tmp_path: Path, managed_dart: Path):
         available, reason = check.evaluate(npm_available=False)
         assert not available
         assert reason
-        assert resolve_config_from_path()["lsp_servers"]["dart"]["command"] != [
+        assert resolve_config_from_path()["lsp_servers"][Language.DART]["command"] != [
             "/unrelated/sdk/dart",
             "language-server",
         ]

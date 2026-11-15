@@ -20,6 +20,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from infra.constants import DART_LANGUAGE_KEY
+
 
 # -- Public types and constants -----------------------------------------------
 
@@ -241,7 +243,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
         archive_entry="bin/clangd",
     ),
     ToolDependency(
-        key="dart",
+        key=DART_LANGUAGE_KEY,
         binary_name="dart",
         kind=ToolKind.ARCHIVE,
         config_section=ConfigSection.LSP_SERVERS,

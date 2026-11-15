@@ -293,7 +293,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "java": "Java",
         "kotlin": "Kotlin",
         "rust": "Rust",
-        "dart": "Dart",
+        Language.DART: "Dart",
         "cpp": "CPP",
     }
 

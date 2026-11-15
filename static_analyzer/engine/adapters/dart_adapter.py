@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from infra.constants import FLUTTER_SDK_KEY
 from infra.repo_utils.ignore import RepoIgnoreManager
 from infra.tool_registry.installers import archive_launcher_path
 from infra.tool_registry.paths import get_servers_dir, native_binary_ok
@@ -36,8 +37,8 @@ class DartAdapter(LanguageAdapter):
         return True
 
     def get_lsp_command(self, project_root: Path) -> list[str]:
-        dependency = next(dep for dep in TOOL_REGISTRY if dep.key == "dart")
-        configured = Path(VSCODE_CONFIG["lsp_servers"]["dart"]["command"][0])
+        dependency = next(dep for dep in TOOL_REGISTRY if dep.key == Language.DART)
+        configured = Path(VSCODE_CONFIG["lsp_servers"][Language.DART]["command"][0])
         binary = configured if configured.is_absolute() else archive_launcher_path(get_servers_dir(), dependency)
         assert binary is not None
         if not native_binary_ok(binary):
@@ -76,7 +77,7 @@ class DartAdapter(LanguageAdapter):
                 continue
             config = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
             uses_flutter = any(
-                isinstance(value, dict) and value.get("sdk") == "flutter"
+                isinstance(value, dict) and value.get("sdk") == FLUTTER_SDK_KEY
                 for section in ("dependencies", "dev_dependencies")
                 for value in (config.get(section) or {}).values()
             )
