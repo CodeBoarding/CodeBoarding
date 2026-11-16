@@ -21,6 +21,7 @@ from static_analyzer.graph_definitions import (
     CALL,
     MEMBER_READ,
     METHOD_GROUP,
+    OWNER,
     RUNTIME_REFERENCE,
     GraphIndex,
     targets_for,
@@ -208,7 +209,7 @@ def test_both_resolvers_agree_a_runtime_reference_does_not_dispatch_or_reach_dat
 
     match = SymbolIndex(table, SourceInspector()).resolve(definition)
     if match is not None and match.kind in RUNTIME_REFERENCE_KINDS:
-        sink.add(table.symbols["m.payload"], match, site, reference_only=True)
+        sink.add(table.symbols["m.payload"], match, site, RUNTIME_REFERENCE, reference_only=True)
     result = targets_for(
         _graph_index(module),
         SourceInspector(),
@@ -224,6 +225,7 @@ def test_both_resolvers_agree_a_runtime_reference_does_not_dispatch_or_reach_dat
     assert sink.impl_queries == []
     assert [node.fully_qualified_name for node in result.nodes] == expected
     assert result.implementations == []
+    assert [site.kind for sites in sink.edges.values() for site in sites] == result.kinds
 
 
 def test_both_resolvers_add_the_owning_enum_to_an_enum_member_call(module: Path) -> None:
@@ -236,13 +238,14 @@ def test_both_resolvers_add_the_owning_enum_to_an_enum_member_call(module: Path)
 
     match = SymbolIndex(table, SourceInspector()).resolve(definition)
     assert match is not None
-    sink.add(table.symbols["m.payload"], match, site)
+    sink.add(table.symbols["m.payload"], match, site, CALL)
     result = targets_for(
         _graph_index(module), SourceInspector(), str(module), line, character, CALL, PythonAdapter(), site
     )
 
     assert [target for _caller, target in sink.edges] == ["m.Color.RED", "m.Color"]
     assert [node.fully_qualified_name for node in result.nodes] == ["m.Color.RED", "m.Color"]
+    assert [site.kind for sites in sink.edges.values() for site in sites] == result.kinds == [CALL, OWNER]
 
 
 def test_both_resolvers_take_an_overload_signature_to_its_own_class_implementation(tmp_path: Path) -> None:

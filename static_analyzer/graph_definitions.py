@@ -38,6 +38,11 @@ IMPLEMENTATION = "implementation"
 RECEIVER = "receiver"
 # A dispatched declaration a call reached inside its engine, whose overrides may lie in files that engine never read.
 OVERRIDE = "override"
+# Edges a call site adds beyond the declaration it resolves to: the class owning a called member, a class or
+# constructor the site constructs, and a destructor a scope exit runs.
+OWNER = "owner"
+CONSTRUCT = "construct"
+DESTRUCTION = "destruction"
 
 
 @dataclass(frozen=True)
@@ -154,14 +159,18 @@ def resolve_declaration[T](
 
 @dataclass(frozen=True)
 class CallTargets:
-    """What a call site reaches: the graph's nodes, and the declarations still owed an implementation query."""
+    """What a call site reaches: the graph's nodes, and the declarations still owed an implementation query.
+
+    ``kinds`` runs alongside ``nodes``: what the site is for the edge to each, as the engine tags it.
+    """
 
     nodes: list[Node]
     implementations: list[tuple[str, int, int]]
+    kinds: list[str]
 
     @classmethod
     def none(cls) -> "CallTargets":
-        return cls([], [])
+        return cls([], [], [])
 
 
 class GraphIndex:
@@ -344,12 +353,11 @@ def targets_for(
     declaration = index.declaration_at(inspector, file_path, line, character)
     if declaration is None:
         return CallTargets.none()
-    if kind == RUNTIME_REFERENCE:
-        if declaration.type not in RUNTIME_REFERENCE_KINDS:
+    if kind in (RUNTIME_REFERENCE, IMPLEMENTATION):
+        if kind == RUNTIME_REFERENCE and declaration.type not in RUNTIME_REFERENCE_KINDS:
             return CallTargets.none()
-        return CallTargets(_with_owning_class(index, declaration, include_owner=True), [])
-    if kind == IMPLEMENTATION:
-        return CallTargets(_with_owning_class(index, declaration, include_owner=False), [])
+        nodes = _with_owning_class(index, declaration, include_owner=kind == RUNTIME_REFERENCE)
+        return CallTargets(nodes, [], [kind, OWNER][: len(nodes)])
     if kind == METHOD_GROUP and not (
         declaration.is_callable()
         or declaration.is_class()
@@ -373,27 +381,46 @@ def targets_through(
 ) -> CallTargets:
     """Every node the call *site*, of *kind*, reaches through *declaration*, expanded as the full build expands it."""
     call_graph = index.call_graph
-    constructing = adapter.expands_constructors and inspector.is_construction_site(site)
+    construction_site = inspector.is_construction_site(site)
+    constructing = adapter.expands_constructors and construction_site
     through_base = inspector.names_base_member(site)
     resolved = _with_owning_class(index, declaration, include_owner=kind != ITERATED)
+    declared_kind = CONSTRUCT if kind == CALL and _constructs(inspector, declaration, site, construction_site) else kind
     targets: list[Node] = []
-    for node in resolved:
-        targets.append(node)
+    kinds: list[str] = []
+    for position, node in enumerate(resolved):
+        found = [(node, declared_kind if position == 0 or declared_kind == CONSTRUCT else OWNER)]
         dispatched = node.type in DISPATCHED_KINDS and not through_base
         if kind == ITERATED:
-            targets.extend(members_named(call_graph, node, "GetEnumerator"))
+            found.extend((member, ITERATED) for member in members_named(call_graph, node, "GetEnumerator"))
         else:
             if adapter.expands_virtual_dispatch and dispatched:
-                targets.extend(override_nodes(index, node))
+                found.extend((override, OVERRIDE) for override in override_nodes(index, node))
             if kind == COLLECTION_INITIALIZER:
-                targets.extend(members_named(call_graph, node, "Add"))
+                found.extend((member, COLLECTION_INITIALIZER) for member in members_named(call_graph, node, "Add"))
         # Independent of *kind*: the engine decides this per site too, so a construction
         # that is also a collection initializer or a loop subject keeps its constructors.
         if constructing and node.is_class():
-            targets.extend(members_named(call_graph, node, node.fully_qualified_name.split(".")[-1].split("<")[0]))
+            constructors = members_named(call_graph, node, node.fully_qualified_name.split(".")[-1].split("<")[0])
+            found.extend((constructor, CONSTRUCT) for constructor in constructors)
+        targets.extend(target for target, _ in found)
+        kinds.extend(target_kind for _, target_kind in found)
     implementations = [
         (node.file_path, node.line_start - 1, node.col_start)
         for node in resolved
         if node.type in DISPATCHED_KINDS and not through_base
     ]
-    return CallTargets(targets, implementations)
+    return CallTargets(targets, implementations, kinds)
+
+
+def _constructs(inspector: SourceInspector, declaration: Node, site: CallSite, construction_site: bool) -> bool:
+    """Whether a call resolved to *declaration* constructs: a constructor, or a class the site builds or names."""
+    if declaration.type == NodeType.CONSTRUCTOR:
+        return True
+    if not declaration.is_class():
+        return False
+    if construction_site:
+        return True
+    callee = inspector.identifier_at(Path(site.file), site.lsp_line, site.lsp_column)
+    name = getattr(declaration, "symbol_name", "") or simple_name(declaration.fully_qualified_name)
+    return callee is not None and callee == name.split("<")[0]

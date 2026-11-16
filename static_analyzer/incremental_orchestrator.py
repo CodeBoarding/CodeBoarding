@@ -27,7 +27,7 @@ from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.utils import definition_location
-from static_analyzer.graph_definitions import GraphIndex, implemented_by, potential_calls, targets_for
+from static_analyzer.graph_definitions import DESTRUCTION, GraphIndex, implemented_by, potential_calls, targets_for
 from static_analyzer.internal_references import parent_qualified_name, simple_name
 
 logger = logging.getLogger(__name__)
@@ -191,7 +191,7 @@ def _restore_inbound_edges_via_definitions(
                     Path(call_site.file), call_site.lsp_line, call_site.lsp_column
                 )
             ):
-                by_request.setdefault("type_definition", []).append((edge, site, call_site, "destruction"))
+                by_request.setdefault("type_definition", []).append((edge, site, call_site, DESTRUCTION))
 
     confirmed: dict[tuple[str, str], list[dict[str, str | int]]] = {}
     unproven: dict[tuple[str, int, int], list[tuple[tuple[str, str], dict[str, str | int]]]] = {}
@@ -215,7 +215,7 @@ def _restore_inbound_edges_via_definitions(
                 location = definition_location(definition)
                 if location is None:
                     continue
-                if kind == "destruction":
+                if kind == DESTRUCTION:
                     owner = index.declaration_at(source_inspector, str(location[0]), location[1], location[2])
                     destination = call_graph.nodes[edge[1]]
                     owner_name = destination.owner_qualified_name or parent_qualified_name(edge[1])

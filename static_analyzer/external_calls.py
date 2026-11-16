@@ -20,12 +20,12 @@ import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 
-from static_analyzer.cfg import CallGraph
+from static_analyzer.cfg import CallGraph, CallSiteLocation
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.models import CallSite, ExternalCallSite
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.graph_definitions import (
-    CALL,
+    IMPLEMENTATION,
     OVERRIDE,
     RECEIVER,
     CallTargets,
@@ -80,15 +80,17 @@ def link_external_call_sites(
             unresolved.append(site)
             continue
         reached.add(written)
-        implementations = [] if adapter.expands_virtual_dispatch else _implementations(index, targets)
-        edges.extend(_add_edges(call_graph, caller, targets.nodes + implementations, site.call_site))
+        reached_nodes = list(zip(targets.nodes, targets.kinds))
+        if not adapter.expands_virtual_dispatch:
+            reached_nodes.extend((node, IMPLEMENTATION) for node in _implementations(index, targets))
+        edges.extend(_add_edges(call_graph, caller, reached_nodes, site.call_site))
 
     for qualified_name, calls in dispatched.items():
         dispatched_from = call_graph.nodes.get(qualified_name)
         overrides = override_nodes(index, dispatched_from) if dispatched_from is not None else []
         elsewhere = [node for node in overrides if node.file_path not in analysed_files]
         for caller, call_site in calls if elsewhere else []:
-            edges.extend(_add_edges(call_graph, caller, elsewhere, call_site))
+            edges.extend(_add_edges(call_graph, caller, [(node, OVERRIDE) for node in elsewhere], call_site))
 
     logger.info(
         "External call sites: %d kept, %d new edges, %d point outside this graph",
@@ -150,17 +152,21 @@ def _targets(
         return targets_for(index, inspector, site.file, site.line, site.character, site.kind, adapter, site.call_site)
     receiver = index.declaration_at(inspector, site.file, site.line, site.character)
     member = index.call_graph.nodes.get(f"{receiver.fully_qualified_name}.{site.member}") if receiver else None
-    return targets_through(index, inspector, member, CALL, adapter, site.call_site) if member else CallTargets.none()
+    return (
+        targets_through(index, inspector, member, RECEIVER, adapter, site.call_site) if member else CallTargets.none()
+    )
 
 
-def _add_edges(call_graph: CallGraph, caller: Node, targets: list[Node], call_site: CallSite) -> list[tuple[str, str]]:
-    """The edges from *caller* to *targets* this call site adds, the way the engine rejects its own.
+def _add_edges(
+    call_graph: CallGraph, caller: Node, targets: list[tuple[Node, str]], call_site: CallSite
+) -> list[tuple[str, str]]:
+    """The edges from *caller* to *targets*, each with the kind the site has for it, the way the engine rejects its own.
 
     An end the graph holds no node for is a declaration an engine keeps only as an edge's end, which the edge adds.
     """
-    location = {"file": call_site.file, "line": call_site.line, "column": call_site.column}
     added: list[tuple[str, str]] = []
-    for destination in targets:
+    for destination, kind in targets:
+        location = CallSiteLocation(file=call_site.file, line=call_site.line, column=call_site.column, kinds=(kind,))
         if is_self_or_container_edge(caller.fully_qualified_name, destination.fully_qualified_name):
             continue
         if (destination.file_path, destination.line_start) == (caller.file_path, caller.line_start):

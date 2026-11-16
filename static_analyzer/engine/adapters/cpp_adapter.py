@@ -15,6 +15,7 @@ from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.exceptions import WorkspaceSetupError
+from static_analyzer.graph_definitions import CALL, DESTRUCTION
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap, LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -143,7 +144,7 @@ class CppAdapter(LanguageAdapter):
                         line, column = _position(source_range["start"])
                         caller = ctx.symbol_table.find_containing_symbol(file_path, line, column)
                         if caller is not None and self.is_callable(caller.kind):
-                            site = CallSite.from_lsp_position(str(file_path), line, column)
+                            site = CallSite.from_lsp_position(str(file_path), line, column, CALL)
                             edges.setdefault((caller.qualified_name, target.qualified_name), []).append(site)
 
             ast = self._document_ast(file_path, ctx.lsp, ctx.diagnostics)
@@ -179,7 +180,7 @@ class CppAdapter(LanguageAdapter):
                 for definition in definitions:
                     target = index.resolve(definition)
                     if target is not None and self.is_callable(target.kind):
-                        site = CallSite.from_lsp_position(str(file_path), line, column)
+                        site = CallSite.from_lsp_position(str(file_path), line, column, CALL)
                         edges.setdefault((caller.qualified_name, target.qualified_name), []).append(site)
 
             constructions = [
@@ -204,7 +205,7 @@ class CppAdapter(LanguageAdapter):
                     if owner is None:
                         continue
                     for destructor in destructors.get(owner.qualified_name, []):
-                        site = CallSite.from_lsp_position(str(file_path), line, column)
+                        site = CallSite.from_lsp_position(str(file_path), line, column, DESTRUCTION)
                         edges.setdefault((caller.qualified_name, destructor.qualified_name), []).append(site)
 
         # Navigation candidates for dependent calls are not proven instantiations.
@@ -234,7 +235,7 @@ class CppAdapter(LanguageAdapter):
                     LSPDiagnostic(code="cpp-template-analysis-incomplete", message=message, severity=2)
                 )
         for edge, sites in edges.items():
-            edges[edge] = list({(site.file, site.line, site.column): site for site in sites}.values())
+            edges[edge] = list({(site.file, site.line, site.column, site.kind): site for site in sites}.values())
 
     def prepare_project(self, project_root: Path) -> None:
         """Prefer explicit compiler context without requiring a project build."""

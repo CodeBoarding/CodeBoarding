@@ -20,6 +20,7 @@ from static_analyzer.engine.result_converter import convert_to_codeboarding_form
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.exceptions import StaticAnalysisFatalError
+from static_analyzer.graph_definitions import CALL, DESTRUCTION
 from static_analyzer.incremental_orchestrator import _declarations, update_cfg_for_changed_files
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 from static_analyzer.programming_language import ProgrammingLanguageBuilder
@@ -260,7 +261,7 @@ def test_template_dependencies_follow_each_instantiation(tmp_path: Path, databas
     ctx = EdgeBuildContext(MagicMock(spec=LSPClient), table, SourceInspector())
     complete_template_dependencies(ctx, [header, source], root, {(str(source), 1, column)}, edges)
     assert set(edges) == {("main.cpp.forward", "api.hpp.left"), ("main.cpp.forward", "api.hpp.right")}
-    assert all(sites == [CallSite.from_lsp_position(str(source), 1, column)] for sites in edges.values())
+    assert all(sites == [CallSite.from_lsp_position(str(source), 1, column, CALL)] for sites in edges.values())
 
 
 @pytest.mark.parametrize("context", ["missing", "clangd", "bad-header"])
@@ -488,4 +489,4 @@ def test_cpp_incremental_header_edit_revalidates_implicit_destruction(tmp_path: 
         {("run", "~Guard")} if resolved_type == "Guard" else set()
     )
     if resolved_type == "Guard":
-        assert edges[0].call_sites == [{"file": str(source), "line": 2, "column": 20}]
+        assert edges[0].call_sites == [{"file": str(source), "line": 2, "column": 20, "kinds": (DESTRUCTION,)}]

@@ -42,15 +42,20 @@ class SymbolInfo:
 
 @dataclass
 class CallSite:
-    """A physical source location where an edge is invoked."""
+    """A physical source location where an edge is invoked.
+
+    ``kind`` is what the site is for the edge it is recorded on (a ``graph_definitions`` kind);
+    empty on a position read from source before any edge is decided.
+    """
 
     file: str
     line: int
     column: int
+    kind: str = ""
 
     @classmethod
-    def from_lsp_position(cls, file: str, line: int, column: int) -> "CallSite":
-        return cls(file=file, line=line + 1, column=column + 1)
+    def from_lsp_position(cls, file: str, line: int, column: int, kind: str = "") -> "CallSite":
+        return cls(file=file, line=line + 1, column=column + 1, kind=kind)
 
     @property
     def human_line(self) -> int:

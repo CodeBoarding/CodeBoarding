@@ -11,9 +11,9 @@ from pathlib import Path
 from infra.repo_utils.ignore import RepoIgnoreManager
 from static_analyzer.config import CLASS_TYPES, GRAPH_NODE_TYPES, NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.models import ExternalCallSite, LanguageAnalysisResult, SymbolInfo
+from static_analyzer.engine.models import CallSite, ExternalCallSite, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.symbol_table import SymbolTable
-from static_analyzer.cfg import CallGraph, EdgeKind, ReferenceEdge
+from static_analyzer.cfg import CallGraph, CallSiteLocation, EdgeKind, ReferenceEdge
 from static_analyzer.node import Node
 
 logger = logging.getLogger(__name__)
@@ -83,9 +83,7 @@ def convert_to_codeboarding_format(
                     call_graph.add_edge(
                         src,
                         dst,
-                        call_sites=[
-                            {"file": site.file, "line": site.line, "column": site.column} for site in edge.call_sites
-                        ],
+                        call_sites=[_call_site_location(site) for site in edge.call_sites],
                     )
                 else:
                     logger.warning(
@@ -167,6 +165,14 @@ def convert_to_codeboarding_format(
         "external_call_sites": external_call_sites,
         "external_callers": list(external_callers.values()),
     }
+
+
+def _call_site_location(site: CallSite) -> CallSiteLocation:
+    """The stored form of an engine call site; a site no edge decided keeps no ``kinds``."""
+    location = CallSiteLocation(file=site.file, line=site.line, column=site.column)
+    if site.kind:
+        location["kinds"] = (site.kind,)
+    return location
 
 
 def _node(sym: SymbolInfo) -> Node:
