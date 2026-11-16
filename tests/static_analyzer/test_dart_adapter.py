@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-from infra import install
 from static_analyzer.config import Language
 from static_analyzer.engine.adapters.dart_adapter import DartAdapter
 from static_analyzer.engine.models import CallSite
@@ -43,20 +42,13 @@ def test_managed_sdk_without_system_sdk(tmp_path: Path, managed_dart: Path, syst
 def test_setup_requires_managed_sdk(tmp_path: Path, managed_dart: Path):
     dart = next(dep for dep in TOOL_REGISTRY if dep.key == Language.DART)
     servers = tmp_path / "servers"
-    with (
-        patch("shutil.which", return_value="/unrelated/sdk/dart"),
-        patch("infra.install.TOOL_REGISTRY", [dart]),
-    ):
+    with patch("shutil.which", return_value="/unrelated/sdk/dart"):
         assert not has_required_tools(servers, [dart])
         assert dart.source is not None
         (servers / "bin/flutter" / ARCHIVE_VERSION_STAMP).write_text(archive_stamp(dart.source))
         assert has_required_tools(servers, [dart])
         managed_dart.unlink()
         assert not has_required_tools(servers, [dart])
-        check = install._language_checks_from_registry(servers)[0]
-        available, reason = check.evaluate(npm_available=False)
-        assert not available
-        assert reason
         assert resolve_config_from_path()["lsp_servers"][Language.DART]["command"] != [
             "/unrelated/sdk/dart",
             "language-server",
@@ -98,15 +90,26 @@ def test_flutter_project_requires_complete_sdk(tmp_path: Path, managed_dart: Pat
         DartAdapter().prepare_project(tmp_path)
 
 
-def test_restore_failure_keeps_cause(tmp_path: Path, managed_dart: Path):
-    (tmp_path / "pubspec.yaml").write_text("name: broken\n")
-    error = subprocess.CalledProcessError(1, ["dart", "pub", "get"])
-    with (
-        patch("static_analyzer.engine.adapters.dart_adapter.subprocess.run", side_effect=error),
-        pytest.raises(RuntimeError, match="Dependency resolution failed") as raised,
-    ):
+def test_restore_failure_warns_and_restores_other_packages(
+    tmp_path: Path, managed_dart: Path, caplog: pytest.LogCaptureFixture
+):
+    for package in ("broken", "healthy"):
+        (tmp_path / package).mkdir()
+        (tmp_path / package / "pubspec.yaml").write_text(f"name: {package}\n")
+    error = subprocess.CalledProcessError(1, ["dart", "pub", "get"], stderr="Could not find package private_dep")
+    restored: list[Path] = []
+
+    def run(command: list[str], cwd: Path, **kwargs: object) -> None:
+        if cwd.name == "broken":
+            raise error
+        restored.append(cwd)
+
+    with patch("static_analyzer.engine.adapters.dart_adapter.subprocess.run", side_effect=run):
         DartAdapter().prepare_project(tmp_path)
-    assert raised.value.__cause__ is error
+    assert restored == [tmp_path / "healthy"]
+    [record] = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert "broken" in record.getMessage() and "private_dep" in record.getMessage()
+    assert record.exc_info and record.exc_info[1] is error
 
 
 @pytest.mark.parametrize(

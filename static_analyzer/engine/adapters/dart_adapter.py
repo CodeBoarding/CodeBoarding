@@ -1,5 +1,6 @@
 """Dart and Flutter analysis using the SDK's language server."""
 
+import logging
 import subprocess
 from pathlib import Path
 
@@ -17,6 +18,10 @@ from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.engine.models import SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
+
+logger = logging.getLogger(__name__)
+
+_INSTALL_HINT = "Analysing a Dart repository installs it, or run 'codeboarding-setup --language dart'."
 
 
 class DartAdapter(LanguageAdapter):
@@ -40,9 +45,8 @@ class DartAdapter(LanguageAdapter):
         dependency = next(dep for dep in TOOL_REGISTRY if dep.key == Language.DART)
         configured = Path(VSCODE_CONFIG["lsp_servers"][Language.DART]["command"][0])
         binary = configured if configured.is_absolute() else archive_launcher_path(get_servers_dir(), dependency)
-        assert binary is not None
-        if not native_binary_ok(binary):
-            raise RuntimeError("Managed Dart SDK not found. Run codeboarding-setup.")
+        if binary is None or not native_binary_ok(binary):
+            raise RuntimeError(f"Managed Dart SDK not found. {_INSTALL_HINT}")
         return [str(binary), "language-server"]
 
     def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
@@ -85,7 +89,7 @@ class DartAdapter(LanguageAdapter):
             if uses_flutter:
                 snapshot = Path(binary).parents[2] / "flutter_tools.snapshot"
                 if not snapshot.is_file():
-                    raise RuntimeError("Managed Flutter SDK is incomplete. Run codeboarding-setup.")
+                    raise RuntimeError(f"Managed Flutter SDK is incomplete. {_INSTALL_HINT}")
                 command.extend([str(snapshot), "--suppress-analytics"])
             command.extend(["pub", "get"])
             try:
@@ -99,6 +103,16 @@ class DartAdapter(LanguageAdapter):
                     timeout=300,
                 )
             except (OSError, subprocess.SubprocessError) as error:
-                raise RuntimeError(
-                    f"Dependency resolution failed for {manifest}; run '{' '.join(command)}'."
-                ) from error
+                # Why: one package with a private or git dependency should not cost the rest of the repository its
+                # analysis; the server still resolves everything else, and imports of unresolved packages lose edges.
+                output = getattr(error, "stderr", None) or getattr(error, "stdout", None) or ""
+                if isinstance(output, bytes):  # TimeoutExpired keeps bytes even in text mode.
+                    output = output.decode("utf-8", "replace")
+                logger.warning(
+                    "Dart dependency resolution failed for %s; analysing it without its unresolved packages. "
+                    "Run '%s' there to see why.\n%s",
+                    manifest,
+                    " ".join(command),
+                    output.strip()[-2000:],
+                    exc_info=True,
+                )

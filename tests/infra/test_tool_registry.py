@@ -942,6 +942,16 @@ class TestManifest(unittest.TestCase):
     @patch("infra.tool_registry.manifest.has_required_tools", return_value=True)
     @patch("infra.tool_registry.manifest.read_manifest")
     @patch("infra.tool_registry.manifest.installed_version", return_value="1.0.0")
+    def test_default_install_leaves_out_on_demand_dart(self, mock_version, mock_manifest, mock_tools):
+        """Why: the Flutter SDK is about 1 GB, so only a repository with Dart may download it."""
+        recorded = {key: value for key, value in _all_recorded().items() if key != "dart"}
+        mock_manifest.return_value = {"version": "1.0.0", "tools": recorded}
+        self.assertFalse(needs_install())
+        self.assertTrue(needs_install(["dart"]))
+
+    @patch("infra.tool_registry.manifest.has_required_tools", return_value=True)
+    @patch("infra.tool_registry.manifest.read_manifest")
+    @patch("infra.tool_registry.manifest.installed_version", return_value="1.0.0")
     def test_needs_install_asks_only_for_the_languages_given(self, mock_version, mock_manifest, mock_tools):
         recorded = _all_recorded()
         mock_manifest.return_value = {"version": "1.0.0", "tools": {"tokei": recorded["tokei"]}}
@@ -962,7 +972,7 @@ class TestManifest(unittest.TestCase):
     def test_required_tools_are_the_languages_servers_and_tokei(self):
         self.assertEqual([d.key for d in required_tools(())], ["tokei"])
         self.assertEqual({d.key for d in required_tools(["python", "kotlin"])}, {"tokei", "python", "kotlin"})
-        self.assertEqual(required_tools(), TOOL_REGISTRY)
+        self.assertEqual(required_tools(), [d for d in TOOL_REGISTRY if not d.on_demand])
         self.assertEqual({d.key for d in required_tools(["markdown"])}, {"tokei"})
 
     def test_registry_native_tools_have_source(self):

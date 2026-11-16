@@ -24,6 +24,10 @@ class TestParseArgs(unittest.TestCase):
             args = install.parse_args()
         self.assertTrue(args.auto_install_npm)
 
+    def test_parse_args_adds_on_demand_language(self):
+        with patch.object(sys, "argv", ["install.py", "--language", "dart"]):
+            self.assertEqual(install.parse_args().language, ["dart"])
+
 
 class TestResolveMissingNpm(unittest.TestCase):
     @patch("infra.install.bootstrap_npm", return_value=True)
@@ -349,7 +353,7 @@ class TestMainCliLock(unittest.TestCase):
         mock_text_io_wrapper,
     ):
         # parse_args returns the defaults ``main()`` would build from sys.argv.
-        mock_parse_args.return_value = Mock(auto_install_npm=False, auto_install_vcpp=False)
+        mock_parse_args.return_value = Mock(auto_install_npm=False, auto_install_vcpp=False, language=[])
 
         # main() reassigns sys.stdout/sys.stderr to io.TextIOWrapper as a
         # Windows cp1252 workaround.  Under pytest capture, that rewrap

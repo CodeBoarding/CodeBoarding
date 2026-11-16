@@ -174,6 +174,10 @@ class ToolDependency:
     license_url: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+    # Installed only for a repository that uses the language, never by the default all-languages setup.
+    on_demand: bool = False
+    # False when a binary on PATH must not stand in for the managed install.
+    path_lookup: bool = True
 
     def is_available_on_host(self) -> bool:
         """True unless this is an arch-aware dep whose override map excludes the running
@@ -265,6 +269,9 @@ TOOL_REGISTRY: list[ToolDependency] = [
         ),
         archive_subdir="flutter",
         archive_entry="bin/cache/dart-sdk/bin/dart",
+        # Why: the Flutter SDK is 0.7 to 1.4 GB, and Dart and Flutter must come from the same SDK.
+        on_demand=True,
+        path_lookup=False,
     ),
     ToolDependency(
         key="tokei",
@@ -396,3 +403,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
 ]
 
 ALL_LANGUAGE_KEYS = frozenset(dep.key for dep in TOOL_REGISTRY if dep.config_section is ConfigSection.LSP_SERVERS)
+# What setup installs when no languages are named: on-demand servers wait for a repository that needs them.
+DEFAULT_LANGUAGE_KEYS = frozenset(
+    dep.key for dep in TOOL_REGISTRY if dep.config_section is ConfigSection.LSP_SERVERS and not dep.on_demand
+)

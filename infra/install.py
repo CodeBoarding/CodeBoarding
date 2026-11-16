@@ -15,6 +15,7 @@ from pathlib import Path
 import requests
 from infra.tool_registry import (
     ALL_LANGUAGE_KEYS,
+    DEFAULT_LANGUAGE_KEYS,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
     ProgressCallback,
@@ -298,6 +299,13 @@ def parse_args() -> argparse.Namespace:
         "--auto-install-vcpp",
         action="store_true",
         help="Automatically install Visual C++ Redistributable when binaries need it (Windows only)",
+    )
+    parser.add_argument(
+        "--language",
+        action="append",
+        default=[],
+        choices=sorted(ALL_LANGUAGE_KEYS - DEFAULT_LANGUAGE_KEYS),
+        help="Also install a language that is otherwise installed only when an analysed repository uses it",
     )
     return parser.parse_args()
 
@@ -635,11 +643,12 @@ def ensure_tools(
     auto_install_npm: bool = False,
     auto_install_vcpp: bool = False,
     on_progress: ProgressCallback | None = None,
-    languages: Collection[str] = ALL_LANGUAGE_KEYS,
+    languages: Collection[str] = DEFAULT_LANGUAGE_KEYS,
 ) -> None:
     """Install tools to ~/.codeboarding/servers/ if needed. No-op if already current.
 
-    *languages* are ``lsp_servers`` keys. Defaults to all languages; an empty collection installs only base tools.
+    *languages* are ``lsp_servers`` keys. Defaults to all but on-demand languages; an empty collection installs only
+    base tools.
 
     Uses a file lock so that concurrent instances (multiple VSCode windows)
     don't corrupt binaries by downloading simultaneously.
@@ -760,7 +769,7 @@ def run_install(
     if any(d.key == "kotlin" for d in selected):
         download_grammars(target)
     install_pre_commit_hooks()
-    if {dep.key for dep in TOOL_REGISTRY} <= {dep.key for dep in selected}:
+    if {dep.key for dep in TOOL_REGISTRY if not dep.on_demand} <= {dep.key for dep in selected}:
         print_language_support_summary(npm_available, target)
 
 
@@ -783,7 +792,7 @@ def main() -> None:
     lock_path = servers_dir / ".download.lock"
     with open(lock_path, "w") as lock_fd:
         acquire_lock(lock_fd)
-        deps = required_tools()
+        deps = required_tools(DEFAULT_LANGUAGE_KEYS | set(args.language))
         run_install(auto_install_npm=args.auto_install_npm, auto_install_vcpp=args.auto_install_vcpp, deps=deps)
         write_manifest(deps)
 
@@ -817,7 +826,7 @@ def _language_checks_from_registry(target_dir: Path) -> list[LanguageSupportChec
     lsp_servers = VSCODE_CONFIG.get("lsp_servers", {})
 
     for dep in TOOL_REGISTRY:
-        if dep.config_section != ConfigSection.LSP_SERVERS:
+        if dep.config_section != ConfigSection.LSP_SERVERS or dep.on_demand:
             continue
         config_entry = lsp_servers.get(dep.key)
         if config_entry is None:

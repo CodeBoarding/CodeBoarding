@@ -18,7 +18,6 @@ if sys.platform == "win32":
 else:
     import fcntl
 
-from infra.constants import DART_LANGUAGE_KEY
 from infra.vscode_constants import VSCODE_CONFIG, find_runnable
 
 from .installers import (
@@ -31,7 +30,7 @@ from .installers import (
 )
 from .paths import exe_suffix, get_servers_dir, native_binary_ok, platform_bin_dir, preferred_node_path
 from .registry import (
-    ALL_LANGUAGE_KEYS,
+    DEFAULT_LANGUAGE_KEYS,
     BASE_TOOL_KEYS,
     PINNED_NODE_VERSION,
     TOOL_REGISTRY,
@@ -84,8 +83,8 @@ def tool_fingerprint(dep: ToolDependency) -> str:
     return ",".join(parts)
 
 
-def required_tools(languages: Collection[str] = ALL_LANGUAGE_KEYS) -> list[ToolDependency]:
-    """Select base tools and the requested servers; defaults to all languages, an empty collection to base tools.
+def required_tools(languages: Collection[str] = DEFAULT_LANGUAGE_KEYS) -> list[ToolDependency]:
+    """Select base tools and the requested servers; defaults to all but on-demand languages, ``()`` to base tools.
 
     kotlin-lsp comes at its current pin, which reads main's pin file, so only a selection with Kotlin reads it.
     """
@@ -114,8 +113,8 @@ def write_manifest(deps: Collection[ToolDependency] = TOOL_REGISTRY) -> None:
     os.replace(tmp, target)
 
 
-def needs_install(languages: Collection[str] = ALL_LANGUAGE_KEYS) -> bool:
-    """Check the selected languages' tools for missing or stale installs; defaults to all languages."""
+def needs_install(languages: Collection[str] = DEFAULT_LANGUAGE_KEYS) -> bool:
+    """Check the selected languages' tools for missing or stale installs; defaults to all but on-demand languages."""
     deps = required_tools(languages)
     manifest = read_manifest()
     if manifest.get("version") != installed_version():
@@ -257,8 +256,8 @@ def resolve_config_from_path() -> dict[str, Any]:
     config = deepcopy(VSCODE_CONFIG)
 
     for dep in TOOL_REGISTRY:
-        if dep.key == DART_LANGUAGE_KEY:
-            continue  # Dart and Flutter must come from the same managed SDK.
+        if not dep.path_lookup:
+            continue
         path = None
         if dep.kind in (ToolKind.NATIVE, ToolKind.NODE, ToolKind.PACKAGE_MANAGER) or (
             dep.kind is ToolKind.ARCHIVE and dep.archive_entry
