@@ -6,6 +6,7 @@ import logging
 import math
 import time
 from collections.abc import Collection
+from dataclasses import replace
 from pathlib import Path
 
 from static_analyzer.engine.edge_build_context import EdgeBuildContext
@@ -18,6 +19,7 @@ from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
 from static_analyzer.engine.models import CallFlowGraph, LanguageAnalysisResult, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.graph_definitions import CONSTRUCT
 from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 
 logger = logging.getLogger(__name__)
@@ -368,8 +370,9 @@ class CallGraphBuilder:
                 ctor_key = (src, ctor_name)
                 sites = constructor_edges.setdefault(ctor_key, list(edge_set.get(ctor_key, [])))
                 for site in construction_sites:
-                    if site not in sites:
-                        sites.append(site)
+                    constructed = replace(site, kind=CONSTRUCT)
+                    if constructed not in sites:
+                        sites.append(constructed)
         for edge, sites in constructor_edges.items():
             edge_set[edge] = sites
 

@@ -8,7 +8,7 @@ polymorphic calls a base declaration stands in for.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import chain
 from pathlib import Path
 
@@ -29,12 +29,15 @@ from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location
 from static_analyzer.graph_definitions import (
     CALL,
+    COLLECTION_INITIALIZER,
+    CONSTRUCT,
     IMPLEMENTATION,
     ITERATED,
     MEMBER_READ,
     MEMBER_WRITE,
     METHOD_GROUP,
     OVERRIDE,
+    OWNER,
     RECEIVER,
     RUNTIME_REFERENCE,
     potential_calls,
@@ -95,7 +98,7 @@ class CallEdgeSink:
 
     The target itself, the overrides a base-typed call dispatches to, the ``Add`` a collection
     initializer runs, the class a method belongs to, and the implementation query that finishes
-    a polymorphic call.
+    a polymorphic call. Each edge's site is tagged with why it was added.
     """
 
     def __init__(
@@ -113,10 +116,11 @@ class CallEdgeSink:
         caller: SymbolInfo,
         target: SymbolInfo,
         call_site: CallSite,
+        kind: str,
         collection: bool = False,
         reference_only: bool = False,
     ) -> None:
-        """Record the call from *caller* to *target*, unless the pair is not an edge at all."""
+        """Record the call from *caller* to *target*, found at a site of *kind*, unless the pair is not an edge at all."""
         if not _is_valid_edge(self._adapter, caller, target):
             return
         # Guards keep the innermost caller; only the credit line rolls up.
@@ -124,15 +128,18 @@ class CallEdgeSink:
         if not _is_valid_edge(self._adapter, attributed, target):
             return
 
-        _add_edge_call_site(self.edges, attributed.qualified_name, target.qualified_name, call_site)
+        kind = CONSTRUCT if kind == CALL and self._constructs(target, call_site) else kind
+        _add_edge_call_site(self.edges, attributed.qualified_name, target.qualified_name, call_site, kind)
 
         # A constructor, or a member named on the base, runs exactly the declaration resolved.
         dispatched = (
             not reference_only and target.kind in DISPATCHED_KINDS and not self._inspector.names_base_member(call_site)
         )
-        extra = _override_targets(target, self._st, self._dispatch) if dispatched else []
+        extra = (
+            [(other, OVERRIDE) for other in _override_targets(target, self._st, self._dispatch)] if dispatched else []
+        )
         if collection:
-            extra.extend(_members_named(target, self._st, "Add"))
+            extra.extend((member, COLLECTION_INITIALIZER) for member in _members_named(target, self._st, "Add"))
         if (self._adapter.is_callable(target.kind) or target.kind == NodeType.ENUM_MEMBER) and target.parent_chain:
             _, parent_kind = target.parent_chain[-1]
             if self._adapter.is_class_like(parent_kind):
@@ -142,10 +149,11 @@ class CallEdgeSink:
                     else parent_qualified_name(target.qualified_name)
                 )
                 if parent is not None:
-                    extra.append(parent)
-        for other in extra:
+                    # A constructor's class is constructed; any other member's class is only its owner.
+                    extra.append((parent, CONSTRUCT if kind == CONSTRUCT else OWNER))
+        for other, other_kind in extra:
             if _is_valid_edge(self._adapter, caller, other) and _is_valid_edge(self._adapter, attributed, other):
-                _add_edge_call_site(self.edges, attributed.qualified_name, other.qualified_name, call_site)
+                _add_edge_call_site(self.edges, attributed.qualified_name, other.qualified_name, call_site, other_kind)
 
         if dispatched:
             self.impl_queries.append(
@@ -158,6 +166,17 @@ class CallEdgeSink:
                     call_site=call_site,
                 )
             )
+
+    def _constructs(self, target: SymbolInfo, call_site: CallSite) -> bool:
+        """Whether a call resolved to *target* constructs: a constructor, or a class the site builds or names."""
+        if target.kind == NodeType.CONSTRUCTOR or self._adapter.constructed_class(target):
+            return True
+        if not self._adapter.is_class_like(target.kind):
+            return False
+        if self._inspector.is_construction_site(call_site):
+            return True
+        callee = self._inspector.identifier_at(Path(call_site.file), call_site.lsp_line, call_site.lsp_column)
+        return callee is not None and self._adapter.constructs(target, callee)
 
 
 class SymbolIndex:
@@ -287,12 +306,14 @@ def _resolve_iterated_types(
                 resolved += 1
                 if not _is_valid_edge(adapter, attributed, target):
                     continue
-                _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, site)
+                _add_edge_call_site(edge_set, attributed.qualified_name, target.qualified_name, site, ITERATED)
                 # The loop calls the enumerator, so name it too when the
                 # type declares one rather than inheriting it.
                 for enumerator in _members_named(target, st, "GetEnumerator"):
                     if _is_valid_edge(adapter, caller, enumerator) and _is_valid_edge(adapter, attributed, enumerator):
-                        _add_edge_call_site(edge_set, attributed.qualified_name, enumerator.qualified_name, site)
+                        _add_edge_call_site(
+                            edge_set, attributed.qualified_name, enumerator.qualified_name, site, ITERATED
+                        )
     return resolved
 
 
@@ -376,6 +397,7 @@ def _resolve_definitions(
                     caller,
                     target,
                     call_site,
+                    kind,
                     collection=position in potential.collection,
                     reference_only=kind == RUNTIME_REFERENCE,
                 )
@@ -436,7 +458,7 @@ def _resolve_through_receivers(
             if target is None:
                 continue
             resolved += 1
-            sink.add(caller, target, call_site)
+            sink.add(caller, target, call_site, RECEIVER)
     return resolved
 
 
@@ -517,7 +539,7 @@ def _resolve_implementations(
                 for caller_qname, call_site in callers:
                     caller_sym = st.symbols.get(caller_qname)
                     if caller_sym and _is_valid_edge(adapter, caller_sym, impl_sym):
-                        _add_edge_call_site(edge_set, caller_qname, impl_sym.qualified_name, call_site)
+                        _add_edge_call_site(edge_set, caller_qname, impl_sym.qualified_name, call_site, IMPLEMENTATION)
 
         pbar.set_postfix(edges=len(edge_set), resolved=total_impl_resolved)
         pbar.update(len(batch))
@@ -562,10 +584,12 @@ def _record_external_call_site(
     )
 
 
-def _add_edge_call_site(edge_set: EdgeMap, source: str, destination: str, call_site: CallSite) -> None:
+def _add_edge_call_site(edge_set: EdgeMap, source: str, destination: str, call_site: CallSite, kind: str) -> None:
+    """Record *call_site* on the edge as a site of *kind*; the same position may hold several kinds."""
+    site = replace(call_site, kind=kind)
     sites = edge_set.setdefault((source, destination), [])
-    if call_site not in sites:
-        sites.append(call_site)
+    if site not in sites:
+        sites.append(site)
 
 
 def _build_dispatch_index(

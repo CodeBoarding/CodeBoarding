@@ -13,11 +13,13 @@ from static_analyzer.external_calls import (
     record_package_imports,
 )
 from static_analyzer.graph_definitions import (
+    CALL,
     COLLECTION_INITIALIZER,
     IMPLEMENTATION,
     ITERATED,
     METHOD_GROUP,
     OVERRIDE,
+    OWNER,
     RECEIVER,
     GraphIndex,
     potential_calls,
@@ -85,8 +87,10 @@ def test_a_definition_in_another_engines_file_becomes_an_edge_with_its_call_site
     edges = {(e.get_source(), e.get_destination()): e for e in graph.edges}
     edge = edges[(CALLER, "Framework.Builder.UseAuditing(App app)")]
     assert [(s["file"], s["line"], s["column"]) for s in edge.call_sites] == [(HOST, 12, 9)]
-    assert (CALLER, "Framework.Builder") in edges
-    assert (CALLER, "Framework.Loud.UseAuditing(App app)") in edges
+    # Tagged as the engine tags its own: the call, the class it belongs to, the override it dispatches to.
+    assert [s["kinds"] for s in edge.call_sites] == [(CALL,)]
+    assert [s["kinds"] for s in edges[(CALLER, "Framework.Builder")].call_sites] == [(OWNER,)]
+    assert [s["kinds"] for s in edges[(CALLER, "Framework.Loud.UseAuditing(App app)")].call_sites] == [(OVERRIDE,)]
 
 
 def test_exact_position_beats_a_neighbouring_line():

@@ -25,6 +25,7 @@ from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.edge_builder import EdgeMap, SymbolIndex
 from static_analyzer.engine.models import CallSite
 from static_analyzer.exceptions import WorkspaceSetupError
+from static_analyzer.graph_definitions import CALL
 from static_analyzer.lsp_client.diagnostics import LSPDiagnostic
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,7 @@ def complete_template_dependencies(
             )
             if target is not None:
                 edges.setdefault((caller.qualified_name, target.qualified_name), []).append(
-                    CallSite.from_lsp_position(path, line, column)
+                    CallSite.from_lsp_position(path, line, column, CALL)
                 )
 
 

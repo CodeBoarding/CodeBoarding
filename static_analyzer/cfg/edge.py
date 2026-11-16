@@ -15,7 +15,7 @@ class EdgeKind(StrEnum):
 
     A method belongs to its class (CONTAINS), a class extends another (INHERITS),
     code names a type (TYPEREF), a module imports another (IMPORT). Call edges are
-    not listed: they live in ``CallGraph.edges`` and carry no kind tag.
+    not listed: they live in ``CallGraph.edges``, and each of their call sites names its own ``kinds``.
     """
 
     CONTAINS = "contains"
@@ -42,11 +42,16 @@ class ReferenceEdge:
 
 
 class CallSiteLocation(TypedDict):
-    """A one-based source location where a call occurs."""
+    """A one-based source location where a call occurs.
+
+    ``kinds`` names what the engine decided the site is for this edge (a call, a runtime type
+    test, the owning class of a called member, ...); absent when it is unknown, as in an older cache.
+    """
 
     line: int
     file: NotRequired[str]
     column: NotRequired[int]
+    kinds: NotRequired[tuple[str, ...]]
 
 
 class Edge:
@@ -72,17 +77,24 @@ class Edge:
         return f"Edge({self.src_node.fully_qualified_name} -> {self.dst_node.fully_qualified_name})"
 
     def add_call_site(self, call_site: Mapping[str, Hashable]) -> None:
+        """Keep one entry per location; a second kind for a held location joins its ``kinds``."""
         call_site = self._normalize_call_site(call_site)
-        call_site_key = tuple(sorted(call_site.items()))
+        call_site_key = _location_key(call_site)
         if call_site_key not in self._call_site_keys:
             self._call_site_keys.add(call_site_key)
             self._call_sites.append(call_site)
+            return
+        kinds = call_site.get("kinds", ())
+        if not kinds:
+            return
+        held = next(site for site in self._call_sites if _location_key(site) == call_site_key)
+        held["kinds"] = tuple(sorted({*held.get("kinds", ()), *kinds}))
 
     def visit_paths(self, fn: Callable[[str], str]) -> None:
         for site in self._call_sites:
             if "file" in site:
                 site["file"] = fn(str(site["file"]))
-        self._call_site_keys = {tuple(sorted(site.items())) for site in self._call_sites}
+        self._call_site_keys = {_location_key(site) for site in self._call_sites}
 
     @staticmethod
     def _normalize_call_site(call_site: Mapping[str, Hashable]) -> CallSiteLocation:
@@ -100,4 +112,14 @@ class Edge:
             if not isinstance(column, int):
                 raise ValueError("Call-site columns must be one-based integers")
             location["column"] = column
+        kinds = call_site.get("kinds")
+        if kinds:
+            if not isinstance(kinds, (tuple, list)) or not all(isinstance(kind, str) for kind in kinds):
+                raise ValueError("Call-site kinds must be a sequence of strings")
+            location["kinds"] = tuple(sorted(set(kinds)))
         return location
+
+
+def _location_key(site: Mapping[str, Hashable]) -> tuple[tuple[str, Hashable], ...]:
+    """Where a call site is, without what it is for; the same key an older pickle holds."""
+    return tuple(sorted((key, value) for key, value in site.items() if key != "kinds"))

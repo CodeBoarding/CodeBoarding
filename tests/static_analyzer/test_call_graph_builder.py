@@ -1,5 +1,6 @@
 """Tests for static_analyzer.engine.call_graph_builder.CallGraphBuilder."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from static_analyzer.engine.edge_build_context import EdgeBuildContext
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
+from static_analyzer.graph_definitions import CONSTRUCT
 
 
 class _TestAdapter(LanguageAdapter):
@@ -387,7 +389,7 @@ class Main {
         result = builder._postprocess_edges({("app.main", "app.Dog"): [construction]})
 
         assert ("app.main", "app.Dog") in result
-        assert result[("app.main", "app.Dog.Dog(String)")] == [construction]
+        assert result[("app.main", "app.Dog.Dog(String)")] == [replace(construction, kind=CONSTRUCT)]
 
     def test_a_member_access_site_is_not_a_construction(self, tmp_path: Path):
         """`dog.speak()` resolves to the class as well as the method, and runs no constructor."""
@@ -397,7 +399,7 @@ class Main {
 
         result = builder._postprocess_edges({("app.main", "app.Dog"): [construction, member_access]})
 
-        assert result[("app.main", "app.Dog.Dog(String)")] == [construction]
+        assert result[("app.main", "app.Dog.Dog(String)")] == [replace(construction, kind=CONSTRUCT)]
 
     def test_a_caller_that_only_touches_members_constructs_nothing(self, tmp_path: Path):
         builder, source = self._builder(tmp_path)
@@ -418,7 +420,7 @@ class Main {
             }
         )
 
-        assert result[("app.main", "app.Dog.Dog(String)")] == [direct, construction]
+        assert result[("app.main", "app.Dog.Dog(String)")] == [direct, replace(construction, kind=CONSTRUCT)]
 
     def test_a_constructor_the_server_already_named_is_not_fanned_out(self, tmp_path: Path):
         """`new Dog("Rex")` resolved to one overload must not gain the others beside it."""
