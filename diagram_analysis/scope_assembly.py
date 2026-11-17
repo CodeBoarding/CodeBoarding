@@ -205,7 +205,7 @@ class ScopeAssembler:
             ):
                 continue
             seen_pairs.add(pair)
-            key_edges = self._resolve_semantic_edges(
+            key_edges = self.resolve_semantic_edges(
                 relation_semantics.key_edges,
                 components[pair[0]],
                 components[pair[1]],
@@ -384,7 +384,7 @@ class ScopeAssembler:
         return f"Owns {len(group.qualified_names)} symbols across {len(files)} files: {shown}{suffix}."
 
     @staticmethod
-    def _resolve_semantic_edges(
+    def resolve_semantic_edges(
         edges: list[RelationEdge],
         source_component: Component,
         target_component: Component,
