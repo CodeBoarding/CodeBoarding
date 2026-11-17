@@ -99,6 +99,7 @@ class TestInstallOrchestratorCoversEveryKind(unittest.TestCase):
                 "install_node_servers": mocks[1].called,
                 "download_jdtls": mocks[2].called,
                 "install_package_manager_lsp_servers": mocks[3].called,
+                "print_language_support_summary": mocks[7].called,
             }
             for kind in kinds_in_registry:
                 fn_name = self._INSTALLER_FOR_KIND[kind]
@@ -135,7 +136,10 @@ class TestHasRequiredToolsCoversEveryKind(unittest.TestCase):
         for kind in kinds_in_registry:
             dep = next(d for d in TOOL_REGISTRY if d.kind is kind)
             with self.subTest(kind=kind, dep=dep.key):
-                with tempfile.TemporaryDirectory() as tmp:
+                with (
+                    tempfile.TemporaryDirectory() as tmp,
+                    patch("infra.tool_registry.manifest.shutil.which", return_value="/sdk/manager"),
+                ):
                     base = Path(tmp)
                     _populate_complete_servers_dir(base)
                     self.assertTrue(
@@ -289,6 +293,7 @@ class TestLspAdapterAndLanguageEnumParity(unittest.TestCase):
         "java": "Java",
         "kotlin": "Kotlin",
         "rust": "Rust",
+        Language.DART: "Dart",
         "cpp": "CPP",
     }
 

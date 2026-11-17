@@ -1,5 +1,8 @@
 """Application-level constants for CodeBoarding."""
 
+DART_LANGUAGE_KEY = "dart"
+FLUTTER_SDK_KEY = "flutter"
+
 CODEBOARDING_DIR_NAME = ".codeboarding"
 ANALYSIS_FILENAME = "analysis.json"
 FINGERPRINT_FILENAME = "fingerprint.json"

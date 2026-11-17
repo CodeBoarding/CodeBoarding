@@ -58,6 +58,7 @@ dependencies = [
     "tree-sitter-c-sharp==0.23.5",
     "tree-sitter-cpp==0.23.4",
     "tree-sitter-cuda==0.21.2",
+    "tree-sitter-dart==0.1.0",
     "tree-sitter-go==0.25.0",
     "tree-sitter-java==0.23.5",
     "tree-sitter-javascript==0.25.0",

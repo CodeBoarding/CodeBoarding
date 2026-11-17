@@ -6,6 +6,8 @@ the static analyzer to avoid hardcoded strings and ensure consistency.
 
 from enum import IntEnum, StrEnum
 
+from infra.constants import DART_LANGUAGE_KEY
+
 
 class Language(StrEnum):
     """Enumeration of supported programming languages.
@@ -24,6 +26,7 @@ class Language(StrEnum):
     PHP = "php"
     RUST = "rust"
     CSHARP = "csharp"
+    DART = DART_LANGUAGE_KEY
     CPP = "cpp"
 
 
@@ -39,6 +42,7 @@ class AdapterName(StrEnum):
     KOTLIN = "Kotlin"
     PHP = "PHP"
     RUST = "Rust"
+    DART = "Dart"
     CPP = "CPP"
 
 
@@ -60,6 +64,7 @@ class SourceSuffix(StrEnum):
     PHP = ".php"
     RS = ".rs"
     CS = ".cs"
+    DART = ".dart"
     CPP = ".cpp"
     CC = ".cc"
     CXX = ".cxx"
@@ -107,6 +112,7 @@ LANGUAGE_EXTENSIONS: dict[Language, tuple[SourceSuffix, ...]] = {
     Language.PHP: (SourceSuffix.PHP,),
     Language.RUST: (SourceSuffix.RS,),
     Language.CSHARP: (SourceSuffix.CS,),
+    Language.DART: (SourceSuffix.DART,),
     Language.CPP: (
         SourceSuffix.CPP,
         SourceSuffix.CC,
