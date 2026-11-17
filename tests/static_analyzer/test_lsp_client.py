@@ -7,6 +7,7 @@ without starting a real LSP server.
 import json
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -604,6 +605,20 @@ class TestCollectBatchResponses:
         assert results[2] == []
         assert timed_out == {2}
 
+    def test_a_round_answered_steadily_may_outlast_the_timeout(self):
+        """JDTLS answers a round one request at a time; on JabRef 50 of them outlasted the timeout while answering."""
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        for msg_id in (1, 2, 3):
+            threading.Timer(
+                0.6 * msg_id, client._msg_queue.put, [{"jsonrpc": "2.0", "id": msg_id, "result": []}]
+            ).start()
+
+        _, timed_out, _ = client._collect_batch_responses("textDocument/implementation", [1, 2, 3], timeout=1)
+
+        assert timed_out == set()
+
     def test_a_reserved_error_code_means_the_request_was_not_served(self):
         """``ContentModified`` and friends say the server could not answer, not that it did."""
         client = LSPClient(["cmd"], Path("/root"))
@@ -859,6 +874,70 @@ class TestHandleNotification:
         assert not client.wait_for_progress_quiet("indexing", 0.1, 0.5)
         client._handle_notification("$/progress", {"token": "t", "value": {"kind": "end"}})
         assert client.wait_for_progress_quiet("indexing", 0.1, 2)
+
+    def test_progress_completion_requires_all_started_checks_to_finish(self, caplog):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        prefix = "rust-analyzer/flycheck/"
+        client._handle_notification("experimental/serverStatus", {"quiescent": True, "health": "ok"})
+        client._handle_notification("$/progress", {"token": 42, "value": {"kind": "end"}})
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
+        caplog.clear()
+
+        for token in (prefix + "0", prefix + "1"):
+            client._handle_notification("$/progress", {"token": token, "value": {"kind": "begin", "title": "check"}})
+        client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "end"}})
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
+        caplog.clear()
+        client._handle_notification("$/progress", {"token": prefix + "1", "value": {"kind": "end"}})
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert not caplog.records
+
+        client._handle_notification("$/progress", {"token": prefix + "0", "value": {"kind": "begin", "title": "check"}})
+        client.wait_for_diagnostic_progress(prefix, timeout=0.01, idle_seconds=0)
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
+
+    @pytest.mark.parametrize("timeout", [0, 1])
+    def test_diagnostic_drain_propagates_server_death(self, timeout, caplog):
+        client = LSPClient(["cmd"], Path("/root"))
+        client._process = MagicMock()
+        client._process.poll.return_value = 137
+        with pytest.raises(StaticAnalysisFatalError, match="exited"):
+            client.wait_for_diagnostic_progress("rust-analyzer/flycheck/", timeout=timeout)
+        assert "may be incomplete" not in caplog.text
+
+    def test_diagnostic_drain_waits_for_restarted_check_and_late_diagnostics(self, tmp_path):
+        client = LSPClient(["cmd"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        token = "rust-analyzer/flycheck/0"
+        source = tmp_path / "lib.rs"
+        client._handle_notification("$/progress", {"token": token, "value": {"kind": "end"}})
+        clock = 0.0
+
+        def advance(_seconds):
+            nonlocal clock
+            clock += 1
+            if clock == 1:
+                client._handle_notification("$/progress", {"token": token, "value": {"kind": "begin"}})
+            elif clock == 5:
+                client._handle_notification("$/progress", {"token": token, "value": {"kind": "end"}})
+            elif clock == 7:
+                client._handle_notification(
+                    "textDocument/publishDiagnostics",
+                    {"uri": source.as_uri(), "diagnostics": []},
+                )
+
+        with (
+            patch("static_analyzer.engine.lsp_client.time.monotonic", side_effect=lambda: clock),
+            patch("static_analyzer.engine.lsp_client.time.sleep", side_effect=advance),
+        ):
+            client.wait_for_diagnostic_progress("rust-analyzer/flycheck/", timeout=20, idle_seconds=3)
+        assert clock == 10
+        assert str(source.resolve()) in client.get_collected_diagnostics()
 
     def test_a_build_import_reported_failed_is_remembered(self):
         client = LSPClient(["cmd"], Path("/root"))

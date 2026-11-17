@@ -77,8 +77,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v14: handlers, runtime type tests, and variant patterns contribute dependencies without invoking their targets.
 # v15: C++ compiler identities unify declarations and definitions; nodes retain declared names and owners.
 # v16: compiler-identity metadata is explicit; other languages retain their existing name resolution.
+# v17: Dart accessors and tear-offs contribute edges; incremental package dependencies follow the live graph.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v16"
+_TAG_VERSION = "v17"
 
 
 class StaticAnalysisCache:

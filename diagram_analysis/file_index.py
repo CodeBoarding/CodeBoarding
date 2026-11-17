@@ -70,9 +70,8 @@ def build_files_index(
     """Build the file index and hash each method at its current span.
 
     Ignored files are skipped here, not only stripped from components later: the file
-    index and the methods_index derived from it are built before ``_strip_ignored`` runs,
-    so without this filter an ignored file (a test module) would still appear in the saved
-    ``files``/``methods_index`` even though no component owns it.
+    index is built before ``_strip_ignored`` runs, so without this filter an ignored file
+    (a test module) would still appear in the saved ``files`` even though no component owns it.
     """
     file_cache = source_cache if source_cache is not None else {}
     ignore_manager = RepoIgnoreManager(repo_dir)

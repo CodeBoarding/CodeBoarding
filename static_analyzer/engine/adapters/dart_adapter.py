@@ -1,0 +1,118 @@
+"""Dart and Flutter analysis using the SDK's language server."""
+
+import logging
+import subprocess
+from pathlib import Path
+
+import yaml
+
+from infra.constants import FLUTTER_SDK_KEY
+from infra.repo_utils.ignore import RepoIgnoreManager
+from infra.tool_registry.installers import archive_launcher_path
+from infra.tool_registry.paths import get_servers_dir, native_binary_ok
+from infra.tool_registry.registry import TOOL_REGISTRY
+from infra.vscode_constants import VSCODE_CONFIG
+from static_analyzer.config import Language, NodeType
+from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.source_inspector import SourceInspector
+from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
+
+logger = logging.getLogger(__name__)
+
+_INSTALL_HINT = "Analysing a Dart repository installs it, or run 'codeboarding-setup --language dart'."
+
+
+class DartAdapter(LanguageAdapter):
+    @property
+    def language(self) -> str:
+        return "Dart"
+
+    @property
+    def language_enum(self) -> Language:
+        return Language.DART
+
+    @property
+    def lsp_command(self) -> list[str]:
+        return ["dart", "language-server"]
+
+    @property
+    def fail_on_empty_symbols(self) -> bool:
+        return True
+
+    def get_lsp_command(self, project_root: Path) -> list[str]:
+        dependency = next(dep for dep in TOOL_REGISTRY if dep.key == Language.DART)
+        configured = Path(VSCODE_CONFIG["lsp_servers"][Language.DART]["command"][0])
+        binary = configured if configured.is_absolute() else archive_launcher_path(get_servers_dir(), dependency)
+        if binary is None or not native_binary_ok(binary):
+            raise RuntimeError(f"Managed Dart SDK not found. {_INSTALL_HINT}")
+        return [str(binary), "language-server"]
+
+    def declared_apart(self, a: SymbolInfo, b: SymbolInfo) -> bool:
+        """Named and unnamed constructors are siblings despite their qualified-name prefixes."""
+        return a.kind == b.kind == NodeType.CONSTRUCTOR and a.definition_location != b.definition_location
+
+    def refine_document_symbols(
+        self,
+        file_path: Path,
+        symbols: list[dict],
+        inspector: SourceInspector,
+        client: LSPClient,
+        diagnostics: FileDiagnosticsMap,
+    ) -> list[dict]:
+        pending = list(symbols)
+        while pending:
+            symbol = pending.pop()
+            pending.extend(symbol.get("children", []))
+            if symbol["kind"] == NodeType.PROPERTY:
+                symbol["kind"] = NodeType.METHOD
+                position = symbol["selectionRange"]["start"]
+                if inspector.declares_setter(file_path, position["line"], position["character"]):
+                    # Getter and setter are separate declarations, despite the server's identical names.
+                    symbol["name"] += "="
+        return symbols
+
+    def prepare_project(self, project_root: Path) -> None:
+        binary = self.get_lsp_command(project_root)[0]
+        ignore_manager = RepoIgnoreManager(project_root)
+        for manifest in self._walk(project_root, ignore_manager):
+            if manifest.name != "pubspec.yaml":
+                continue
+            config = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
+            uses_flutter = any(
+                isinstance(value, dict) and value.get("sdk") == FLUTTER_SDK_KEY
+                for section in ("dependencies", "dev_dependencies")
+                for value in (config.get(section) or {}).values()
+            )
+            command = [binary]
+            if uses_flutter:
+                snapshot = Path(binary).parents[2] / "flutter_tools.snapshot"
+                if not snapshot.is_file():
+                    raise RuntimeError(f"Managed Flutter SDK is incomplete. {_INSTALL_HINT}")
+                command.extend([str(snapshot), "--suppress-analytics"])
+            command.extend(["pub", "get"])
+            try:
+                subprocess.run(
+                    command,
+                    cwd=manifest.parent,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=300,
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                # Why: one package with a private or git dependency should not cost the rest of the repository its
+                # analysis; the server still resolves everything else, and imports of unresolved packages lose edges.
+                output = getattr(error, "stderr", None) or getattr(error, "stdout", None) or ""
+                if isinstance(output, bytes):  # TimeoutExpired keeps bytes even in text mode.
+                    output = output.decode("utf-8", "replace")
+                logger.warning(
+                    "Dart dependency resolution failed for %s; analysing it without its unresolved packages. "
+                    "Run '%s' there to see why.\n%s",
+                    manifest,
+                    " ".join(command),
+                    output.strip()[-2000:],
+                    exc_info=True,
+                )

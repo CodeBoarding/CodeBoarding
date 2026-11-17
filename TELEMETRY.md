@@ -7,8 +7,8 @@ improve. It is **on by default** and easy to turn off.
 Rather than make a broad promise, this page lists **every field we send**. The
 short version: we collect how CodeBoarding ran and who is running it — including
 the account your repository belongs to, which for a personal repository is a
-GitHub username — and we never collect your code, your prompts, or your
-credentials.
+GitHub username, and the name of the project folder you analyse — and we never
+collect your code, your prompts, or your credentials.
 
 The data is used only to operate and improve CodeBoarding. We do not sell it or
 share it with anyone beyond our analytics processor (see [Where it
@@ -48,6 +48,7 @@ both.
 There is no email address or IP-based identity, and GeoIP is disabled. There is
 an account identity: the `org` property below carries the owner of the analysed
 repository, which is a GitHub username when that repository is a personal one.
+The `repo` property carries the name of the analysed project folder.
 
 `distinct_id` is the **who**. Events also carry a `run_id` (the **which run**):
 a per-run correlation id that lets us join one analysis's events across the VS
@@ -62,9 +63,9 @@ never personal data.
 |-------|------|------------|
 | `analysis_started` | An analysis run begins | `command`, `version`, `run_id`, `depth_cap` |
 | `analysis_completed` | An analysis run ends (success or failure) | `command`, `version`, `run_id`, `depth_cap`, `status`, `duration_ms`, `model_name`, `total_tokens`, `input_tokens`, `output_tokens` |
-| `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `total_loc`, `language_count`, `languages`, `stack` |
+| `repo_scanned` | The repository is scanned (once per repo) | `version`, `run_id`, `repo`, `total_loc`, `language_count`, `languages`, `stack` |
 | `$exception` | Any unhandled exception, via PostHog's built-in error tracking | `command`, `version`, `run_id` (plus the exception type, message, and stack trace captured automatically by the SDK) |
-| `lsp_analysis_result` | Static analysis finishes for one language | `version`, `run_id`, `language`, `loc`, `status`, `duration_ms`, `source_file_count`, `node_count`, `edge_count`, `reference_count`, `diagnostic_file_count`, `diagnostic_count`, `quality_status`, `zero_nodes_with_loc`, `zero_edges_with_loc` |
+| `lsp_analysis_result` | Static analysis finishes for one language | `version`, `run_id`, `repo`, `language`, `loc`, `status`, `duration_ms`, `source_file_count`, `node_count`, `edge_count`, `reference_count`, `diagnostic_file_count`, `diagnostic_count`, `parsed_file_count`, `parse_error_file_count`, `parse_error_node_count`, `parse_error_samples`, `quality_status`, `zero_nodes_with_loc`, `zero_edges_with_loc` |
 | `mcp_request_received` | An MCP client calls the server | `method`, `is_notification`, `has_workspace` |
 | `mcp_tool_called` | An MCP tool runs | `method`, `is_notification`, `has_workspace` |
 
@@ -83,11 +84,11 @@ Every event also carries:
   quietly not.
 - `org` — the account the analysed repository belongs to, so one team's usage
   can be told apart from another's. For an organisation-owned repository this is
-  the organisation name; for a personal one it is that person's username. Only
-  the owner is read, never the repository's own name, and nothing is inferred —
-  it comes from `CODEBOARDING_ORG` if a caller sets it, otherwise the owner half
-  of `GITHUB_REPOSITORY` (which GitHub Actions always sets), and a run with
-  neither sends no `org` at all.
+  the organisation name; for a personal one it is that person's username.
+  Nothing is inferred — it comes from `CODEBOARDING_ORG` if a caller sets it,
+  otherwise the owner half of `GITHUB_REPOSITORY` (which GitHub Actions always
+  sets; its repository half is never read), and a run with neither sends no
+  `org` at all.
 - `distinct_id` — the machine fingerprint described above.
 
 Property meanings:
@@ -96,6 +97,13 @@ Property meanings:
   `generate_analysis_incremental`).
 - `version` — the installed CodeBoarding version.
 - `run_id` — the per-run correlation id described under Identity.
+- `repo` — the name of the analysed project directory, on `repo_scanned` and
+  `lsp_analysis_result`, so results for one project can be compared across runs
+  (the VS Code extension sends the same basename of the workspace folder). Only
+  the final component of the resolved path is sent, as-is (e.g. `my-service`
+  for `/home/alice/work/my-service`); the full path is never sent, the Git
+  remote is never read, and the name is not hashed. Opting out stops it like
+  every other property.
 - `depth_cap` — the configured maximum hierarchy depth (an integer), not the depth reached.
 - `status` — `success` or `error`.
 - `duration_ms` — wall-clock duration of the run.
@@ -110,6 +118,33 @@ Property meanings:
 - `diagnostic_count`, `diagnostic_file_count`, `quality_status`,
   `zero_nodes_with_loc`, `zero_edges_with_loc` — whether analysis produced a
   usable graph, so we can spot a language silently returning nothing.
+- `parsed_file_count`, `parse_error_file_count`, `parse_error_node_count` — unique
+  files parsed this pass, files with remaining tree-sitter errors, and their total
+  error/missing nodes, on `lsp_analysis_result`. Re-parses after cache eviction do
+  not inflate counts. Incremental passes measure only files parsed during that
+  pass, including callers checked while restoring edges, not the cached project.
+  Parser errors make `quality_status` at least `warning` when at least 5% of
+  the files parsed in that technology's analysis pass have errors. Technologies
+  are evaluated separately, never averaged across the repository. Counts and
+  samples are still sent below 5%; existing graph-quality rules are unchanged.
+  These counts measure parser health, not the number of calls lost.
+- `parse_error_samples` — at most 20 structural samples per language-pass event,
+  sampled from at most three errors per file per inspector. Each includes the
+  file extension, error/missing-token kind, node type, one-based line and UTF-8
+  byte-column range (end exclusive), and up to 12 enclosing AST node types in
+  `syntax_trace` (outermost first, with `trace_truncated` when clipped). These
+  traces describe syntax, not the Python call stack. Samples also carry the
+  tree-sitter and grammar package versions, original error count, retry error
+  count (`null` when no retry ran), and whether preprocessing recovery was
+  applied. A `file_index` groups samples within an event without sending paths;
+  it is not a stable file identifier. Files follow first encounter order; within
+  each file, sampling follows deterministic left-to-right depth-first order,
+  skipping outer `ERROR` nodes with error or missing-token descendants in favor
+  of innermost errors. Missing tokens remain eligible, as do whole-file errors
+  with no error/missing descendants. Selection is not random or severity-weighted.
+  Samples contain no source excerpts, symbol names, repository identities or
+  file paths. Use these traces to identify recurring syntax failures; exact reproduction still requires the
+  corresponding source or a user-provided minimal example.
 - `method`, `is_notification`, `has_workspace` — which MCP call was made, and
   whether a workspace was open. No arguments or results.
 - `stack` — sorted, comma-joined language names (the tech stack), e.g.
@@ -125,14 +160,15 @@ run stopped by a failed LLM call also carries `error_type` (`quota` for an
 exhausted token or credit quota, `auth` for a rejected key, `llm` otherwise),
 `error_provider`, `error_status_code` and the provider's `error_message`. The
 stack trace may contain file paths, line numbers, or source snippets from the
-failing frame. No source code, repository names, prompts, model outputs, or
-credentials are ever sent.
+failing frame. No source code, prompts, model outputs, or credentials are ever
+sent.
 
 ## What we never collect
 
 - Source code or file contents (except a snippet that may appear in a crash
   stack trace — see [Error diagnostics](#error-diagnostics))
-- File names or repository names
+- File names or file paths (the analysed project directory's own name is sent
+  as `repo`, never its full path or Git remote)
 - Prompts sent to or responses from LLMs
 - API keys, tokens, or credentials of any kind
 - Email addresses or IP addresses (GeoIP is disabled)
@@ -140,9 +176,9 @@ credentials are ever sent.
 (File paths or source snippets may appear inside a truncated error stack trace,
 as noted above — that is the only exception.)
 
-Note that `org` and `distinct_id` do identify a machine and an account, so this
-data is pseudonymous rather than anonymous. That is deliberate: it is what lets
-us tell whether a bug affects one team or everyone.
+Note that `org`, `repo`, and `distinct_id` do identify an account, a project,
+and a machine, so this data is pseudonymous rather than anonymous. That is
+deliberate: it is what lets us tell whether a bug affects one team or everyone.
 
 ## Where it goes
 

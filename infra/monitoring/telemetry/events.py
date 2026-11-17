@@ -70,7 +70,7 @@ def _token_usage() -> TokenSnapshot:
         return TokenSnapshot()
 
 
-def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> None:
+def track_tech_stack(repo_path: Path, total_loc: int, languages: list) -> None:
     """Emit one ``repo_scanned`` event with lines-of-code and tech stack."""
     key = str(repo_path)
     if key in _scanned_repos:
@@ -81,6 +81,7 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> 
     event = RepoScanned(
         version=_app_version(),
         run_id=_resolve_run_id(),
+        repo=repo_path.resolve().name,
         total_loc=total_loc,
         language_count=len(languages),
         languages=[
@@ -93,6 +94,7 @@ def track_tech_stack(repo_path: str | Path, total_loc: int, languages: list) -> 
 
 def track_lsp_result(
     *,
+    repo_path: Path,
     language: str,
     loc: int,
     status: str,
@@ -113,11 +115,15 @@ def track_lsp_result(
     if not diagnostics:
         diagnostics = analysis.get("diagnostics") or {}
     diagnostic_count = sum(len(items) for items in diagnostics.values()) if diagnostics else 0
+    parsed_file_errors = analysis.get("parsed_file_errors", {})
+    parse_error_file_count = sum(count > 0 for count in parsed_file_errors.values())
+    parser_degraded = parse_error_file_count > 0 and parse_error_file_count * 100 >= len(parsed_file_errors) * 5
 
     zero_nodes_with_loc = loc > 0 and node_count == 0
     zero_edges_with_loc = loc > 0 and edge_count == 0
     missing_summary = missing_call_graph or missing_source_files
-    quality_status = "error" if zero_nodes_with_loc else "warning" if zero_edges_with_loc or missing_summary else "ok"
+    degraded = zero_edges_with_loc or missing_summary or parser_degraded
+    quality_status = "error" if zero_nodes_with_loc else "warning" if degraded else "ok"
 
     issues = []
     if zero_nodes_with_loc:
@@ -128,6 +134,8 @@ def track_lsp_result(
         issues.append("missing call graph")
     if missing_source_files:
         issues.append("missing source files")
+    if parser_degraded:
+        issues.append(f"parse errors in {parse_error_file_count} files")
     if zero_nodes_with_loc:
         logger.error("LSP analysis result for %s is unhealthy: %s", language, ", ".join(issues))
     elif issues:
@@ -140,6 +148,7 @@ def track_lsp_result(
     event = LspAnalysisResult(
         version=_app_version(),
         run_id=_resolve_run_id(),
+        repo=repo_path.resolve().name,
         language=language,
         loc=loc,
         status=status,
@@ -150,6 +159,14 @@ def track_lsp_result(
         reference_count=len(references),
         diagnostic_file_count=len(diagnostics),
         diagnostic_count=diagnostic_count,
+        parsed_file_count=len(parsed_file_errors),
+        parse_error_file_count=parse_error_file_count,
+        parse_error_node_count=sum(parsed_file_errors.values()),
+        parse_error_samples=[
+            {**sample, "file_index": file_index}
+            for file_index, samples in enumerate(analysis.get("parse_error_samples", {}).values())
+            for sample in samples
+        ][:20],
         quality_status=quality_status,
         zero_nodes_with_loc=zero_nodes_with_loc,
         zero_edges_with_loc=zero_edges_with_loc,

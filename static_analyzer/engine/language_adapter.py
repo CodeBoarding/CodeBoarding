@@ -238,7 +238,7 @@ class LanguageAdapter(ABC):
         """If True, a non-empty project producing zero symbols is fatal."""
         return False
 
-    def wait_for_diagnostics(self, client: LSPClient) -> None:
+    def wait_for_diagnostics(self, client: LSPClient, project_root: Path) -> None:
         """Block until the LSP server is done publishing diagnostics for didOpen'd files.
 
         Default no-op: most LSPs (pyright, gopls, intelephense, JDTLS,
@@ -265,6 +265,11 @@ class LanguageAdapter(ABC):
 
     def validate_workspace_ready(self, client: LSPClient) -> None:
         """Raise if a ready signal represents an unusable workspace state."""
+        return None
+
+    @property
+    def search_index_timeout(self) -> int | None:
+        """Seconds the server's first search may take, for a server that builds its search index on it; None if not."""
         return None
 
     def get_lsp_env(self, project_root: Path | None = None, source_files: Sequence[Path] = ()) -> dict[str, str]:
@@ -399,6 +404,14 @@ class LanguageAdapter(ABC):
         """Whether to add edges to overrides of a resolved call target, using
         inheritance read from source. Only needed when the server answers
         neither ``textDocument/implementation`` nor ``typeHierarchy``."""
+        return False
+
+    @property
+    def source_names_every_subtype(self) -> bool:
+        """Whether every type deriving from another names it in source, as
+        ``SourceInspector.find_derived_type_names`` reads it. Then a member of a
+        class nothing derives from is owed no ``textDocument/implementation``
+        query. Not so where inheritance is implicit (Go) or not yet read (TS)."""
         return False
 
     @property

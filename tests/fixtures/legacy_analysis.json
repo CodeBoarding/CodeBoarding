@@ -1,0 +1,116 @@
+{
+  "metadata": {
+    "generated_at": "2026-11-01T00:00:00+00:00",
+    "source_tree_hash": "legacy-source-hash",
+    "repo_name": "legacy",
+    "depth_level": 1,
+    "depth_cap": 2,
+    "file_coverage_summary": {
+      "total_files": 0,
+      "analyzed": 0,
+      "not_analyzed": 0,
+      "not_analyzed_by_reason": {}
+    },
+    "tree_spec": {}
+  },
+  "description": "A parser that stores what it reads.",
+  "files": {
+    "app/parser.py": {
+      "method_keys": [
+        "app/parser.py|app.parser.parse"
+      ],
+      "content_hash": "",
+      "module_hash": ""
+    },
+    "app/store.py": {
+      "method_keys": [
+        "app/store.py|app.store.save"
+      ],
+      "content_hash": "",
+      "module_hash": ""
+    }
+  },
+  "methods_index": {
+    "app/parser.py|app.parser.parse": {
+      "file_path": "app/parser.py",
+      "qualified_name": "app.parser.parse",
+      "start_line": 1,
+      "end_line": 3,
+      "type": "FUNCTION",
+      "content_hash": ""
+    },
+    "app/store.py|app.store.save": {
+      "file_path": "app/store.py",
+      "qualified_name": "app.store.save",
+      "start_line": 1,
+      "end_line": 3,
+      "type": "FUNCTION",
+      "content_hash": ""
+    }
+  },
+  "components": [
+    {
+      "name": "Parser",
+      "description": "Parses input.",
+      "key_entities": [],
+      "source_cluster_ids": [],
+      "file_methods": [
+        {
+          "file_path": "app/parser.py",
+          "methods": [
+            "app.parser.parse"
+          ]
+        }
+      ],
+      "component_id": "1",
+      "can_expand": false,
+      "components": [],
+      "components_relations": []
+    },
+    {
+      "name": "Store",
+      "description": "Stores results.",
+      "key_entities": [],
+      "source_cluster_ids": [],
+      "file_methods": [
+        {
+          "file_path": "app/store.py",
+          "methods": [
+            "app.store.save"
+          ]
+        }
+      ],
+      "component_id": "2",
+      "can_expand": false,
+      "components": [],
+      "components_relations": []
+    }
+  ],
+  "components_relations": [
+    {
+      "relation": "saves with",
+      "src_name": "Parser",
+      "dst_name": "Store",
+      "evidence": "",
+      "key_edges": [
+        {
+          "source": "app/parser.py|app.parser.parse",
+          "target": "app/store.py|app.store.save",
+          "call_sites": [],
+          "description": ""
+        }
+      ],
+      "src_id": "1",
+      "dst_id": "2",
+      "is_static": false,
+      "all_edges": [
+        {
+          "source": "app/parser.py|app.parser.parse",
+          "target": "app/store.py|app.store.save",
+          "call_sites": [],
+          "description": ""
+        }
+      ]
+    }
+  ]
+}

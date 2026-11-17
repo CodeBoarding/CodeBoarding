@@ -1,11 +1,15 @@
 import json
 import os
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis import DEFAULT_DEPTH_CAP
+from diagram_analysis.analysis_json import build_unified_analysis_json
+from diagram_analysis.io_utils import load_analysis_metadata
 from codeboarding_cli.github_action import (
     _resolve_depth_cap,
     generate_analysis,
@@ -14,15 +18,22 @@ from codeboarding_cli.github_action import (
     generate_mdx,
     generate_rst,
 )
+from infra.analysis_format import ANALYSIS_FORMAT_VERSION
 from infra.utils import CODEBOARDING_DIR_NAME
+from tests.codeboarding_workflows.test_analysis import assert_holds_the_saved_tree, saving_generator
 
-UNIFIED_ANALYSIS_JSON = {
-    "version": 2,
-    "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 1},
-    "description": "test",
-    "components": [],
-    "components_relations": [],
-}
+LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
+
+UNIFIED_ANALYSIS_JSON = json.loads(
+    build_unified_analysis_json(
+        AnalysisInsights(description="test", components=[], components_relations=[]),
+        [],
+        "test",
+        Path("/repo"),
+        source_tree_hash="",
+        depth_cap=1,
+    )
+)
 
 
 def _write_analysis_file(path: Path) -> Path:
@@ -63,36 +74,24 @@ class TestGenerateMarkdown(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            analysis_data = {
-                "version": 2,
-                "metadata": {"generated_at": "2024-01-01T00:00:00Z", "repo_name": "test", "depth_level": 2},
-                "description": "test",
-                "components": [
-                    {
-                        "name": "ComponentA",
-                        "description": "Component A",
-                        "key_entities": [],
-                        "components": [
-                            {
-                                "name": "SubComp1",
-                                "description": "Sub component 1",
-                                "key_entities": [],
-                            }
-                        ],
-                        "components_relations": [],
-                    },
-                    {
-                        "name": "ComponentB",
-                        "description": "Component B",
-                        "key_entities": [],
-                    },
-                ],
-                "components_relations": [],
-            }
-
+            component_a = Component(name="ComponentA", component_id="1", description="Component A", key_entities=[])
+            component_b = Component(name="ComponentB", component_id="2", description="Component B", key_entities=[])
+            sub_comp = Component(name="SubComp1", component_id="1.1", description="Sub component 1", key_entities=[])
+            sub = AnalysisInsights(description="Component A", components=[sub_comp], components_relations=[])
             analysis_file = temp_path / "analysis.json"
-            with open(analysis_file, "w") as f:
-                json.dump(analysis_data, f)
+            analysis_file.write_text(
+                build_unified_analysis_json(
+                    AnalysisInsights(
+                        description="test", components=[component_a, component_b], components_relations=[]
+                    ),
+                    [component_a],
+                    "test",
+                    Path("/repo"),
+                    source_tree_hash="",
+                    depth_cap=2,
+                    sub_analyses={"1": (sub, [])},
+                )
+            )
 
             generate_markdown(
                 analysis_path=analysis_file,
@@ -448,6 +447,7 @@ class TestResolveDepthCap(unittest.TestCase):
                 "repo_name": "test",
                 "depth_level": 1,
                 "depth_cap": 4,
+                "format_version": ANALYSIS_FORMAT_VERSION,
             }
             analysis = {**UNIFIED_ANALYSIS_JSON, "metadata": metadata}
             with open(temp_path / "analysis.json", "w") as f:
@@ -456,10 +456,46 @@ class TestResolveDepthCap(unittest.TestCase):
             self.assertEqual(_resolve_depth_cap(temp_path), 4)
 
     @patch.dict(os.environ, {}, clear=True)
+    def test_a_baseline_in_an_older_format_still_gives_its_depth_cap(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            shutil.copy(LEGACY_ANALYSIS, temp_path / "analysis.json")
+
+            self.assertEqual(_resolve_depth_cap(temp_path), 2)
+
+    def test_an_unreadable_seeded_analysis_is_rewritten_by_a_full_run(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            seeded, output = temp_path / "seeded", temp_path / "out"
+            seeded.mkdir()
+            output.mkdir()
+            (temp_path / "repo").mkdir()
+            (seeded / "analysis.json").write_text("{not json")
+
+            with (
+                patch.dict(os.environ, {"REPO_ROOT": str(temp_path)}, clear=True),
+                patch("codeboarding_cli.github_action.clone_repository", return_value="repo"),
+                patch("codeboarding_cli.github_action.checkout_repo"),
+                patch("codeboarding_cli.github_action.create_temp_repo_folder", return_value=output),
+                patch("codeboarding_cli.github_action.DiagramGenerator", side_effect=saving_generator),
+                patch("codeboarding_cli.github_action.generate_markdown"),
+            ):
+                generate_analysis(
+                    "https://github.com/o/repo", "feature", "main", ".md", existing_analysis_dir=str(seeded)
+                )
+
+            assert_holds_the_saved_tree(output)
+            metadata = load_analysis_metadata(output)
+
+        assert metadata is not None
+        self.assertEqual(metadata["depth_cap"], DEFAULT_DEPTH_CAP)
+
+    @patch.dict(os.environ, {}, clear=True)
     def test_realized_depth_is_not_a_configuration_fallback(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            _write_analysis_file(temp_path / "analysis.json")  # depth_level=1, no depth_cap
+            metadata = {key: value for key, value in UNIFIED_ANALYSIS_JSON["metadata"].items() if key != "depth_cap"}
+            (temp_path / "analysis.json").write_text(json.dumps({**UNIFIED_ANALYSIS_JSON, "metadata": metadata}))
             self.assertEqual(_resolve_depth_cap(temp_path), DEFAULT_DEPTH_CAP)
 
     @patch.dict(os.environ, {"DIAGRAM_DEPTH_LEVEL": "5"}, clear=True)

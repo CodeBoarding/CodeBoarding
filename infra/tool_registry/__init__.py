@@ -6,6 +6,7 @@ Layered: registry (data) -> paths -> manifest / installers -> __init__ (re-expor
 from .registry import (  # noqa: F401
     ALL_LANGUAGE_KEYS,
     BASE_TOOL_KEYS,
+    DEFAULT_LANGUAGE_KEYS,
     JDTLS_BUILD,
     JDTLS_URL_TEMPLATE,
     JDTLS_VERSION,

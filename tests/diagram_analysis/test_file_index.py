@@ -78,7 +78,7 @@ def test_refresh_spans_empty_hash_when_method_absent_from_live_cfg(tmp_path: Pat
 
 def test_build_files_index_skips_ignored_files(tmp_path: Path) -> None:
     # The index is built before _strip_ignored runs, so an ignored file (a test module)
-    # must be excluded here or it lingers in the saved files/methods_index.
+    # must be excluded here or it lingers in the saved files.
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_thing.py").write_text("def test_x():\n    return 1\n", encoding="utf-8")
     (tmp_path / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")

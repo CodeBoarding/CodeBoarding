@@ -319,7 +319,7 @@ class TestGraphDeclarations(unittest.TestCase):
             )
         )
         client = MagicMock()
-        client.send_implementation_batch.side_effect = lambda queries: [
+        client.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": file_path.as_uri(), "range": {"start": {"line": 1, "character": 5}}}] for _ in queries
         ]
         declaration = ("/repo/pkg/base.php", 0, 0)
@@ -354,7 +354,7 @@ class TestGraphDeclarations(unittest.TestCase):
             )
         )
         client = MagicMock()
-        client.send_implementation_batch.side_effect = lambda queries: [
+        client.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": file_path.as_uri(), "range": {"start": {"line": 9, "character": 4}}}] for _ in queries
         ]
         declaration = ("/repo/pkg/base.py", 0, 0)
@@ -382,6 +382,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         cached_graph = CallGraph(language="python")
         cached_graph.add_node(Node("lib.helper", NodeType.FUNCTION, str(lib), line_start=1, line_end=2, col_start=4))
         cached = _result(cached_graph, source_files=[str(lib), str(app)])
+        cached["parsed_file_errors"] = {str(lib): 10, str(app): 5}
+        cached["parse_error_samples"] = {str(lib): [{"kind": "error"}]}
 
         partial_graph = CallGraph(language="python")
         partial_graph.add_node(Node("app.main", NodeType.FUNCTION, str(app), line_start=1, line_end=2, col_start=4))
@@ -394,6 +396,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         partial = {
             **_result(partial_graph, source_files=[str(app)]),
             "diagnostics": {str(app): [warning]},
+            "parsed_file_errors": {str(app): 2},
+            "parse_error_samples": {str(app): [{"kind": "missing"}]},
             "external_call_sites": [elsewhere],
             "external_callers": [logger_node],
         }
@@ -419,6 +423,8 @@ class TestWarmStartResolvesAgainstCachedDeclarations:
         assert updated["external_call_sites"] == [elsewhere]
         assert updated["external_callers"] == [logger_node]
         assert updated["diagnostics"] == {str(app): [warning]}
+        assert updated["parsed_file_errors"] == {str(app): 2}
+        assert updated["parse_error_samples"] == {str(app): [{"kind": "missing"}]}
         client.send_implementation_batch.assert_not_called()
 
 
@@ -477,7 +483,7 @@ class TestRestoringCachedEdges:
         client.send_type_definition_batch.side_effect = lambda queries: [
             [{"uri": bag.as_uri(), "range": {"start": {"line": 0, "character": 6}}}] for _ in queries
         ]
-        client.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+        client.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
 
         inspector = SourceInspector()
         _restore_inbound_edges_via_definitions(

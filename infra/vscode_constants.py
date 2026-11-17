@@ -1,6 +1,8 @@
 import os
 import platform
 
+from infra.constants import DART_LANGUAGE_KEY
+
 
 def get_bin_path(bin_dir):
     system = platform.system().lower()
@@ -57,6 +59,11 @@ def update_command_paths(bin_dir):
             elif key == "cpp":
                 launcher = "clangd.exe" if is_windows else "clangd"
                 cmd[0] = find_runnable(bin_dir, launcher, os.path.join("clangd", "bin")) or cmd[0]
+            elif key == DART_LANGUAGE_KEY:
+                launcher = "dart.exe" if is_windows else "dart"
+                cmd[0] = os.path.abspath(
+                    os.path.join(bin_dir, "bin", "flutter", "bin", "cache", "dart-sdk", "bin", launcher)
+                )
             elif "command" in value:
                 if isinstance(cmd, list) and cmd:
                     cmd[0] = os.path.join(bin_path, cmd[0])
@@ -83,6 +90,13 @@ def update_config(bin_dir=None):
 
 VSCODE_CONFIG = {
     "lsp_servers": {
+        DART_LANGUAGE_KEY: {
+            "name": "Dart Language Server",
+            "command": ["dart", "language-server"],
+            "languages": [DART_LANGUAGE_KEY],
+            "file_extensions": [".dart"],
+            "install_commands": "codeboarding-setup (downloads Flutter and its bundled Dart SDK automatically)",
+        },
         "cpp": {
             "name": "clangd",
             "command": ["clangd", "--background-index", "--clang-tidy=false", "--header-insertion=never"],

@@ -9,7 +9,7 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 from infra.clustering_ids import ComponentId
-from agents.file_index_models import FileEntry, FileMethodGroup, MethodIndexEntry
+from agents.file_index_models import FileEntry, FileMethodGroup
 from agents.scope_ids import ROOT_SCOPE_ID
 
 logger = logging.getLogger(__name__)
@@ -90,20 +90,6 @@ class RelationEdge(LLMBaseModel):
     )
 
     @classmethod
-    def from_dict(cls, edge: dict, methods_index: dict[str, MethodIndexEntry]) -> RelationEdge:
-        source_key = edge.get("source")
-        target_key = edge.get("target")
-        if not isinstance(source_key, str) or not isinstance(target_key, str):
-            raise ValueError("Relation edge endpoints must be method-index keys")
-        call_sites = edge.get("call_sites") or []
-        return cls(
-            source=_relation_endpoint_from_key(source_key, methods_index),
-            target=_relation_endpoint_from_key(target_key, methods_index),
-            description=edge.get("description", ""),
-            call_sites=[RelationCallSite.model_validate(site) for site in call_sites],
-        )
-
-    @classmethod
     def from_edge(cls, edge) -> RelationEdge:
         return cls(
             source=SourceCodeReference(
@@ -136,28 +122,6 @@ class RelationEdge(LLMBaseModel):
             self.target.reference_end_line,
             tuple(sorted((site.line, site.column) for site in self.call_sites)),
         )
-
-
-def _relation_endpoint_from_key(
-    key: str,
-    methods_index: dict[str, MethodIndexEntry],
-) -> SourceCodeReference:
-    indexed = methods_index.get(key)
-    if indexed is not None:
-        return SourceCodeReference(
-            qualified_name=indexed.qualified_name,
-            reference_file=indexed.file_path or None,
-            reference_start_line=indexed.start_line,
-            reference_end_line=indexed.end_line,
-        )
-
-    file_path, separator, qualified_name = key.partition("|")
-    if not separator or not qualified_name:
-        raise ValueError(f"Malformed relation edge endpoint key: {key!r}")
-    return SourceCodeReference(
-        qualified_name=qualified_name,
-        reference_file=file_path or None,
-    )
 
 
 class Relation(LLMBaseModel):

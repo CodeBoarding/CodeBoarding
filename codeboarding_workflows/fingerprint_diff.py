@@ -23,9 +23,9 @@ class BaselineUnavailableError(RuntimeError):
     """Raised when a workflow needs an existing analysis.json baseline but none is usable.
 
     Covers the cases where incremental/partial cannot trust its starting state: no
-    ``analysis.json`` on disk, or a baseline that predates content versioning (no
-    whole-tree fingerprint to diff against, so an "empty" change set is
-    indistinguishable from "no changes").
+    ``analysis.json`` on disk, one this Core cannot read (an older format), or a
+    baseline that predates content versioning (no whole-tree fingerprint to diff
+    against, so an "empty" change set is indistinguishable from "no changes").
 
     Callers must surface a "run full analysis" prompt rather than silently degrading
     to an unscoped run or an empty-but-successful update.

@@ -188,7 +188,7 @@ class TestSetup:
             install.main()
         installed = {dep.key: dep for dep in run_install.call_args.kwargs["deps"]}
         assert installed["kotlin"].source.tag == NEWER  # type: ignore[union-attr]
-        assert set(installed) == {dep.key for dep in TOOL_REGISTRY}
+        assert set(installed) == {dep.key for dep in TOOL_REGISTRY if not dep.on_demand}
         assert record.call_args.args[0] == run_install.call_args.kwargs["deps"]
 
 

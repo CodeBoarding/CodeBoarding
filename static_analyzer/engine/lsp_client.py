@@ -33,6 +33,7 @@ LSP_STDERR_TAIL_LINES = 32
 # JSON AST nodes retain more Python objects than tree-sitter's native nodes.
 LSP_AST_NODE_BUDGET = 50_000
 LSP_METHOD_NOT_FOUND = -32601
+LSP_INTERNAL_ERROR = -32603
 # Codes LSP (-32899..-32800) and JSON-RPC (-32768..-32000) reserve for a request that went unserved;
 # any other code is the server declining for itself, as gopls does for a free function.
 LSP_RESERVED_ERROR_CODE_RANGES = ((-32899, -32800), (-32768, -32000))
@@ -165,6 +166,7 @@ class LSPClient:
         self._server_health_message: str | None = None
         self._work_done_progress_titles: dict[ProgressToken, str] = {}
         self._work_done_progress_failures: set[ProgressToken] = set()
+        self._completed_work_done_progress: set[ProgressToken] = set()
         # Set when ``initialize`` returned an error response. ``wait_for_server_ready``
         # bails out immediately when this is set so callers don't burn 5 minutes
         # waiting on an LSP that already reported a fatal startup error
@@ -350,6 +352,7 @@ class LSPClient:
         self._server_health_message = None
         self._work_done_progress_titles.clear()
         self._work_done_progress_failures.clear()
+        self._completed_work_done_progress.clear()
         self._init_failed = False
         self.server_failure = ""
         # Drop responses the dead server never got to be asked about, so a
@@ -656,6 +659,39 @@ class LSPClient:
             time.sleep(0.2)
         return False
 
+    def wait_for_diagnostic_progress(
+        self, token_prefix: str, timeout: float = 300, idle_seconds: float = 3, require_completion: bool = True
+    ) -> None:
+        """Wait for completed work and quiet diagnostics, accounting for restarted checks."""
+        deadline = time.monotonic() + timeout
+        quiet_since = time.monotonic()
+        generation = self.get_diagnostics_generation()
+        while time.monotonic() < deadline:
+            self.check_alive()
+            completed = any(
+                isinstance(token, str) and token.startswith(token_prefix)
+                for token in self._completed_work_done_progress.copy()
+            )
+            active = any(
+                isinstance(token, str) and token.startswith(token_prefix)
+                for token in list(self._work_done_progress_titles)
+            )
+            current_generation = self.get_diagnostics_generation()
+            now = time.monotonic()
+            if (require_completion and not completed) or active or current_generation != generation:
+                quiet_since = now
+            elif now - quiet_since >= idle_seconds:
+                return
+            generation = current_generation
+            time.sleep(0.1)
+        self.check_alive()
+        logger.warning(
+            "LSP diagnostic work %r did not settle within %ss; continuing with available diagnostics, "
+            "but compiler diagnostics and health checks may be incomplete.",
+            token_prefix,
+            timeout,
+        )
+
     # ---- JDTLS server-ready wait ----
 
     def wait_for_server_ready(self, timeout: int = 300) -> bool:
@@ -923,6 +959,9 @@ class LSPClient:
                 continue
 
             pending.discard(msg_id)  # type: ignore[arg-type]
+            # The timeout is for a server gone quiet, not for the whole round: JDTLS answers a round one request
+            # at a time, and on JabRef 50 implementation queries took longer than it while answering throughout.
+            deadline = time.monotonic() + timeout
 
             if "error" in msg:
                 err = msg["error"]
@@ -943,7 +982,8 @@ class LSPClient:
                 if self._error_verdict is not None and isinstance(err, dict) and _is_protocol_failure(err):
                     verdict = self._error_verdict(err)
                 if _is_protocol_failure(err) and verdict is not ErrorVerdict.DECLINED:
-                    unserved[msg_id] = err_msg  # type: ignore[index]
+                    # The server's own trace is the only record of why; "Internal error." alone can't be diagnosed.
+                    unserved[msg_id] = f"{err_msg} {err['data']}" if err.get("data") else err_msg  # type: ignore[index]
                     if _is_retryable(err) or verdict is ErrorVerdict.TRANSIENT:
                         retryable.add(msg_id)  # type: ignore[arg-type]
                 else:
@@ -1113,6 +1153,7 @@ class LSPClient:
                 title = value.get("title", "") or ""
                 self._work_done_progress_titles[token] = title
                 self._work_done_progress_failures.discard(token)
+                self._completed_work_done_progress.discard(token)
                 # A server that reports its build import is ready once that import ends; its later
                 # indexing passes (kotlin-lsp runs them continually) are waited for separately.
                 if "indexing" in title.lower() and not self.import_finished.is_set():
@@ -1126,6 +1167,7 @@ class LSPClient:
                 ) or _progress_indicates_failure(message_text)
                 if token is not None:
                     self._work_done_progress_failures.discard(token)
+                    self._completed_work_done_progress.add(token)
                 if "project file(s) loaded" in message_text and not failed:
                     self._server_ready.set()
                     logger.info("LSP server: workspace loaded (%s)", " ".join(filter(None, [title, message_text])))

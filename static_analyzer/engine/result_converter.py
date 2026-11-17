@@ -162,6 +162,8 @@ def convert_to_codeboarding_format(
         "references": references,
         "source_files": result.source_files,
         "diagnostics": result.diagnostics,
+        "parsed_file_errors": result.parsed_file_errors,
+        "parse_error_samples": result.parse_error_samples,
         "external_call_sites": external_call_sites,
         "external_callers": list(external_callers.values()),
     }

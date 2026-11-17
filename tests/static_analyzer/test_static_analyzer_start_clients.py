@@ -6,6 +6,7 @@ clients, and a total failure must raise a ``RuntimeError`` listing all
 attempted languages.
 """
 
+from functools import partial
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock, patch
@@ -14,10 +15,14 @@ import pytest
 
 from static_analyzer import EngineConfig, StaticAnalysisFatalError, StaticAnalyzer
 from static_analyzer.analysis_result import StaticAnalysisResults
+from static_analyzer.cfg import CallGraph
 from static_analyzer.config import Language
 from static_analyzer.engine.adapters.java_adapter import JavaAdapter
+from static_analyzer.engine.adapters.rust_adapter import RustAdapter
 from static_analyzer.engine.language_adapter import LanguageAdapter
+from static_analyzer.engine.lsp_client import LSPClient
 from static_analyzer.exceptions import WorkspaceSetupError
+from static_analyzer.node import Node
 
 
 def _make_adapter(
@@ -225,6 +230,79 @@ class TestStartClientsGracefulDegradation:
             with pytest.raises(StaticAnalysisFatalError, match="server process exited") as error:
                 analyzer.analyze(cache_dir=tmp_path, skip_cache=True)
         assert error.value is failure
+
+    @pytest.mark.parametrize("slots", [0, 1, 2])
+    @pytest.mark.parametrize("warm_start", [False, True])
+    def test_rust_diagnostic_timeout_retains_mixed_language_analysis(
+        self, analyzer: StaticAnalyzer, tmp_path: Path, slots: int, warm_start: bool, caplog
+    ) -> None:
+        python = EngineConfig(
+            _make_adapter("Python", language_enum=Language.PYTHON), tmp_path, [tmp_path / "helper.py"]
+        )
+        python.adapter.rebuilds_for.return_value = False  # type: ignore[attr-defined]
+        rust = EngineConfig(RustAdapter(), tmp_path, [tmp_path / "lib.rs"])
+        client = LSPClient(["rust-analyzer"], tmp_path)
+        client._process = MagicMock()
+        client._process.poll.return_value = None
+        client._handle_notification(
+            "textDocument/publishDiagnostics",
+            {
+                "uri": rust.source_files[0].as_uri(),
+                "diagnostics": [
+                    {
+                        "range": {"start": {"line": 0, "character": 0}, "end": {"line": 0, "character": 1}},
+                        "severity": 2,
+                        "message": "unused function",
+                        "source": "rustc",
+                    }
+                ],
+            },
+        )
+        analyses = {}
+        baseline = StaticAnalysisResults()
+        for config in (python, rust):
+            graph = CallGraph()
+            graph.add_node(Node(config.adapter.language, 12, str(config.source_files[0]), 1, 1))
+            analysis = {
+                "call_graph": graph,
+                "source_files": config.source_files,
+                "references": [],
+                "class_hierarchies": {},
+                "package_relations": {},
+            }
+            analyses[config.adapter.language] = analysis
+        analyzer._absorb_and_link(baseline, [(cfg.adapter, analyses[cfg.adapter.language]) for cfg in (python, rust)])
+        python_client = MagicMock()
+        python_client.get_collected_diagnostics.return_value = {}
+        analyzer._engine_configs = [python, rust]
+        analyzer._engine_clients = [(python, python_client), (rust, client)]
+        analyzer._server_slots = slots
+        analyzer._clients_started = True
+        analyzer.changed_files = set()
+        with (
+            patch.object(client, "shutdown"),
+            patch.object(
+                client, "wait_for_diagnostic_progress", partial(client.wait_for_diagnostic_progress, timeout=0.01)
+            ),
+            patch.object(
+                analyzer, "_spawn_engine_client", side_effect=lambda cfg: client if cfg is rust else python_client
+            ),
+            patch.object(
+                analyzer, "_run_full_analysis", side_effect=lambda cfg, _: analyses[cfg.adapter.language]
+            ) as full,
+            patch("static_analyzer.StaticAnalysisCache.load_with_sha", return_value=(baseline, "baseline")),
+            patch("static_analyzer.update_cfg_for_changed_files", side_effect=lambda cached, *_: cached) as update,
+        ):
+            results = analyzer.analyze(cache_dir=tmp_path, skip_cache=not warm_start)
+        assert full.call_count == (0 if warm_start else 2)
+        assert update.call_count == (2 if warm_start else 0)
+        assert set(results.get_languages()) == {Language.PYTHON, Language.RUST}
+        for config in (python, rust):
+            assert config.adapter.language in results.get_cfg(config.adapter.language_enum).nodes
+            assert results.get_source_files(config.adapter.language_enum) == [str(path) for path in config.source_files]
+        assert results.diagnostics[Language.RUST] == client.get_collected_diagnostics()
+        assert results.diagnostics[Language.RUST][str(rust.source_files[0])][0].message == "unused function"
+        assert "compiler diagnostics and health checks may be incomplete" in caplog.text
 
     def test_all_success_records_no_failures(self, analyzer: StaticAnalyzer, tmp_path: Path) -> None:
         py_adapter = _make_adapter("Python")

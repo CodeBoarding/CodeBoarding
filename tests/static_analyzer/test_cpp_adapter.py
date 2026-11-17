@@ -6,7 +6,7 @@ import pytest
 
 from infra.repo_utils.ignore import RepoIgnoreManager
 from infra.vscode_constants import VSCODE_CONFIG
-from static_analyzer import StaticAnalyzer, _create_engine_configs
+from static_analyzer import EngineConfig, StaticAnalyzer, _create_engine_configs
 from static_analyzer.analysis_cache import invalidate_files, merge_results
 from static_analyzer.cfg import EdgeKind
 from static_analyzer.config import Language, NodeType
@@ -89,7 +89,7 @@ def test_cpp_retains_parse_diagnostics(severity: int, caplog: pytest.LogCaptureF
     client.get_collected_diagnostics.return_value = {
         "kernel.cu": [LSPDiagnostic(message="CUDA header is unavailable", severity=severity)]
     }
-    CppAdapter().wait_for_diagnostics(client)
+    CppAdapter().wait_for_diagnostics(client, Path.cwd())
     assert client.get_collected_diagnostics()["kernel.cu"][0].severity == severity
     if severity == 1:
         assert "analysis may be incomplete" in caplog.text
@@ -143,7 +143,7 @@ def test_ast_limitations_survive_both_analysis_phases(tmp_path: Path, asts: list
     analysis = {"diagnostics": {str(source): [*expected, LSPDiagnostic(message="stale compiler warning")]}}
     analyzer = object.__new__(StaticAnalyzer)
     analyzer.collected_diagnostics = {}
-    analyzer._collect_diagnostics_for(CppAdapter(), client, analysis)
+    analyzer._collect_diagnostics_for(EngineConfig(CppAdapter(), tmp_path), client, analysis)
     assert analyzer.collected_diagnostics[Language.CPP][str(source)] == expected
 
 

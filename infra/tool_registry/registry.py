@@ -20,6 +20,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from infra.constants import DART_LANGUAGE_KEY
+
 
 # -- Public types and constants -----------------------------------------------
 
@@ -172,6 +174,10 @@ class ToolDependency:
     license_url: str = ""
     js_entry_file: str = ""
     js_entry_parent: str = ""
+    # Installed only for a repository that uses the language, never by the default all-languages setup.
+    on_demand: bool = False
+    # False when a binary on PATH must not stand in for the managed install.
+    path_lookup: bool = True
 
     def is_available_on_host(self) -> bool:
         """True unless this is an arch-aware dep whose override map excludes the running
@@ -239,6 +245,33 @@ TOOL_REGISTRY: list[ToolDependency] = [
         ),
         archive_subdir="clangd",
         archive_entry="bin/clangd",
+    ),
+    ToolDependency(
+        key=DART_LANGUAGE_KEY,
+        binary_name="dart",
+        kind=ToolKind.ARCHIVE,
+        config_section=ConfigSection.LSP_SERVERS,
+        source=UpstreamToolSource(
+            tag="3.27.4",
+            url_template="https://storage.googleapis.com/flutter_infra_release/releases/{asset}",
+            asset_arch_overrides={
+                ("Linux", "x86_64"): "stable/linux/flutter_linux_3.27.4-stable.tar.xz",
+                ("Darwin", "x86_64"): "stable/macos/flutter_macos_3.27.4-stable.zip",
+                ("Darwin", "arm64"): "stable/macos/flutter_macos_arm64_3.27.4-stable.zip",
+                ("Windows", "AMD64"): "stable/windows/flutter_windows_3.27.4-stable.zip",
+            },
+            sha256={
+                "stable/linux/flutter_linux_3.27.4-stable.tar.xz": "64df4273de625433c7ba41967932b782f5f9abf3199db8330782d64508379344",
+                "stable/macos/flutter_macos_3.27.4-stable.zip": "4e10b748a01599a79ce414a6257e6465dc71befa128f3868d659d0fca983a485",
+                "stable/macos/flutter_macos_arm64_3.27.4-stable.zip": "cc4d6e6c5b1049e9ca8c7e6444430d916ef08eaf2fd8bca059fa79e424051990",
+                "stable/windows/flutter_windows_3.27.4-stable.zip": "1141d3edb64c454273feac88f31f84945a1f3309a72c58aa9a5f2bb2b0fc8db3",
+            },
+        ),
+        archive_subdir="flutter",
+        archive_entry="bin/cache/dart-sdk/bin/dart",
+        # Why: the Flutter SDK is 0.7 to 1.4 GB, and Dart and Flutter must come from the same SDK.
+        on_demand=True,
+        path_lookup=False,
     ),
     ToolDependency(
         key="tokei",
@@ -370,3 +403,7 @@ TOOL_REGISTRY: list[ToolDependency] = [
 ]
 
 ALL_LANGUAGE_KEYS = frozenset(dep.key for dep in TOOL_REGISTRY if dep.config_section is ConfigSection.LSP_SERVERS)
+# What setup installs when no languages are named: on-demand servers wait for a repository that needs them.
+DEFAULT_LANGUAGE_KEYS = frozenset(
+    dep.key for dep in TOOL_REGISTRY if dep.config_section is ConfigSection.LSP_SERVERS and not dep.on_demand
+)

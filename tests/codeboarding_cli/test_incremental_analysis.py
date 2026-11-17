@@ -1,5 +1,6 @@
 import json
 import logging
+import shutil
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
@@ -10,9 +11,15 @@ from agents.agent_responses import AnalysisInsights, Component
 from diagram_analysis.diagram_generator import DiagramGenerator
 from diagram_analysis.exceptions import ScopeSemanticsError
 from diagram_analysis.io_utils import save_analysis, write_fingerprint
+from diagram_analysis.analysis_json import FileCoverageSummary
 from codeboarding_cli.main import main
 from static_analyzer.clustering.names.spec import SPEC_VERSION
 from static_analyzer.scanner import ProjectScanner
+from tests.codeboarding_workflows.test_analysis import assert_holds_the_saved_tree, saving_generator
+
+NO_COVERAGE = FileCoverageSummary(total_files=0, analyzed=0, not_analyzed=0)
+
+LEGACY_ANALYSIS = Path(__file__).parents[1] / "fixtures" / "legacy_analysis.json"
 
 
 @pytest.fixture
@@ -58,6 +65,38 @@ def test_incremental_llm_failure_crashes_instead_of_asking_for_a_full_run(
     assert "requiresFullAnalysis" not in capsys.readouterr().out
 
 
+def test_a_baseline_in_an_older_format_asks_for_a_full_run(tmp_path: Path, capsys) -> None:
+    """Why: the Action answers ``requiresFullAnalysis`` with a full run; anything else fails its job."""
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir()
+    shutil.copy(LEGACY_ANALYSIS, output_dir / "analysis.json")
+
+    with patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"):
+        main(["incremental", "--local", str(tmp_path)])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["requiresFullAnalysis"] is True
+    assert "predates format versioning" in payload["error"]
+
+
+def test_the_full_run_asked_for_over_an_unreadable_analysis_rewrites_it(tmp_path: Path, capsys) -> None:
+    """Why: a full run that needed the old file would leave the repository with no way out."""
+    output_dir = tmp_path / ".codeboarding"
+    output_dir.mkdir()
+    (output_dir / "analysis.json").write_text("{not json")
+
+    with (
+        patch("codeboarding_cli.commands.incremental_analysis.bootstrap_environment"),
+        patch("codeboarding_cli.commands.full_analysis.bootstrap_environment"),
+        patch("codeboarding_workflows.analysis.DiagramGenerator", side_effect=saving_generator),
+    ):
+        main(["incremental", "--local", str(tmp_path)])
+        assert json.loads(capsys.readouterr().out)["requiresFullAnalysis"] is True
+        main(["full", "--local", str(tmp_path)])
+
+    assert_holds_the_saved_tree(output_dir)
+
+
 @pytest.fixture
 def baseline_from_an_older_engine(tmp_path: Path):
     """A checkout and a seeded state directory whose pkl an older engine wrote.
@@ -87,6 +126,9 @@ def baseline_from_an_older_engine(tmp_path: Path):
                 "machinery": [],
                 "scopes": {"root": {"rules": []}},
             },
+            sub_analyses={},
+            repo_name="repo",
+            file_coverage_summary=NO_COVERAGE,
         )
         write_fingerprint(output_dir, {"a.py": "0"})
         (output_dir / "static_analysis.pkl").write_bytes(b"not-a-real-pickle")

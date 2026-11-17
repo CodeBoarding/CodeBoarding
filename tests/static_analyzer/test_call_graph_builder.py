@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from static_analyzer.config import Language, NodeType
-from static_analyzer.engine.call_graph_builder import CallGraphBuilder
+from static_analyzer.engine.call_graph_builder import CallGraphBuilder, build_package_dependencies
 from static_analyzer.engine.edge_builder import EdgeMap
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_constants import DID_OPEN_BATCH_SIZE
@@ -458,54 +458,24 @@ class Main {
 
 class TestBuildPackageDeps:
     def test_cross_package_dependencies(self):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
-
-        sym_a = SymbolInfo("foo", "pkg_a.foo", NodeType.FUNCTION, Path("/project/pkg_a/mod.py"), 0, 0, 10, 0)
-        sym_b = SymbolInfo("bar", "pkg_b.bar", NodeType.FUNCTION, Path("/project/pkg_b/mod.py"), 0, 0, 10, 0)
-        st = builder._symbol_table
-        st._symbols["pkg_a.foo"] = sym_a
-        st._symbols["pkg_b.bar"] = sym_b
-
-        adapter.get_all_packages.return_value = {"pkg_a", "pkg_b"}
-        adapter.get_package_for_file.side_effect = lambda fp, root: "pkg_a" if "pkg_a" in str(fp) else "pkg_b"
-
-        edge_set: EdgeMap = {("pkg_a.foo", "pkg_b.bar"): []}
         source_files = [Path("/project/pkg_a/mod.py"), Path("/project/pkg_b/mod.py")]
-        deps = builder._build_package_deps(edge_set, source_files)
-
-        assert "pkg_b" in deps["pkg_a"]["imports"]
-        assert "pkg_a" in deps["pkg_b"]["imported_by"]
+        deps = build_package_dependencies(
+            _TestAdapter(), source_files, Path("/project"), [(source_files[0], source_files[1])] * 2
+        )
+        assert deps == {
+            "pkg_a": {"imports": ["pkg_b"], "imported_by": []},
+            "pkg_b": {"imports": [], "imported_by": ["pkg_a"]},
+        }
 
     def test_same_package_edges_excluded(self):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
-
-        sym_a = SymbolInfo("foo", "pkg.foo", NodeType.FUNCTION, Path("/project/pkg/a.py"), 0, 0, 10, 0)
-        sym_b = SymbolInfo("bar", "pkg.bar", NodeType.FUNCTION, Path("/project/pkg/b.py"), 0, 0, 10, 0)
-        st = builder._symbol_table
-        st._symbols["pkg.foo"] = sym_a
-        st._symbols["pkg.bar"] = sym_b
-
-        adapter.get_all_packages.return_value = {"pkg"}
-        adapter.get_package_for_file.return_value = "pkg"
-
-        edge_set: EdgeMap = {("pkg.foo", "pkg.bar"): []}
-        deps = builder._build_package_deps(edge_set, [Path("/project/pkg/a.py")])
+        source_files = [Path("/project/pkg/a.py"), Path("/project/pkg/b.py")]
+        deps = build_package_dependencies(
+            _TestAdapter(), source_files, Path("/project"), [(source_files[0], source_files[1])]
+        )
 
         assert deps["pkg"]["imports"] == []
         assert deps["pkg"]["imported_by"] == []
 
-    def test_missing_symbols_in_edge_set(self):
-        lsp = _make_lsp()
-        adapter = _make_adapter()
-        builder = CallGraphBuilder(lsp, adapter, Path("/project"), Path("/project"))
-
-        adapter.get_all_packages.return_value = {"pkg"}
-
-        edge_set: EdgeMap = {("unknown.foo", "unknown.bar"): []}
-        deps = builder._build_package_deps(edge_set, [])
-
-        assert deps["pkg"]["imports"] == []
+    def test_packages_without_edges_remain(self):
+        deps = build_package_dependencies(_TestAdapter(), [Path("/project/pkg/a.py")], Path("/project"), [])
+        assert deps == {"pkg": {"imports": [], "imported_by": []}}

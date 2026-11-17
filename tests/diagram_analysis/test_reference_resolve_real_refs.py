@@ -36,7 +36,7 @@ ANALYSIS_KEY_ENTITIES: list[tuple[str, str]] = [
     ("core.protocols.StaticAnalyzer", "core/protocols.py"),
     ("static_analyzer.clustering.names.spec.TreeSpec", "static_analyzer/clustering/names/spec.py"),
     ("diagram_analysis.scope_assembly.ScopeAssembler", "diagram_analysis/scope_assembly.py"),
-    ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
+    ("diagram_analysis.analysis_json.AnalysisMetadata", "diagram_analysis/analysis_json.py"),
     ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
     ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
     ("diagram_analysis.io_utils._AnalysisFileStore", "diagram_analysis/io_utils.py"),
@@ -371,7 +371,7 @@ class TestMultiComponentAnalysis(unittest.TestCase):
                 ("diagram_analysis.scope_assembly.ScopeAssembler", "diagram_analysis/scope_assembly.py"),
             ],
             "Output & Visualization Engine": [
-                ("diagram_analysis.analysis_json.UnifiedAnalysisJson", "diagram_analysis/analysis_json.py"),
+                ("diagram_analysis.analysis_json.AnalysisMetadata", "diagram_analysis/analysis_json.py"),
                 ("diagram_analysis.diagram_generator.DiagramGenerator", "diagram_analysis/diagram_generator.py"),
                 ("diagram_analysis.manifest.Manifest", "diagram_analysis/manifest.py"),
                 ("diagram_analysis.io_utils._AnalysisFileStore", "diagram_analysis/io_utils.py"),

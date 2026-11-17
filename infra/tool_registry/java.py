@@ -1,5 +1,6 @@
 """Locating a Java 21+ runtime on the host."""
 
+import functools
 import logging
 import os
 import platform
@@ -49,6 +50,14 @@ def detect_java_installations() -> list[Path]:
     if java_home := os.getenv("JAVA_HOME"):
         candidates.append(Path(java_home))
 
+    # GitHub-hosted runners preinstall several JDKs and name each one JAVA_HOME_<major>_<arch>.
+    candidates.extend(Path(value) for name, value in os.environ.items() if re.fullmatch(r"JAVA_HOME_\d+_\w+", name))
+
+    # JDKs Gradle provisioned for a build's toolchain, nested one or two folders deep by vendor.
+    gradle_jdks = Path(os.getenv("GRADLE_USER_HOME") or Path.home() / ".gradle") / "jdks"
+    for pattern in ("*", "*/*", "*/*/Contents/Home"):
+        candidates.extend(gradle_jdks.glob(pattern))
+
     # Platform-specific search paths
     system = platform.system()
 
@@ -92,6 +101,20 @@ def detect_java_installations() -> list[Path]:
     unique_jdks.sort(key=lambda jdk: get_java_version(str(jdk / "bin" / "java")), reverse=True)
 
     return unique_jdks
+
+
+@functools.cache
+def java_runtimes() -> dict[int, Path]:
+    """One installed JDK per Java major version, for JDTLS to compile each project against the release it targets.
+
+    Why: JDTLS knows only the JDK it runs on, so a project built for a newer release than that has no system library,
+    and every JDK type in it is unresolved.
+    """
+    runtimes: dict[int, Path] = {}
+    for jdk in detect_java_installations():
+        runtimes.setdefault(get_java_version(str(jdk / "bin" / "java")), jdk)
+    runtimes.pop(0, None)
+    return runtimes
 
 
 def find_java_21_or_later() -> Path | None:

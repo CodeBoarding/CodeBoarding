@@ -14,7 +14,6 @@ from agents.agent_responses import (
 from agents.component_ownership import ComponentOwnershipIndex
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.relation_edges import (
-    drop_misattributed_edges,
     drop_reverse_duplicates,
     edge_crosses_components,
     ground_relation_edges,
@@ -299,69 +298,6 @@ class TestGroundRelationEdges(unittest.TestCase):
         self.assertEqual(key_edges, [])
 
 
-class TestDropMisattributedEdges(unittest.TestCase):
-    """A sub-scope agent indexes only its own scope, so an out-of-scope endpoint resolves to
-    nothing and its edge survives that scope's own gate. The frontier-wide owner map resolves
-    it and rejects the mismatch."""
-
-    NODES = {"pkg.a.caller": "1.1", "pkg.a.helper": "1.1", "pkg.b.callee": "1.2", "pkg.c.far": "3.4"}
-
-    def _relation(self, edges, evidence="", src_id="1.1", dst_id="1.2"):
-        return Relation(
-            relation="calls",
-            src_name="A",
-            dst_name="B",
-            src_id=src_id,
-            dst_id=dst_id,
-            evidence=evidence,
-            key_edges=list(edges),
-            all_edges=list(edges),
-        )
-
-    def _drop(self, relations):
-        return drop_misattributed_edges(relations, _owner_of(self.NODES))
-
-    def test_an_edge_owned_outside_the_declared_pair_is_dropped(self):
-        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")])
-        self.assertEqual(self._drop([rel])[0].all_edges, [])
-
-    def test_a_dropped_edge_leaves_the_relation_standing_on_its_evidence(self):
-        # 33 of 42 inferred relations in the eval corpus already serialize with no edges, so
-        # an edgeless relation is ordinary output — the prose is the claim.
-        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")], evidence="over the queue")
-        kept = self._drop([rel])
-        self.assertEqual([(r.src_id, r.dst_id, r.evidence) for r in kept], [("1.1", "1.2", "over the queue")])
-
-    def test_a_dropped_edge_is_dropped_from_key_edges_too(self):
-        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")])
-        self.assertEqual(self._drop([rel])[0].key_edges, [])
-
-    def test_a_crossing_edge_survives(self):
-        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
-        kept = self._drop([rel])
-        self.assertEqual([e.target.qualified_name for e in kept[0].all_edges], ["pkg.b.callee"])
-        self.assertEqual(len(kept[0].key_edges), 1)
-
-    def test_an_edge_owned_by_a_descendant_of_the_declared_component_survives(self):
-        # The global map owns a symbol at the deepest expanded level; a relation declared one
-        # level up is still the connection that edge makes.
-        owner_of = _owner_of({"pkg.a.caller": "1.1.3", "pkg.b.callee": "1.2.1"})
-        rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
-        self.assertEqual(len(drop_misattributed_edges([rel], owner_of)[0].all_edges), 1)
-
-    def test_an_endpoint_no_component_owns_is_left_alone(self):
-        # An external library call is legitimate evidence for a runtime relation.
-        rel = self._relation([_make_relation_edge("pkg.a.caller", "third_party.lib.send")])
-        self.assertEqual(len(self._drop([rel])[0].all_edges), 1)
-
-    def test_no_relation_is_ever_removed(self):
-        rels = [
-            self._relation([_make_relation_edge("pkg.a.caller", "pkg.c.far")]),
-            self._relation([], src_id="1.2", dst_id="1.1"),
-        ]
-        self.assertEqual([(r.src_id, r.dst_id) for r in self._drop(rels)], [("1.1", "1.2"), ("1.2", "1.1")])
-
-
 class TestPruneUngroundedEdges(unittest.TestCase):
     """Preservation re-injects baseline edges after the filters ran, so the assembled list is
     filtered again — otherwise an older engine's edges outlive every update that leaves the
@@ -389,13 +325,15 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.a.helper")])
         self.assertEqual(self._prune(rel), [])
 
-    def test_a_real_call_filed_under_the_wrong_pair_is_kept_not_lost(self):
-        # 1 -> 2 is real, but this relation claims 2 -> 1. Dropping it would delete the only
-        # record of a genuine cross-component call.
+    def test_a_call_whose_pair_no_relation_holds_is_dropped(self):
+        """Why: analysis.json files an edge under the pair its owners join, so it cannot stay under 2 -> 1.
+
+        The call is not lost: the call graph gives its real pair 1 -> 2 a relation of its own.
+        """
         rel = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
         rel.src_id, rel.dst_id = "2", "1"
-        kept = self._prune(rel)
-        self.assertEqual([e.target.qualified_name for e in kept[0].all_edges], ["pkg.b.callee"])
+        # With no edge and no evidence left, the relation itself goes, as any such relation does.
+        self.assertEqual(self._prune(rel), [])
 
     def test_a_misfiled_call_moves_to_the_relation_that_declares_its_pair(self):
         wrong = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")], evidence="e")
@@ -409,7 +347,8 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         # connection the grounded relation already states the right way round.
         self.assertNotIn(("2", "1"), by_pair)
 
-    def test_an_unrelated_misfiled_call_keeps_its_baseline_pair(self):
+    def test_an_unchanged_misfiled_call_still_moves_to_its_pair(self):
+        """Why: re-clustering can move an unchanged method to another leaf; its edge must follow it."""
         wrong = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")], evidence="e")
         wrong.src_id, wrong.dst_id = "2", "1"
         right = self._relation([], evidence="the pair this call actually runs between")
@@ -422,8 +361,8 @@ class TestPruneUngroundedEdges(unittest.TestCase):
         )
 
         by_pair = {(relation.src_id, relation.dst_id): relation for relation in kept}
-        self.assertEqual([edge.source.qualified_name for edge in by_pair[("2", "1")].all_edges], ["pkg.a.caller"])
-        self.assertEqual(by_pair[("1", "2")].all_edges, [])
+        self.assertEqual([edge.source.qualified_name for edge in by_pair[("1", "2")].all_edges], ["pkg.a.caller"])
+        self.assertEqual(by_pair[("2", "1")].all_edges, [])
 
     def test_dead_edges_are_dropped_even_when_their_source_is_unchanged(self):
         relation = self._relation([_make_relation_edge("pkg.a.caller", "pkg.b.callee")])
@@ -508,10 +447,10 @@ class TestEdgeCrossesComponents(unittest.TestCase):
         edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")
         self.assertTrue(self._crosses(edge, "5", "4"))
 
-    def test_unowned_endpoint_is_left_to_the_symbol_check(self):
-        # An endpoint no component owns may be external code; validity is not decided here.
+    def test_an_unowned_endpoint_does_not_cross(self):
+        """Why: analysis.json cites only component members, so it could not record the edge."""
         edge = _make_relation_edge("scripts.build_cta.main", "requests.post")
-        self.assertTrue(self._crosses(edge, "5", "9"))
+        self.assertFalse(self._crosses(edge, "5", "9"))
 
     def test_child_component_satisfies_its_ancestor_id(self):
         edge = _make_relation_edge("scripts.build_cta.main", "scripts.submit_feedback.resolve_command")

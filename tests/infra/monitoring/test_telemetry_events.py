@@ -1,9 +1,12 @@
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import infra.monitoring.telemetry.events as events
+import infra.monitoring.telemetry.service as service
 from infra.monitoring.telemetry.events import capture_error, track_analysis, track_lsp_result
+from infra.monitoring.telemetry.service import ProductTelemetry
 
 
 @pytest.fixture
@@ -127,7 +130,7 @@ def test_track_analysis_propagates_run_id_to_nested_repo_scanned(captured):
 
         @track_analysis
         def generate_analysis(self):
-            events.track_tech_stack("/repo", 100, [])
+            events.track_tech_stack(Path("/repo"), 100, [])
             return "done"
 
     Generator().generate_analysis()
@@ -138,9 +141,48 @@ def test_track_analysis_propagates_run_id_to_nested_repo_scanned(captured):
 def test_repo_scanned_reads_run_id_from_env_without_track_analysis(captured, monkeypatch):
     """repo_scanned stays correlated even when the scan fires outside a decorated scope."""
     monkeypatch.setenv("CODEBOARDING_RUN_ID", "env-run")
-    events.track_tech_stack("/env-repo", 100, [])
+    events.track_tech_stack(Path("/env-repo"), 100, [])
 
     assert props_for(captured, "repo_scanned")["run_id"] == "env-run"
+
+
+def test_repo_is_the_project_directory_basename_only(captured, tmp_path, monkeypatch):
+    project = tmp_path / "parent-secret" / "my-project"
+    project.mkdir(parents=True)
+    events.track_tech_stack(project, 100, [])
+    monkeypatch.chdir(project)
+    track_lsp_result(
+        repo_path=Path("."), language="python", loc=0, status="success", duration_ms=1, analysis={}, diagnostics={}
+    )
+
+    for name in ("repo_scanned", "lsp_analysis_result"):
+        props = props_for(captured, name)
+        assert props["repo"] == "my-project"
+        assert "parent-secret" not in str(props)
+
+
+@pytest.mark.parametrize(
+    "opt_out,sent_repos",
+    [({}, ["my-project"] * 2), ({"CODEBOARDING_TELEMETRY": "false"}, []), ({"DO_NOT_TRACK": "1"}, [])],
+)
+def test_opting_out_sends_no_repo_name(monkeypatch, tmp_path, opt_out, sent_repos):
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("CODEBOARDING_TELEMETRY", raising=False)
+    for key, value in opt_out.items():
+        monkeypatch.setenv(key, value)
+    sent: list[dict] = []
+    monkeypatch.setattr(service, "Posthog", lambda **_: SimpleNamespace(capture=lambda **kw: sent.append(kw)))
+    monkeypatch.setattr(ProductTelemetry, "_instance", None)
+    monkeypatch.setattr(events, "telemetry", ProductTelemetry())
+    project = tmp_path / "my-project"
+    project.mkdir()
+
+    events.track_tech_stack(project, 100, [])
+    track_lsp_result(
+        repo_path=project, language="python", loc=0, status="success", duration_ms=1, analysis={}, diagnostics={}
+    )
+
+    assert [kw["properties"]["repo"] for kw in sent] == sent_repos
 
 
 def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
@@ -152,6 +194,7 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
     }
 
     track_lsp_result(
+        repo_path=Path("/repo"),
         language="python",
         loc=42,
         status="success",
@@ -171,7 +214,9 @@ def test_lsp_analysis_result_marks_zero_nodes_as_error(captured, monkeypatch):
 
 
 def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog):
-    track_lsp_result(language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={})
+    track_lsp_result(
+        repo_path=Path("/repo"), language="python", loc=0, status="error", duration_ms=10, analysis={}, diagnostics={}
+    )
 
     assert "LSP analysis result for python is degraded: missing call graph, missing source files" in caplog.text
     props = props_for(captured, "lsp_analysis_result")
@@ -179,6 +224,70 @@ def test_lsp_analysis_result_warns_when_summary_fields_missing(captured, caplog)
     assert props["node_count"] == 0
     assert props["edge_count"] == 0
     assert props["quality_status"] == "warning"
+
+
+@pytest.mark.parametrize("errors,quality", [([0, 0, 0], "ok"), ([0, 2, 5], "warning")])
+def test_lsp_analysis_result_reports_parser_quality(captured, errors, quality):
+    track_lsp_result(
+        repo_path=Path("/repo"),
+        language="cpp",
+        loc=100,
+        status="success",
+        duration_ms=20,
+        analysis={
+            "call_graph": SimpleNamespace(nodes={"caller": 1, "callee": 2}, edges=[1]),
+            "source_files": ["private.cpp"],
+            "parsed_file_errors": dict(zip(["private.cpp", "private.h", "other.h"], errors)),
+            "parse_error_samples": (
+                {"private.h": [{"syntax_trace": ["translation_unit", "ERROR"]}] * 25} if quality == "warning" else {}
+            ),
+        },
+        diagnostics={},
+    )
+    props = props_for(captured, "lsp_analysis_result")
+    assert props["parsed_file_count"] == 3
+    assert props["parse_error_file_count"] == (2 if quality == "warning" else 0)
+    assert props["parse_error_node_count"] == (7 if quality == "warning" else 0)
+    assert props["quality_status"] == quality
+    assert props["status"] == "success"
+    assert len(props["parse_error_samples"]) == (20 if quality == "warning" else 0)
+    if quality == "warning":
+        assert props["parse_error_samples"][0] == {"syntax_trace": ["translation_unit", "ERROR"], "file_index": 0}
+    assert "private" not in str(props)
+    assert "parsed_file_errors" not in props
+
+
+@pytest.mark.parametrize(
+    "parsed,affected,quality", [(0, 0, "ok"), (100, 4, "ok"), (100, 5, "warning"), (100, 6, "warning")]
+)
+def test_parser_warning_threshold_per_technology(captured, caplog, parsed, affected, quality):
+    for language, errors in (
+        ("python", {str(i): 0 for i in range(1000)}),
+        ("cpp", {str(i): 10 if i < affected else 0 for i in range(parsed)}),
+    ):
+        track_lsp_result(
+            repo_path=Path("/repo"),
+            language=language,
+            loc=100,
+            status="success",
+            duration_ms=1,
+            analysis={
+                "call_graph": SimpleNamespace(nodes={"a": 1, "b": 2}, edges=[1]),
+                "source_files": ["a", "b"],
+                "parsed_file_errors": errors,
+                "parse_error_samples": {"a": [{"kind": "error"}]} if affected and language == "cpp" else {},
+            },
+            diagnostics={},
+        )
+
+    python, cpp = [props for event, props in captured.events if event == "lsp_analysis_result"]
+    assert python["quality_status"] == "ok"
+    assert cpp["quality_status"] == quality
+    assert cpp["parsed_file_count"] == parsed
+    assert cpp["parse_error_file_count"] == affected
+    assert cpp["parse_error_node_count"] == affected * 10
+    assert bool(cpp["parse_error_samples"]) == bool(affected)
+    assert ("is degraded" in caplog.text) == (quality == "warning")
 
 
 def test_track_analysis_env_run_id_overrides_self(captured, monkeypatch):

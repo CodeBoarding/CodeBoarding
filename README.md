@@ -249,10 +249,11 @@ for the actual depth. Existing baseline loading behavior is unchanged: prefer
 
 ## Supported stack
 
-- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#, C++ and CUDA (preview).
+- Languages: Python, TypeScript, JavaScript, Java, Kotlin, Go, PHP, Rust, C#, Dart (including Flutter apps), C++ and CUDA (preview).
   - Java needs a JDK (21 recommended).
   - Kotlin is analysed with JetBrains' [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp) (about 360 MB with its own Java runtime, under the [JetBrains Free Plugin License](https://github.com/Kotlin/kotlin-lsp/blob/main/kotlin-vscode/LICENSE.txt)) and needs glibc 2.34 or newer on Linux. JetBrains' builds expire after about 30 days, so a run that needs Kotlin reads the current build number and checksums from this repository, and keeps the build it has when it cannot. Kotlin calls into Java are not drawn yet.
   - C++ and CUDA are analysed with [clangd](https://clangd.llvm.org/), bundled on Linux x86-64, macOS and Windows x64; other platforms need clangd 20 or newer on `PATH`. Provide `compile_commands.json`, `compile_flags.txt` or `.clangd` for full coverage, since CodeBoarding does not build the project. Incremental updates, and so PR reviews, can still miss or keep stale relations for out-of-line class members and header templates.
+  - Dart and Flutter use a managed Flutter 3.27.4 SDK (Dart 3.6.2) on Linux x86-64, macOS x86-64/arm64 and Windows x64. Because it is 0.7 to 1.4 GB, it is downloaded only when an analysed repository has Dart, or by `codeboarding-setup --language dart`; no preinstalled SDK, emulator or native build is required. Analysis runs `pub get` in each package, which writes `.dart_tool/` and, when the repository commits none, `pubspec.lock` into the checkout; a package whose dependencies fail to resolve is analysed without them, with a warning. Flutter-specific widget and navigation graphs are not included.
 - LLM providers: OpenAI, Anthropic, Google, Vercel AI Gateway, AWS Bedrock, Ollama, OpenRouter, OrcaRouter, Requesty, Opper, Standard Compute, LiteLLM proxy, and more.
 
 ## Examples

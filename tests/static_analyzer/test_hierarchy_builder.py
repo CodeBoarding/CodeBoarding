@@ -78,25 +78,25 @@ class TestBuildWithTypeHierarchy:
         assert "mod.Animal" in hierarchy["mod.Dog"]["superclasses"]
         assert "mod.Dog" in hierarchy["mod.Animal"]["subclasses"]
 
-    def test_builds_hierarchy_from_lsp_subtypes(self):
+    def test_subtypes_are_never_asked_for(self):
+        """Each class's supertypes give every link both ways; JDTLS spent half an hour of JabRef's run on subtypes."""
         adapter = _make_adapter()
         parent = _sym("Animal", "mod.Animal", NodeType.CLASS, start_line=0)
         child = _sym("Cat", "mod.Cat", NodeType.CLASS, start_line=10)
         st = _setup_symbol_table(adapter, [parent, child])
 
         lsp = MagicMock()
-        lsp.type_hierarchy_prepare.side_effect = lambda fp, line, char: [{"name": "stub", "uri": fp.as_uri()}]
-        lsp.type_hierarchy_supertypes.return_value = []
-        lsp.type_hierarchy_subtypes.side_effect = lambda item: [
-            {"name": "Cat", "uri": MOD_PATH.as_uri(), "selectionRange": {"start": {"line": 10}}}
-        ]
+        lsp.type_hierarchy_prepare.side_effect = lambda fp, line, char: [{"name": "Cat" if line else "Animal"}]
+        lsp.type_hierarchy_supertypes.side_effect = lambda item: (
+            [{"name": "Animal", "uri": MOD_PATH.as_uri(), "selectionRange": {"start": {"line": 0}}}]
+            if item["name"] == "Cat"
+            else []
+        )
 
-        si = SourceInspector()
-        builder = HierarchyBuilder(lsp, st, si, adapter)
-        hierarchy = builder.build()
+        hierarchy = HierarchyBuilder(lsp, st, SourceInspector(), adapter).build()
 
-        assert "mod.Cat" in hierarchy["mod.Animal"]["subclasses"]
-        assert "mod.Animal" in hierarchy["mod.Cat"]["superclasses"]
+        lsp.type_hierarchy_subtypes.assert_not_called()
+        assert hierarchy["mod.Animal"]["subclasses"] == ["mod.Cat"]
 
     def test_no_duplicates_in_hierarchy(self):
         adapter = _make_adapter()

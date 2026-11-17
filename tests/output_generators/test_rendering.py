@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from agents.agent_responses import Relation, RelationEdge, SourceCodeReference
+from agents.agent_responses import AnalysisInsights, Component, Relation, RelationEdge, SourceCodeReference
+from diagram_analysis.analysis_json import build_unified_analysis_json
 from output_generators.rendering import (
     FORMAT_EXTENSIONS,
     _RENDER_MANIFEST_FILENAME,
@@ -126,139 +127,58 @@ def test_project_passes_through_existing_level_ids():
 
 
 def _make_depth3_unified_json() -> dict:
-    """Synthetic depth-3 analysis with only leaf-level relations at root.
+    """Synthetic depth-3 analysis with only leaf-level relations at root, as the writer stores it.
 
     Mirrors the post-rebuild_global_relations shape: root carries the global
-    leaf set; every nested ``components`` is a plain tree with no per-level
-    relations.
+    leaf set; every nested scope is a plain tree with no per-level relations.
     """
-    return {
-        "metadata": {
-            "generated_at": "2026-01-01T00:00:00+00:00",
-            "repo_name": "fake",
-            "depth_level": 3,
-            "file_coverage_summary": {
-                "total_files": 0,
-                "analyzed": 0,
-                "not_analyzed": 0,
-                "not_analyzed_by_reason": {},
-            },
-        },
-        "description": "fake project",
-        "files": {},
-        "methods_index": {},
-        "components": [
-            {
-                "name": "API",
-                "component_id": "1",
-                "description": "API root",
-                "key_entities": [],
-                "source_cluster_ids": [],
-                "file_methods": [],
-                "can_expand": True,
-                "components": [
-                    {
-                        "name": "Public",
-                        "component_id": "1.1",
-                        "description": "Public",
-                        "key_entities": [],
-                        "source_cluster_ids": [],
-                        "file_methods": [],
-                        "can_expand": True,
-                        "components": [
-                            {
-                                "name": "REST",
-                                "component_id": "1.1.1",
-                                "description": "REST",
-                                "key_entities": [],
-                                "source_cluster_ids": [],
-                                "file_methods": [],
-                                "can_expand": False,
-                            },
-                            {
-                                "name": "GraphQL",
-                                "component_id": "1.1.2",
-                                "description": "GraphQL",
-                                "key_entities": [],
-                                "source_cluster_ids": [],
-                                "file_methods": [],
-                                "can_expand": False,
-                            },
-                        ],
-                    },
-                ],
-            },
-            {
-                "name": "Core",
-                "component_id": "2",
-                "description": "Core",
-                "key_entities": [],
-                "source_cluster_ids": [],
-                "file_methods": [],
-                "can_expand": True,
-                "components": [
-                    {
-                        "name": "Auth",
-                        "component_id": "2.1",
-                        "description": "Auth",
-                        "key_entities": [],
-                        "source_cluster_ids": [],
-                        "file_methods": [],
-                        "can_expand": False,
-                    },
-                ],
-            },
-            {
-                "name": "Storage",
-                "component_id": "3",
-                "description": "Storage",
-                "key_entities": [],
-                "source_cluster_ids": [],
-                "file_methods": [],
-                "can_expand": False,
-            },
+
+    def component(component_id: str, name: str, description: str) -> Component:
+        return Component(name=name, component_id=component_id, description=description, key_entities=[])
+
+    def relation(label: str, src: Component, dst: Component, is_static: bool = True) -> Relation:
+        return Relation(
+            relation=label,
+            src_name=src.name,
+            dst_name=dst.name,
+            src_id=src.component_id,
+            dst_id=dst.component_id,
+            is_static=is_static,
+        )
+
+    api, core, storage = (
+        component("1", "API", "API root"),
+        component("2", "Core", "Core"),
+        component("3", "Storage", "Storage"),
+    )
+    public = component("1.1", "Public", "Public")
+    rest, graphql = component("1.1.1", "REST", "REST"), component("1.1.2", "GraphQL", "GraphQL")
+    auth = component("2.1", "Auth", "Auth")
+    root = AnalysisInsights(
+        description="fake project",
+        components=[api, core, storage],
+        # Only leaf-level relations — what rebuild_global_relations produces. The first is a
+        # sibling edge inside Public (1.1.1 -> 1.1.2) that survives at the Public level.
+        components_relations=[
+            relation("delegates to", rest, graphql),
+            relation("calls", rest, auth),
+            relation("queries", rest, storage),
+            relation("authenticates", graphql, auth, is_static=False),
         ],
-        # Only leaf-level relations — what rebuild_global_relations produces.
-        "components_relations": [
-            # Sibling edge inside Public (1.1.1 -> 1.1.2) — survives at the Public level.
-            {
-                "relation": "delegates to",
-                "src_name": "REST",
-                "dst_name": "GraphQL",
-                "src_id": "1.1.1",
-                "dst_id": "1.1.2",
-                "edge_count": 1,
-                "is_static": True,
-            },
-            {
-                "relation": "calls",
-                "src_name": "REST",
-                "dst_name": "Auth",
-                "src_id": "1.1.1",
-                "dst_id": "2.1",
-                "edge_count": 5,
-                "is_static": True,
-            },
-            {
-                "relation": "queries",
-                "src_name": "REST",
-                "dst_name": "Storage",
-                "src_id": "1.1.1",
-                "dst_id": "3",
-                "edge_count": 2,
-                "is_static": True,
-            },
-            {
-                "relation": "authenticates",
-                "src_name": "GraphQL",
-                "dst_name": "Auth",
-                "src_id": "1.1.2",
-                "dst_id": "2.1",
-                "edge_count": 1,
-                "is_static": False,
-            },
-        ],
+    )
+
+    def scope(description: str, *children: Component) -> AnalysisInsights:
+        return AnalysisInsights(description=description, components=list(children), components_relations=[])
+
+    sub_analyses = {
+        "1": (scope("API root", public), [public]),
+        "1.1": (scope("Public", rest, graphql), []),
+        "2": (scope("Core", auth), []),
     }
+    text = build_unified_analysis_json(
+        root, [api, core], "fake", Path("/repo"), source_tree_hash="", depth_cap=3, sub_analyses=sub_analyses
+    )
+    return json.loads(text)
 
 
 def _extract_mermaid_nodes_and_edges(md_text: str) -> tuple[set[str], list[tuple[str, str]]]:

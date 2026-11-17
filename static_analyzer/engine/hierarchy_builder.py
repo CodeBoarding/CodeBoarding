@@ -11,6 +11,7 @@ from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient, MethodNotFoundError
 from static_analyzer.engine.models import SymbolInfo
+from static_analyzer.engine.progress import ProgressLogger
 from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.engine.symbol_table import SymbolTable
 from static_analyzer.engine.utils import definition_location, uri_to_path
@@ -62,7 +63,18 @@ class HierarchyBuilder:
             return hierarchy
 
         type_hierarchy_supported = False
+        # Why a line per round: one class at a time, JabRef's 2,701 took over half an hour without one.
+        pbar = ProgressLogger("Hierarchy", len(class_symbols), unit="type")
         for sym in class_symbols:
+            pbar.update(1)
+            # A class body on an enum constant subclasses its enum; preparing it lands on the constant, not a type.
+            # Its name is ``{...}``, dots and all, so the enum is what precedes the constant and it.
+            if [kind for _, kind in sym.parent_chain[-2:]] == [NodeType.ENUM, NodeType.ENUM_MEMBER]:
+                enum_name = sym.qualified_name.removesuffix(f".{sym.parent_chain[-1][0]}.{sym.name}")
+                if enum_name in hierarchy:
+                    hierarchy[sym.qualified_name]["superclasses"].append(enum_name)
+                    hierarchy[enum_name]["subclasses"].append(sym.qualified_name)
+                    continue
             try:
                 items = self._lsp.type_hierarchy_prepare(sym.file_path, sym.start_line, sym.start_char)
                 if not items:
@@ -70,8 +82,17 @@ class HierarchyBuilder:
                 type_hierarchy_supported = True
                 item = items[0]
 
+                # Supertypes alone: every class here is asked, so each subclass link is found from its subclass.
+                # Why not subtypes as well: JDTLS re-resolves every potential subtype for each, with every file
+                # open; on JabRef that was all but a minute of the half hour, for the same links.
                 try:
-                    supertypes = self._lsp.type_hierarchy_supertypes(item)
+                    prepared = self._resolve_type_hierarchy_item(item)
+                    if prepared is not None and prepared != sym.qualified_name:
+                        # An anonymous class is named by the type it instantiates, so preparing it lands on that
+                        # type, its base. Its supertypes would be the base's own.
+                        supertypes = [item]
+                    else:
+                        supertypes = self._lsp.type_hierarchy_supertypes(item)
                     for st in supertypes:
                         super_name = self._resolve_type_hierarchy_item(st)
                         if super_name and super_name in hierarchy:
@@ -83,25 +104,13 @@ class HierarchyBuilder:
                     pass
                 except Exception as e:
                     logger.debug("Failed to get supertypes for %s: %s", sym.qualified_name, e)
-
-                try:
-                    subtypes = self._lsp.type_hierarchy_subtypes(item)
-                    for st in subtypes:
-                        sub_name = self._resolve_type_hierarchy_item(st)
-                        if sub_name and sub_name in hierarchy:
-                            if sub_name not in hierarchy[sym.qualified_name]["subclasses"]:
-                                hierarchy[sym.qualified_name]["subclasses"].append(sub_name)
-                            if sym.qualified_name not in hierarchy[sub_name]["superclasses"]:
-                                hierarchy[sub_name]["superclasses"].append(sym.qualified_name)
-                except MethodNotFoundError:
-                    pass
-                except Exception as e:
-                    logger.debug("Failed to get subtypes for %s: %s", sym.qualified_name, e)
             except MethodNotFoundError:
                 logger.info("Type hierarchy not supported by server, skipping remaining classes")
                 break
             except Exception as e:
                 logger.debug("Type hierarchy not supported for %s: %s", sym.qualified_name, e)
+
+        pbar.finish()
 
         if not type_hierarchy_supported and self._adapter.resolves_bases_by_definition:
             logger.info("Type hierarchy not supported, resolving the bases written in source")
@@ -121,7 +130,9 @@ class HierarchyBuilder:
 
     def _resolve_type_hierarchy_item(self, item: dict) -> str | None:
         """Resolve a type hierarchy item to a qualified name in our symbol table."""
-        name = item.get("name", "")
+        # Names compare without type arguments: a supertype comes back as its use names it, ``TypeAdapter<Object>``,
+        # not as declared, ``TypeAdapter<T>``. Asking supertypes alone, that lost every link to a generic base.
+        name = item.get("name", "").split("<")[0]
         uri = item.get("uri", "")
         sel_range = item.get("selectionRange", item.get("range", {}))
         start = sel_range.get("start", {})
@@ -131,15 +142,20 @@ class HierarchyBuilder:
         if file_path is None:
             return None
 
-        file_key = str(file_path)
-        for sym in self._symbol_table.file_symbols.get(file_key, []):
-            if sym.name == name and sym.start_line == line:
+        symbols = self._symbol_table.file_symbols.get(str(file_path), [])
+        # The declaration's own position first: a name is not unique, every anonymous class in a file shares one.
+        for sym in symbols:
+            if self._adapter.is_class_like(sym.kind) and (sym.start_line, sym.start_char) == (
+                line,
+                start.get("character"),
+            ):
                 return sym.qualified_name
-            if sym.name == name and abs(sym.start_line - line) <= 1:
+        for sym in symbols:
+            if sym.name.split("<")[0] == name and abs(sym.start_line - line) <= 1:
                 return sym.qualified_name
 
-        for sym in self._symbol_table.file_symbols.get(file_key, []):
-            if sym.name == name and self._adapter.is_class_like(sym.kind):
+        for sym in symbols:
+            if sym.name.split("<")[0] == name and self._adapter.is_class_like(sym.kind):
                 return sym.qualified_name
         return None
 

@@ -39,11 +39,17 @@ class _DispatchingTestAdapter(_TestAdapter):
         return True
 
 
+class _IndexingTestAdapter(_TestAdapter):
+    @property
+    def search_index_timeout(self) -> int | None:
+        return 600
+
+
 def _make_lsp() -> MagicMock:
     """One result list per query, the shape ``_send_batch`` guarantees its callers."""
     lsp = MagicMock()
     lsp.send_definition_batch.side_effect = lambda queries: [[] for _ in queries]
-    lsp.send_implementation_batch.side_effect = lambda queries: [[] for _ in queries]
+    lsp.send_implementation_batch.side_effect = lambda queries, **_: [[] for _ in queries]
     return lsp
 
 
@@ -394,7 +400,7 @@ class TestBuildEdgesViaDefinitions:
         ctx, adapter = _make_ctx(lsp)
         src = self._main_calls_helper(ctx, lsp, tmp_path)
         other = tmp_path / "plugins" / "impl.py"
-        lsp.send_implementation_batch.side_effect = lambda queries: [
+        lsp.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": other.as_uri(), "range": {"start": {"line": 2, "character": 4}}}] for _ in queries
         ]
 
@@ -597,13 +603,51 @@ class TestBuildEdgesViaDefinitions:
 
         lsp.send_definition_batch.side_effect = def_batch
         # Implementation for speak resolves to dog_speak
-        lsp.send_implementation_batch.side_effect = lambda queries: [
+        lsp.send_implementation_batch.side_effect = lambda queries, **_: [
             [{"uri": src.as_uri(), "range": {"start": {"line": 6, "character": 4}}}] for _ in queries
         ]
 
         edges = build_edges_via_definitions(adapter, ctx, [src])
         assert ("app.main", "app.speak") in edges
         assert ("app.main", "app.dog_speak") in edges
+
+    def test_a_server_that_indexes_on_its_first_search_gets_it_alone_with_time_to_index(self, tmp_path: Path):
+        """JDTLS builds its search index on the first search; on JabRef that outlasted a round's timeout."""
+        lsp = _make_lsp()
+        ctx, _ = _make_ctx(lsp)
+        adapter = _IndexingTestAdapter()
+        st = ctx.symbol_table
+
+        src = tmp_path / "app.py"
+        src.write_text("def main():\n    speak()\n    bark()\n\ndef speak():\n    pass\n\ndef bark():\n    pass\n")
+
+        caller = _sym("main", "app.main", NodeType.FUNCTION, str(src), 0, 4, 2)
+        speak = _sym("speak", "app.speak", NodeType.METHOD, str(src), 4, 4, 5)
+        bark = _sym("bark", "app.bark", NodeType.METHOD, str(src), 7, 4, 8)
+        for sym in (caller, speak, bark):
+            st._symbols[sym.qualified_name] = sym
+        st._file_symbols[str(src)] = [caller, speak, bark]
+        st._primary_file_symbols[str(src)] = [caller, speak, bark]
+        st.build_indices()
+
+        declared_at = {(1, 4): 4, (2, 4): 7}
+
+        def def_batch(queries: list) -> list:
+            return [
+                (
+                    [{"uri": src.as_uri(), "range": {"start": {"line": declared_at[(line, col)], "character": 4}}}]
+                    if (line, col) in declared_at
+                    else []
+                )
+                for _, line, col in queries
+            ]
+
+        lsp.send_definition_batch.side_effect = def_batch
+
+        build_edges_via_definitions(adapter, ctx, [src])
+
+        rounds = [(len(call.args[0]), call.kwargs["timeout"]) for call in lsp.send_implementation_batch.call_args_list]
+        assert rounds == [(1, 600), (1, None)]
 
     def test_a_failed_implementation_batch_fails_the_build(self, tmp_path: Path):
         lsp = _make_lsp()
@@ -762,6 +806,63 @@ class TestOnlyDispatchedCallsExpand:
         assert asked == {(6, 2)}
         assert ("app.Series.constructor", "app.Model.constructor") in edges
         assert ("app.Series.describe", "app.Model.describe") in edges
+
+
+class _SubtypesInSourceTestAdapter(_DefinitionsTestAdapter):
+    @property
+    def source_names_every_subtype(self) -> bool:
+        return True
+
+
+class TestImplementationQueriesNeedADerivedOwner:
+    SOURCE = (
+        "class Leaf {\n"
+        "  void run() {}\n"
+        "}\n"
+        "interface Port {\n"
+        "  void run();\n"
+        "}\n"
+        "class Use {\n"
+        "  void go(Leaf l, Port p) { l.run(); p.run(); }\n"
+        "}\n"
+    )
+
+    def _build(self, tmp_path: Path, adapter: _TestAdapter, source: str) -> tuple[set[tuple[int, int]], EdgeMap]:
+        lsp = _make_lsp()
+        ctx = EdgeBuildContext(lsp, SymbolTable(adapter), SourceInspector())
+        src = tmp_path / "App.java"
+        src.write_text(source)
+        _register(
+            ctx,
+            src,
+            [
+                _sym("Leaf", "app.Leaf", NodeType.CLASS, str(src), 0, 6, 2, 1),
+                _sym("run", "app.Leaf.run", NodeType.METHOD, str(src), 1, 7, 1, 15, [("Leaf", NodeType.CLASS)]),
+                _sym("Port", "app.Port", NodeType.INTERFACE, str(src), 3, 10, 5, 1),
+                _sym("run", "app.Port.run", NodeType.METHOD, str(src), 4, 7, 4, 13, [("Port", NodeType.INTERFACE)]),
+                _sym("Use", "app.Use", NodeType.CLASS, str(src), 6, 6, 8, 1),
+                _sym("go", "app.Use.go", NodeType.METHOD, str(src), 7, 7, 7, 48, [("Use", NodeType.CLASS)]),
+            ],
+        )
+        _answer(lsp, {(7, 30): (1, 7), (7, 39): (4, 7)}, src)
+        edges = build_edges_via_definitions(adapter, ctx, [src])
+        asked = {(line, col) for call in lsp.send_implementation_batch.call_args_list for _, line, col in call.args[0]}
+        return asked, edges
+
+    def test_a_class_nothing_derives_from_is_not_asked_but_an_interface_is(self, tmp_path: Path):
+        """On JabRef 9 in 10 targets sat in such a class, and asking JDTLS about each took 2.3h."""
+        asked, edges = self._build(tmp_path, _SubtypesInSourceTestAdapter(), self.SOURCE)
+        assert asked == {(4, 7)}
+        assert ("app.Use.go", "app.Leaf.run") in edges
+
+    def test_an_anonymous_subclass_keeps_its_base_asked(self, tmp_path: Path):
+        source = self.SOURCE + "class Make { Leaf leaf = new Leaf() { void run() {} }; }\n"
+        asked, _ = self._build(tmp_path, _SubtypesInSourceTestAdapter(), source)
+        assert asked == {(1, 7), (4, 7)}
+
+    def test_a_language_whose_source_hides_subtypes_is_always_asked(self, tmp_path: Path):
+        asked, _ = self._build(tmp_path, _DefinitionsTestAdapter(), self.SOURCE)
+        assert asked == {(1, 7), (4, 7)}
 
 
 class TestMemberReads:
