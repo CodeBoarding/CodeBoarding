@@ -59,6 +59,10 @@ _FAKE_OPENROUTER = {
         "context_length": 1_000_000,
         "top_provider": {"max_completion_tokens": 128_000},
     },
+    "google/gemini-3.8-flash": {
+        "context_length": 1_048_576,
+        "top_provider": {"max_completion_tokens": 65_536},
+    },
 }
 
 
@@ -150,6 +154,15 @@ class TestOpenrouterResolution:
         cw = get_context_window("anthropic", "claude-opus-4-7")
         assert cw.input_tokens == 1_000_000
         assert cw.output_tokens == 128_000
+
+    def test_uberllm_namespaced_model_resolves_via_aggregator_id(self, fake_catalogs, monkeypatch):
+        # UberLLM is not on models.dev; its model ids are namespaced (google/gemini-3.8-flash)
+        # exactly like the OpenRouter catalog keys, so they resolve there.
+        monkeypatch.delenv("CB_CTX_UBERLLM_GOOGLE_GEMINI_3_8_FLASH", raising=False)
+        cw = get_context_window("uberllm", "google/gemini-3.8-flash")
+        assert cw.input_tokens == 1_048_576
+        assert cw.output_tokens == 65_536
+        assert not cw.is_fallback
 
 
 class TestOllamaResolver:
