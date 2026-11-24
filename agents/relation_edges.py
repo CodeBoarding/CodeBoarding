@@ -240,8 +240,12 @@ def _qualified_names_match(first: str, second: str) -> bool:
 
 
 def _restore_relation_backing(relation: Relation, has_call: Callable[[str, str], bool]) -> Relation | None:
-    """Keep edgeless relations and filter static backing to surviving calls."""
-    if not (relation.all_edges or relation.key_edges):
+    """Keep edgeless and evidence-backed relations; filter static backing to surviving calls.
+
+    A relation with ``evidence`` is a semantic queue, REST, or config link whose key edges are
+    not direct calls, so the call graph cannot confirm or refute it.
+    """
+    if not (relation.all_edges or relation.key_edges) or relation.evidence.strip():
         return relation
 
     all_edges = [

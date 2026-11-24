@@ -523,6 +523,17 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         self.assertEqual(kept, [baseline.model_copy(update={"all_edges": [surviving], "key_edges": [surviving]})])
         self.assertEqual(baseline.all_edges, [surviving, removed])
 
+    def test_restored_evidence_relation_without_a_cfg_call_is_kept(self):
+        # A queue link between live, unchanged components has key edges and evidence but no
+        # direct call, so the call graph has nothing to confirm.
+        baseline = self._relation("1", "2", "publishes jobs to")
+        baseline.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations([], {("1", "2"): baseline}, set(), {"1", "2"}, has_call=_live_calls())
+
+        self.assertEqual(kept, [baseline])
+
     def test_rebuilt_pair_with_the_same_untouched_backing_is_kept_once(self):
         # The calls moved to new component ids, but neither qualified name changed. Keep the
         # rebuilt filing, with the reader's wording and the fresh call sites, and do not also
