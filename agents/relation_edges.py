@@ -239,20 +239,20 @@ def _qualified_names_match(first: str, second: str) -> bool:
     return first == second or first.endswith(f".{second}") or second.endswith(f".{first}")
 
 
-def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
-    """Whether a baseline relation's static backing still exists in live code.
+def _restore_relation_backing(relation: Relation, has_call: Callable[[str, str], bool]) -> Relation | None:
+    """Keep edgeless relations and filter static backing to surviving calls."""
+    if not (relation.all_edges or relation.key_edges):
+        return relation
 
-    A relation is supported by concrete method-to-method calls; restoring it verbatim keeps them. If the only edges connecting the two
-    components pointed at a symbol since deleted, restoring the relation resurrects an edge
-    citing code that is gone — a phantom. A relation with no static edge at all is a
-    runtime/config relation with nothing to invalidate, so it is left alone.
-    """
-    edges = relation.all_edges or relation.key_edges
-    if not edges:
-        return True
-    return any(
-        edge.source.qualified_name in live_qnames and edge.target.qualified_name in live_qnames for edge in edges
-    )
+    all_edges = [
+        edge for edge in relation.all_edges if has_call(edge.source.qualified_name, edge.target.qualified_name)
+    ]
+    key_edges = [
+        edge for edge in relation.key_edges if has_call(edge.source.qualified_name, edge.target.qualified_name)
+    ]
+    if not (all_edges or key_edges):
+        return None
+    return relation.model_copy(update={"all_edges": all_edges, "key_edges": key_edges})
 
 
 def _backing_edge_pairs(relation: Relation) -> set[tuple[str, str]]:
@@ -373,7 +373,7 @@ def preserve_unchanged_relations(
     baseline_by_pair: dict[tuple[str, str], Relation],
     changed_component_ids: set[str],
     live_ids: set[str],
-    live_qnames: set[str],
+    has_call: Callable[[str, str], bool],
     changed_members: set[str] | None = None,
     gated_members: Collection[str] = (),
 ) -> list[Relation]:
@@ -396,10 +396,8 @@ def preserve_unchanged_relations(
     alternate runtime/config evidence.
 
     A baseline relation between two unchanged, still-live components that regeneration
-    dropped is restored — but only when its backing edges still exist in live code. The
-    deterministic rebuild drops a pair when the code connecting the two components was
-    deleted; restoring it then would resurrect an edge citing a symbol that no longer
-    exists. Passing ``gated_members`` restores that pair even when an endpoint component
+    dropped is restored with only its surviving CFG calls. Relations without static backing
+    are also eligible. Passing ``gated_members`` restores a pair even when an endpoint component
     is flagged changed, as long as the commit did not touch the pair's own qualified names.
 
     A rebuilt pair filed under component ids the baseline does not have is the same
@@ -407,10 +405,6 @@ def preserve_unchanged_relations(
     relation's backing pairs and neither name is in ``changed_members``. That rebuilt
     relation is kept, with the baseline wording and the fresh call sites, and the baseline
     pair is not restored beside it.
-
-    Wording is all this layer carries; CFG-backed edges always come from the fresh rebuild.
-    Why: extraction is deterministic, and a baseline edge carried forward keeps the line
-    numbers its call sites had when it was written.
 
     Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
     """
@@ -470,7 +464,7 @@ def preserve_unchanged_relations(
             continue
         if touches_change(*pair) and not pair_untouched_by_change(relation, gated_members):
             continue
-        if not _relation_backing_survives(relation, live_qnames):
-            continue
-        kept.append(relation)
+        restored = _restore_relation_backing(relation, has_call)
+        if restored is not None:
+            kept.append(restored)
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))

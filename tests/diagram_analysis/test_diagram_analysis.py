@@ -2480,7 +2480,7 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
             call_sites=[RelationCallSite(line=line, column=12 if line == 268 else 4)],
         )
 
-    def test_unchanged_logging_relation_survives_when_references_are_empty(self):
+    def _logging_relation_setup(self, *, has_call: bool) -> tuple[DiagramGenerator, AnalysisInsights]:
         caller = Node(
             fully_qualified_name="log.use_stderr_sink",
             node_type=NodeType.FUNCTION,
@@ -2498,7 +2498,8 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
         cfg = CallGraph(language="cpp")
         cfg.add_node(caller)
         cfg.add_node(callee)
-        cfg.add_edge("log.use_stderr_sink", "log.make_stderr_sink", call_sites=[{"line": 268, "column": 12}])
+        if has_call:
+            cfg.add_edge("log.use_stderr_sink", "log.make_stderr_sink", call_sites=[{"line": 268, "column": 12}])
         gen = self._generator(cfg)
         root = AnalysisInsights(
             description="d",
@@ -2533,7 +2534,10 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
             for component in root.components
         }
         gen._changed_members = {"object_identity.cache_key"}
+        return gen, root
 
+    def test_unchanged_logging_relation_survives_when_references_are_empty(self):
+        gen, root = self._logging_relation_setup(has_call=True)
         gen.rebuild_global_relations(root, {})
 
         self.assertEqual([(relation.src_id, relation.dst_id) for relation in root.components_relations], [("1", "2")])
@@ -2546,6 +2550,22 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
         self.assertEqual(
             [(site.line, site.column) for edge in relation.all_edges for site in edge.call_sites], [(268, 12)]
         )
+
+    def test_missing_call_drops_baseline_relation_between_unchanged_methods(self):
+        gen, root = self._logging_relation_setup(has_call=False)
+
+        gen.rebuild_global_relations(root, {})
+
+        self.assertEqual(root.components_relations, [])
+
+    def test_preserved_edge_fallback_rejects_missing_call_between_live_nodes(self):
+        gen, root = self._logging_relation_setup(has_call=False)
+        assert gen._baseline_global_relations is not None
+        relation = gen._baseline_global_relations[("1", "2")].model_copy()
+        with patch("diagram_analysis.diagram_generator.build_global_relations", return_value=[relation]):
+            gen.rebuild_global_relations(root, {})
+
+        self.assertFalse(any(item.all_edges for item in root.components_relations))
 
     def test_edge_whose_endpoints_are_the_same_cfg_node_stays_dropped(self):
         shared = "include/cucascade/log/logging.hpp"

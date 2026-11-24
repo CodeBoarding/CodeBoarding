@@ -19,6 +19,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     Relation,
+    RelationEdge,
     SourceCodeReference,
 )
 from agents.component_ownership import ComponentOwnershipIndex
@@ -1481,37 +1482,32 @@ class DiagramGenerator:
                 for component in analysis.components
                 if component.component_id
             }
-            live_qnames = {
-                qualified_name
-                for lang in self.static_analysis.get_languages()
-                for qualified_name in self.static_analysis.get_cfg(lang).nodes
-            }
+
+            def has_call(source_name: str, target_name: str) -> bool:
+                return any(
+                    cfg.has_edge(source_name, target_name)
+                    and cfg.canonical_name(source_name) != cfg.canonical_name(target_name)
+                    for cfg in cfg_graphs.values()
+                )
+
             global_relations = preserve_unchanged_relations(
                 global_relations,
                 self._baseline_global_relations,
                 changed_ids,
                 live_ids,
-                live_qnames,
+                has_call,
                 self._changed_members,
                 gated_members=self._changed_members,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
             # keep_relation_edge rejects a CFG edge whose C++ name is an alias or a display[usr]
-            # key the reference list does not store. The call is real when both ends are
-            # distinct live nodes.
+            # key the reference list does not store. Check the CFG for those calls.
             resolver = StaticReferenceResolver(self.repo_location, self.static_analysis)
 
-            def keep_preserved_edge(edge) -> bool:
-                if resolver.keep_relation_edge(edge):
-                    return True
-                source_name = edge.source.qualified_name
-                target_name = edge.target.qualified_name
-                return any(
-                    cfg.has_node(source_name)
-                    and cfg.has_node(target_name)
-                    and cfg.canonical_name(source_name) != cfg.canonical_name(target_name)
-                    for cfg in cfg_graphs.values()
+            def keep_preserved_edge(edge: RelationEdge) -> bool:
+                return resolver.keep_relation_edge(edge) or has_call(
+                    edge.source.qualified_name, edge.target.qualified_name
                 )
 
             global_relations = prune_ungrounded_edges(

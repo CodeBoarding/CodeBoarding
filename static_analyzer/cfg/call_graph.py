@@ -87,6 +87,10 @@ class CallGraph:
         """Check if a name (or any of its aliases) maps to a node in the graph."""
         return self.canonical_name(name) in self.nodes
 
+    def has_edge(self, src_name: str, dst_name: str) -> bool:
+        """Check for a directed call between the canonical endpoints."""
+        return (self.canonical_name(src_name), self.canonical_name(dst_name)) in self._edge_by_key
+
     def canonical_name(self, name: str) -> str:
         """Resolve a possibly-aliased name to the canonical name in the graph."""
         return self._alias_to_canonical.get(name, name)
