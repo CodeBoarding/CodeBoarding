@@ -1138,6 +1138,21 @@ class TestDeclaresFunctionValue:
 
         assert si.declares_function_value(f, 0, 6) is True
 
+    def test_top_level_arrow_bindings_use_the_initializer_and_scope(self, tmp_path: Path):
+        path = tmp_path / "app.ts"
+        path.write_text(
+            'export const label = "\U0001f9ed", a = (/* comment */ () => 1);\n'
+            "const b = (() => 2) as () => number;\n"
+            "let c = (() => 3) satisfies () => number;\n"
+            "var d = <() => number>(() => 4);\n"
+            "const value = (() => 5)();\n"
+            "const object = { handler: () => 6 };\n"
+            "function outer() { const a = () => 7; return a(); }\n",
+            encoding="utf-8",
+        )
+
+        assert SourceInspector().top_level_arrow_bindings(path) == {(0, 27), (1, 6), (2, 4), (3, 4)}
+
     def test_a_function_in_an_object_literal(self, tmp_path: Path):
         f = tmp_path / "app.ts"
         f.write_text("const api = { load: function () {} };\n")

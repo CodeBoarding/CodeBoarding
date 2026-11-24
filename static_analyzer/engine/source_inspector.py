@@ -776,6 +776,41 @@ class SourceInspector:
         usage_index = self._usage_index(file_path)
         return usage_index.function_values if usage_index is not None else {}
 
+    def top_level_arrow_bindings(self, file_path: Path) -> set[tuple[int, int]]:
+        """LSP positions of JS/TS module-level names initialized with arrow functions."""
+        parsed = self._parse(file_path)
+        if parsed is None:
+            return set()
+
+        positions = set()
+        for statement in parsed.tree.root_node.named_children:
+            declaration = (
+                statement.child_by_field_name("declaration") if statement.type == "export_statement" else statement
+            )
+            if declaration is None or declaration.type not in {"lexical_declaration", "variable_declaration"}:
+                continue
+            for binding in declaration.named_children:
+                if binding.type != "variable_declarator":
+                    continue
+                name = binding.child_by_field_name("name")
+                value = binding.child_by_field_name("value")
+                while value is not None and value.type in {
+                    "parenthesized_expression",
+                    "as_expression",
+                    "satisfies_expression",
+                    "type_assertion",
+                }:
+                    children = [child for child in value.named_children if not child.is_extra]
+                    value = (children[-1] if value.type == "type_assertion" else children[0]) if children else None
+                if (
+                    name is not None
+                    and name.type == "identifier"
+                    and value is not None
+                    and value.type == "arrow_function"
+                ):
+                    positions.add(parsed.lsp_position(name.start_point))
+        return positions
+
     def overload_implementations(self, file_path: Path) -> dict[tuple[int, int], tuple[int, int]]:
         """Each overload signature the file declares, by its name's position, to where its implementation is named."""
         usage_index = self._usage_index(file_path)
