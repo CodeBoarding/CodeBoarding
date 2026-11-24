@@ -1497,7 +1497,9 @@ class DiagramGenerator:
                 live_ids,
                 has_call,
                 self._changed_members,
-                gated_members=self._changed_members,
+                # Same rule as the per-scope path: a change outside any member body
+                # (an import binding, say) may move calls the member set cannot see.
+                gated_members=set() if self._changed_unattributed_files else self._changed_members,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
