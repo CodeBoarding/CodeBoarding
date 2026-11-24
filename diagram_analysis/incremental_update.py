@@ -15,6 +15,7 @@ from agents.agent_responses import (
     assign_relation_ids,
     iter_components,
 )
+from agents.component_ownership import ComponentOwnershipIndex
 from agents.content_hash import SourceCache
 from agents.file_index_models import FileMethodGroup, MethodEntry
 from agents.incremental_results import ScopeRelationContext, ScopeUpdateResult
@@ -328,6 +329,7 @@ class IncrementalUpdater:
                 changed_members,
                 gated_members,
                 has_symbol=has_symbol,
+                owner_of=ComponentOwnershipIndex.from_analysis(scope).owner_of,
             )
             # Preservation runs after the grounding filters and re-injects baseline edges, so
             # the assembled list is filtered once more — otherwise a baseline's invented or

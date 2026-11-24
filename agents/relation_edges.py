@@ -274,19 +274,26 @@ def _restore_relation_backing(
     relation: Relation,
     has_call: Callable[[str, str], bool],
     has_symbol: Callable[[str], bool],
+    owner_of: Callable[[SourceCodeReference], str],
 ) -> Relation | None:
     """Keep edgeless and evidence-backed relations; filter static backing to surviving calls.
 
     A relation with ``evidence`` is a semantic queue, REST, or config link whose key edges are
     not direct calls, so the call graph cannot confirm or refute it. It still needs one backing
     edge whose two endpoints remain live symbols: once every referenced producer or consumer is
-    gone, the relation cites code that no longer exists.
+    gone, the relation cites code that no longer exists. A backing edge whose endpoints are
+    now both owned outside the pair does not count: the connection moved with them.
     """
     edges = relation.all_edges or relation.key_edges
     if not edges:
         return relation
     if relation.evidence.strip():
-        if any(has_symbol(edge.source.qualified_name) and has_symbol(edge.target.qualified_name) for edge in edges):
+        if any(
+            has_symbol(edge.source.qualified_name)
+            and has_symbol(edge.target.qualified_name)
+            and not _filed_elsewhere(edge, relation, owner_of)
+            for edge in edges
+        ):
             return relation
         return None
 
@@ -401,6 +408,7 @@ def preserve_unchanged_relations(
     gated_members: Collection[str] = (),
     *,
     has_symbol: Callable[[str], bool],
+    owner_of: Callable[[SourceCodeReference], str],
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
@@ -423,7 +431,8 @@ def preserve_unchanged_relations(
     A baseline relation between two unchanged, still-live components that regeneration
     dropped is restored with only its surviving CFG calls. Relations without static backing
     are also eligible. An evidence-backed baseline relation is restored only while one of its
-    backing edges still has both endpoints in ``has_symbol``. Passing ``gated_members`` restores a pair even when an endpoint component
+    backing edges still has both endpoints in ``has_symbol`` and is not owned
+    entirely by other components under ``owner_of``. Passing ``gated_members`` restores a pair even when an endpoint component
     is flagged changed, as long as the commit did not touch the pair's own qualified names
     and the rebuilt pair is backed by the same calls as the baseline pair.
 
@@ -496,7 +505,7 @@ def preserve_unchanged_relations(
             continue
         if touches_change(*pair) and not pair_untouched_by_change(relation, gated_members):
             continue
-        restored = _restore_relation_backing(relation, has_call, has_symbol)
+        restored = _restore_relation_backing(relation, has_call, has_symbol, owner_of)
         if restored is not None:
             kept.append(restored)
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))
@@ -532,6 +541,13 @@ def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
     rebuilt_edges = _backing_edge_pairs(rebuilt)
     previous_edges = _backing_edge_pairs(previous)
     return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
+
+
+def _filed_elsewhere(edge: RelationEdge, relation: Relation, owner_of: Callable[[SourceCodeReference], str]) -> bool:
+    """Whether both endpoints have owners and those owners no longer span the relation's pair."""
+    if not (owner_of(edge.source) and owner_of(edge.target)):
+        return False
+    return not edge_crosses_components(edge, owner_of, relation.src_id, relation.dst_id)
 
 
 def _with_span_of(reference: SourceCodeReference, live: SourceCodeReference) -> SourceCodeReference:

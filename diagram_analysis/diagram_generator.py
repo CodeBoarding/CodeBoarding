@@ -1508,6 +1508,7 @@ class DiagramGenerator:
                 # (an import binding, say) may move calls the member set cannot see.
                 gated_members=set() if self._changed_unattributed_files else self._changed_members,
                 has_symbol=has_symbol,
+                owner_of=ownership.owner_of,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
