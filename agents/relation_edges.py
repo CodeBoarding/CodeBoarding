@@ -479,13 +479,7 @@ def _untouched_baseline_matches(
 ) -> list[tuple[tuple[str, str], Relation]]:
     """Baseline relations whose call pairs equal this one's, when the commit left those names alone.
 
-    A repartition files the same untouched calls under new component ids. The rebuilt relation
-    is that connection, so those baseline pairs must not be restored beside it.
-
-    An evidence-backed relation (queue, REST or config link) is matched only while the member
-    gate is on. Callers clear ``gated_members`` for a change outside any member body, such as a
-    queue renamed in config; its producer and consumer names stay the same while the fresh
-    evidence differs, so the baseline evidence must not be copied over it.
+    Why: evidence-backed relations match only with the member gate on, so a config-only change keeps fresh evidence.
     """
     backing = _backing_edge_pairs(relation)
     if not backing or changed_members is None:
