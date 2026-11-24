@@ -2436,6 +2436,91 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
     it co-owns some other moved symbol. Neither is a reason to drop the call.
     """
 
+    def test_unchanged_logging_relation_survives_when_references_are_empty(self):
+        gen, root = self._logging_relation_setup(has_call=True)
+        gen.rebuild_global_relations(root, {})
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in root.components_relations], [("1", "2")])
+        relation = root.components_relations[0]
+        self.assertEqual(relation.relation, "instantiates default sink from")
+        self.assertEqual(
+            [(edge.source.qualified_name, edge.target.qualified_name) for edge in relation.all_edges],
+            [("log.use_stderr_sink", "log.make_stderr_sink")],
+        )
+        self.assertEqual(
+            [(site.line, site.column) for edge in relation.all_edges for site in edge.call_sites], [(268, 12)]
+        )
+
+    def test_missing_call_drops_baseline_relation_between_unchanged_methods(self):
+        gen, root = self._logging_relation_setup(has_call=False)
+
+        gen.rebuild_global_relations(root, {})
+
+        self.assertEqual(root.components_relations, [])
+
+    def test_preserved_edge_fallback_rejects_missing_call_between_live_nodes(self):
+        gen, root = self._logging_relation_setup(has_call=False)
+        assert gen._baseline_global_relations is not None
+        relation = gen._baseline_global_relations[("1", "2")].model_copy()
+        with patch("diagram_analysis.diagram_generator.build_global_relations", return_value=[relation]):
+            gen.rebuild_global_relations(root, {})
+
+        self.assertFalse(any(item.all_edges for item in root.components_relations))
+
+    def test_edge_whose_endpoints_are_the_same_cfg_node_stays_dropped(self):
+        shared = "include/cucascade/log/logging.hpp"
+        cfg = CallGraph(language="cpp")
+        cfg.add_node(
+            Node(
+                fully_qualified_name="log.use_stderr_sink",
+                node_type=NodeType.FUNCTION,
+                file_path=shared,
+                line_start=10,
+                line_end=20,
+            )
+        )
+        cfg.add_node(
+            Node(
+                fully_qualified_name="log.make_stderr_sink",
+                node_type=NodeType.FUNCTION,
+                file_path=shared,
+                line_start=10,
+                line_end=20,
+            )
+        )
+        self.assertEqual(cfg.canonical_name("log.use_stderr_sink"), cfg.canonical_name("log.make_stderr_sink"))
+        gen = self._generator(cfg)
+        edge = self._logging_edge(268)
+        relation = Relation(
+            relation="calls",
+            src_name="Headers",
+            dst_name="Implementation",
+            src_id="1",
+            dst_id="2",
+            is_static=True,
+            all_edges=[edge],
+        )
+        root = AnalysisInsights(
+            description="d",
+            components=[
+                self._component("1", "Headers", {shared: ["log.use_stderr_sink"]}),
+                self._component("2", "Implementation", {"src/log/logging.cpp": ["log.make_stderr_sink"]}),
+            ],
+            components_relations=[relation],
+        )
+        gen._baseline_global_relations = {("1", "2"): relation.model_copy(deep=True)}
+        gen._baseline_component_ids = {"1", "2"}
+        gen._baseline_member_keys = {
+            component.component_id: frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            for component in root.components
+        }
+
+        gen.rebuild_global_relations(root, {})
+
+        self.assertEqual(root.components_relations, [])
+
     def _generator(self, cfg: CallGraph) -> DiagramGenerator:
         gen = DiagramGenerator.__new__(DiagramGenerator)
         gen.repo_location = Path(".")
@@ -2535,91 +2620,6 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
         }
         gen._changed_members = {"object_identity.cache_key"}
         return gen, root
-
-    def test_unchanged_logging_relation_survives_when_references_are_empty(self):
-        gen, root = self._logging_relation_setup(has_call=True)
-        gen.rebuild_global_relations(root, {})
-
-        self.assertEqual([(relation.src_id, relation.dst_id) for relation in root.components_relations], [("1", "2")])
-        relation = root.components_relations[0]
-        self.assertEqual(relation.relation, "instantiates default sink from")
-        self.assertEqual(
-            [(edge.source.qualified_name, edge.target.qualified_name) for edge in relation.all_edges],
-            [("log.use_stderr_sink", "log.make_stderr_sink")],
-        )
-        self.assertEqual(
-            [(site.line, site.column) for edge in relation.all_edges for site in edge.call_sites], [(268, 12)]
-        )
-
-    def test_missing_call_drops_baseline_relation_between_unchanged_methods(self):
-        gen, root = self._logging_relation_setup(has_call=False)
-
-        gen.rebuild_global_relations(root, {})
-
-        self.assertEqual(root.components_relations, [])
-
-    def test_preserved_edge_fallback_rejects_missing_call_between_live_nodes(self):
-        gen, root = self._logging_relation_setup(has_call=False)
-        assert gen._baseline_global_relations is not None
-        relation = gen._baseline_global_relations[("1", "2")].model_copy()
-        with patch("diagram_analysis.diagram_generator.build_global_relations", return_value=[relation]):
-            gen.rebuild_global_relations(root, {})
-
-        self.assertFalse(any(item.all_edges for item in root.components_relations))
-
-    def test_edge_whose_endpoints_are_the_same_cfg_node_stays_dropped(self):
-        shared = "include/cucascade/log/logging.hpp"
-        cfg = CallGraph(language="cpp")
-        cfg.add_node(
-            Node(
-                fully_qualified_name="log.use_stderr_sink",
-                node_type=NodeType.FUNCTION,
-                file_path=shared,
-                line_start=10,
-                line_end=20,
-            )
-        )
-        cfg.add_node(
-            Node(
-                fully_qualified_name="log.make_stderr_sink",
-                node_type=NodeType.FUNCTION,
-                file_path=shared,
-                line_start=10,
-                line_end=20,
-            )
-        )
-        self.assertEqual(cfg.canonical_name("log.use_stderr_sink"), cfg.canonical_name("log.make_stderr_sink"))
-        gen = self._generator(cfg)
-        edge = self._logging_edge(268)
-        relation = Relation(
-            relation="calls",
-            src_name="Headers",
-            dst_name="Implementation",
-            src_id="1",
-            dst_id="2",
-            is_static=True,
-            all_edges=[edge],
-        )
-        root = AnalysisInsights(
-            description="d",
-            components=[
-                self._component("1", "Headers", {shared: ["log.use_stderr_sink"]}),
-                self._component("2", "Implementation", {"src/log/logging.cpp": ["log.make_stderr_sink"]}),
-            ],
-            components_relations=[relation],
-        )
-        gen._baseline_global_relations = {("1", "2"): relation.model_copy(deep=True)}
-        gen._baseline_component_ids = {"1", "2"}
-        gen._baseline_member_keys = {
-            component.component_id: frozenset(
-                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
-            )
-            for component in root.components
-        }
-
-        gen.rebuild_global_relations(root, {})
-
-        self.assertEqual(root.components_relations, [])
 
 
 if __name__ == "__main__":
