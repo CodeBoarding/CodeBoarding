@@ -36,6 +36,7 @@ from agents.relation_edges import (
     index_relation_endpoints,
     preserve_unchanged_relations,
     prune_ungrounded_edges,
+    refresh_edges_from_calls,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
 from infra.clustering_ids import CodeBoardingClusterIds
@@ -1483,12 +1484,15 @@ class DiagramGenerator:
                 if component.component_id
             }
 
+            def live_call(source_name: str, target_name: str) -> RelationEdge | None:
+                for cfg in cfg_graphs.values():
+                    edge = cfg.get_edge(source_name, target_name)
+                    if edge is not None and edge.get_source() != edge.get_destination():
+                        return RelationEdge.from_edge(edge)
+                return None
+
             def has_call(source_name: str, target_name: str) -> bool:
-                return any(
-                    cfg.has_edge(source_name, target_name)
-                    and cfg.canonical_name(source_name) != cfg.canonical_name(target_name)
-                    for cfg in cfg_graphs.values()
-                )
+                return live_call(source_name, target_name) is not None
 
             def has_symbol(name: str) -> bool:
                 return any(cfg.has_node(name) for cfg in cfg_graphs.values())
@@ -1517,7 +1521,7 @@ class DiagramGenerator:
                 )
 
             global_relations = prune_ungrounded_edges(
-                global_relations,
+                refresh_edges_from_calls(global_relations, live_call),
                 ownership.owner_of,
                 keep_preserved_edge,
                 self._changed_members,

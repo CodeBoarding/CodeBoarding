@@ -197,6 +197,37 @@ def prune_ungrounded_edges(
     return drop_reverse_duplicates(settled, changed_members)
 
 
+def refresh_edges_from_calls(
+    relations: list[Relation], live_call: Callable[[str, str], RelationEdge | None]
+) -> list[Relation]:
+    """Copy call sites and endpoint spans onto each edge from its live CFG call, keeping its names.
+
+    Why: a baseline edge kept because its aliased names still call carries the baseline's line numbers.
+    """
+
+    def refresh(edge: RelationEdge) -> RelationEdge:
+        call = live_call(edge.source.qualified_name, edge.target.qualified_name)
+        if call is None:
+            return edge
+        return edge.model_copy(
+            update={
+                "source": _with_span_of(edge.source, call.source),
+                "target": _with_span_of(edge.target, call.target),
+                "call_sites": call.call_sites,
+            }
+        )
+
+    return [
+        relation.model_copy(
+            update={
+                "all_edges": [refresh(edge) for edge in relation.all_edges],
+                "key_edges": [refresh(edge) for edge in relation.key_edges],
+            }
+        )
+        for relation in relations
+    ]
+
+
 def drop_reverse_duplicates(relations: list[Relation], changed_members: set[str] | None = None) -> list[Relation]:
     """Collapse an ungrounded relation duplicated in the opposite direction."""
     grounded_pairs = {
@@ -501,3 +532,13 @@ def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
     rebuilt_edges = _backing_edge_pairs(rebuilt)
     previous_edges = _backing_edge_pairs(previous)
     return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
+
+
+def _with_span_of(reference: SourceCodeReference, live: SourceCodeReference) -> SourceCodeReference:
+    return reference.model_copy(
+        update={
+            "reference_file": live.reference_file,
+            "reference_start_line": live.reference_start_line,
+            "reference_end_line": live.reference_end_line,
+        }
+    )

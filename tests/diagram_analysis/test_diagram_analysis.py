@@ -2523,6 +2523,36 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
 
         self.assertEqual(root.components_relations, [])
 
+    def test_aliased_baseline_edge_takes_live_call_sites_and_spans(self):
+        cfg = CallGraph(language="cpp")
+        for name, path, start, end in [
+            ("cucascade.log.use_stderr_sink", "include/cucascade/log/logging.hpp", 260, 275),
+            ("log.use_stderr_sink", "include/cucascade/log/logging.hpp", 260, 275),
+            ("cucascade.log.make_stderr_sink", "src/log/logging.cpp", 1, 30),
+            ("log.make_stderr_sink", "src/log/logging.cpp", 1, 30),
+        ]:
+            cfg.add_node(
+                Node(
+                    fully_qualified_name=name,
+                    node_type=NodeType.FUNCTION,
+                    file_path=path,
+                    line_start=start,
+                    line_end=end,
+                )
+            )
+        cfg.add_edge("log.use_stderr_sink", "log.make_stderr_sink", call_sites=[{"line": 268, "column": 12}])
+        gen, root = self._logging_relation_setup(has_call=False)
+        gen.static_analysis = self._generator(cfg).static_analysis
+
+        gen.rebuild_global_relations(root, {})
+
+        [edge] = root.components_relations[0].all_edges
+        self.assertEqual(
+            (edge.source.qualified_name, edge.target.qualified_name), ("log.use_stderr_sink", "log.make_stderr_sink")
+        )
+        self.assertEqual([(site.line, site.column) for site in edge.call_sites], [(268, 12)])
+        self.assertEqual((edge.source.reference_start_line, edge.source.reference_end_line), (260, 275))
+
     def _generator(self, cfg: CallGraph) -> DiagramGenerator:
         gen = DiagramGenerator.__new__(DiagramGenerator)
         gen.repo_location = Path(".")
