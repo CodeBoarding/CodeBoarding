@@ -420,7 +420,7 @@ def preserve_unchanged_relations(
         if previous is None:
             # No baseline for this pair. The same untouched calls filed under new component
             # ids keep the baseline wording once; the baseline pair is not restored as well.
-            matches = _untouched_baseline_matches(relation, baseline_by_pair, changed_members)
+            matches = _untouched_baseline_matches(relation, baseline_by_pair, changed_members, gated_members)
             if matches:
                 relation = _restore_baseline_wording(relation, matches[0][1])
                 adopted_baseline_pairs.update(matched_pair for matched_pair, _baseline in matches)
@@ -475,14 +475,22 @@ def _untouched_baseline_matches(
     relation: Relation,
     baseline_by_pair: dict[tuple[str, str], Relation],
     changed_members: set[str] | None,
+    gated_members: Collection[str] = (),
 ) -> list[tuple[tuple[str, str], Relation]]:
     """Baseline relations whose call pairs equal this one's, when the commit left those names alone.
 
     A repartition files the same untouched calls under new component ids. The rebuilt relation
     is that connection, so those baseline pairs must not be restored beside it.
+
+    An evidence-backed relation (queue, REST or config link) is matched only while the member
+    gate is on. Callers clear ``gated_members`` for a change outside any member body, such as a
+    queue renamed in config; its producer and consumer names stay the same while the fresh
+    evidence differs, so the baseline evidence must not be copied over it.
     """
     backing = _backing_edge_pairs(relation)
     if not backing or changed_members is None:
+        return []
+    if relation.evidence.strip() and changed_members and not gated_members:
         return []
     if any(source in changed_members or target in changed_members for source, target in backing):
         return []

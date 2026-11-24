@@ -743,6 +743,32 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         self.assertEqual(kept[0].relation, "instantiates default sink from")
         self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [268])
 
+    def test_repartitioned_evidence_relation_keeps_fresh_evidence_after_unattributed_change(self):
+        # A config edit renamed the queue, so callers cleared the member gate. The producer and
+        # consumer names are unchanged and the pair moved to new ids, but the jobs-v1 evidence
+        # is stale and must not be copied over the fresh jobs-v2 relation.
+        stale = self._relation("1", "2", "enqueues jobs-v1 for")
+        stale.evidence = "queue jobs-v1"
+        stale.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+        fresh = self._relation("3", "4", "enqueues jobs-v2 for")
+        fresh.evidence = "queue jobs-v2"
+        fresh.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"1", "2", "3", "4"},
+            {"3", "4"},
+            _live_calls(),
+            changed_members={"pkg.unrelated"},
+            gated_members=set(),
+            has_symbol=_every_symbol_live,
+        )
+
+        self.assertEqual(
+            [(relation.evidence, relation.relation) for relation in kept], [("queue jobs-v2", "enqueues jobs-v2 for")]
+        )
+
     def test_reused_pair_backing_different_calls_keeps_fresh_wording(self):
         # The repartition moved a -> b under 3 -> 2 and filed an unrelated x -> y under 1 -> 2.
         # The gate saw no changed name on either call, but 1 -> 2 now backs different calls, so
