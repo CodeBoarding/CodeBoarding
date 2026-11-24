@@ -1490,6 +1490,9 @@ class DiagramGenerator:
                     for cfg in cfg_graphs.values()
                 )
 
+            def has_symbol(name: str) -> bool:
+                return any(cfg.has_node(name) for cfg in cfg_graphs.values())
+
             global_relations = preserve_unchanged_relations(
                 global_relations,
                 self._baseline_global_relations,
@@ -1500,6 +1503,7 @@ class DiagramGenerator:
                 # Same rule as the per-scope path: a change outside any member body
                 # (an import binding, say) may move calls the member set cannot see.
                 gated_members=set() if self._changed_unattributed_files else self._changed_members,
+                has_symbol=has_symbol,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.

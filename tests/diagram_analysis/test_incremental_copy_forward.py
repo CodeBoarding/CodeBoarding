@@ -534,6 +534,40 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual(kept, [baseline])
 
+    def test_restored_evidence_relation_whose_backing_symbols_are_gone_is_dropped(self):
+        # Both components stay live, but the queue producer the relation cites was deleted, so
+        # no backing edge has two live endpoints and the relation would cite missing code.
+        baseline = self._relation("1", "2", "publishes jobs to")
+        baseline.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol={"consumer.handle"}.__contains__,
+        )
+
+        self.assertEqual(kept, [])
+
+    def test_restored_evidence_relation_with_live_backing_symbols_is_kept(self):
+        baseline = self._relation("1", "2", "publishes jobs to")
+        baseline.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol={"producer.enqueue", "consumer.handle"}.__contains__,
+        )
+
+        self.assertEqual(kept, [baseline])
+
     def test_rebuilt_pair_with_the_same_untouched_backing_is_kept_once(self):
         # The calls moved to new component ids, but neither qualified name changed. Keep the
         # rebuilt filing, with the reader's wording and the fresh call sites, and do not also

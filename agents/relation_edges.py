@@ -239,14 +239,27 @@ def _qualified_names_match(first: str, second: str) -> bool:
     return first == second or first.endswith(f".{second}") or second.endswith(f".{first}")
 
 
-def _restore_relation_backing(relation: Relation, has_call: Callable[[str, str], bool]) -> Relation | None:
+def _restore_relation_backing(
+    relation: Relation,
+    has_call: Callable[[str, str], bool],
+    has_symbol: Callable[[str], bool] | None = None,
+) -> Relation | None:
     """Keep edgeless and evidence-backed relations; filter static backing to surviving calls.
 
     A relation with ``evidence`` is a semantic queue, REST, or config link whose key edges are
-    not direct calls, so the call graph cannot confirm or refute it.
+    not direct calls, so the call graph cannot confirm or refute it. It still needs one backing
+    edge whose two endpoints remain live symbols: once every referenced producer or consumer is
+    gone, the relation cites code that no longer exists.
     """
-    if not (relation.all_edges or relation.key_edges) or relation.evidence.strip():
+    edges = relation.all_edges or relation.key_edges
+    if not edges:
         return relation
+    if relation.evidence.strip():
+        if has_symbol is None or any(
+            has_symbol(edge.source.qualified_name) and has_symbol(edge.target.qualified_name) for edge in edges
+        ):
+            return relation
+        return None
 
     all_edges = [
         edge for edge in relation.all_edges if has_call(edge.source.qualified_name, edge.target.qualified_name)
@@ -357,6 +370,7 @@ def preserve_unchanged_relations(
     has_call: Callable[[str, str], bool],
     changed_members: set[str] | None = None,
     gated_members: Collection[str] = (),
+    has_symbol: Callable[[str], bool] | None = None,
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
@@ -378,7 +392,8 @@ def preserve_unchanged_relations(
 
     A baseline relation between two unchanged, still-live components that regeneration
     dropped is restored with only its surviving CFG calls. Relations without static backing
-    are also eligible. Passing ``gated_members`` restores a pair even when an endpoint component
+    are also eligible. An evidence-backed baseline relation is restored only while one of its
+    backing edges still has both endpoints in ``has_symbol``. Passing ``gated_members`` restores a pair even when an endpoint component
     is flagged changed, as long as the commit did not touch the pair's own qualified names.
 
     A rebuilt pair filed under component ids the baseline does not have is the same
@@ -445,7 +460,7 @@ def preserve_unchanged_relations(
             continue
         if touches_change(*pair) and not pair_untouched_by_change(relation, gated_members):
             continue
-        restored = _restore_relation_backing(relation, has_call)
+        restored = _restore_relation_backing(relation, has_call, has_symbol)
         if restored is not None:
             kept.append(restored)
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))

@@ -309,6 +309,9 @@ class IncrementalUpdater:
             def has_call(source_name: str, target_name: str) -> bool:
                 return any(cfg.has_edge(source_name, target_name) for cfg in cfgs)
 
+            def has_symbol(name: str) -> bool:
+                return any(cfg.has_node(name) for cfg in cfgs)
+
             for relation in scope.components_relations:
                 # Carry the baseline forward when regenerated component ids changed but names did not.
                 pair = (relation.src_id, relation.dst_id)
@@ -324,6 +327,7 @@ class IncrementalUpdater:
                 has_call,
                 changed_members,
                 gated_members,
+                has_symbol=has_symbol,
             )
             # Preservation runs after the grounding filters and re-injects baseline edges, so
             # the assembled list is filtered once more — otherwise a baseline's invented or
