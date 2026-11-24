@@ -2429,5 +2429,178 @@ class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):
         )
 
 
+class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
+    """An incremental save must keep a CFG call whose files did not change.
+
+    The reference list can omit a C++ name, and an endpoint component can be flagged because
+    it co-owns some other moved symbol. Neither is a reason to drop the call.
+    """
+
+    def _generator(self, cfg: CallGraph) -> DiagramGenerator:
+        gen = DiagramGenerator.__new__(DiagramGenerator)
+        gen.repo_location = Path(".")
+        gen.static_analysis = StaticAnalysisResults()
+        gen.static_analysis.add_cfg(Language.CPP, cfg)
+        gen.static_analysis.add_references(Language.CPP, [])
+        gen._changed_unattributed_files = set()
+        gen._baseline_component_ids = set()
+        gen._baseline_member_keys = {}
+        gen._changed_members = set()
+        gen._baseline_global_relations = {}
+        return gen
+
+    def _component(self, component_id: str, name: str, files: dict[str, list[str]]) -> Component:
+        return Component(
+            name=name,
+            description="d",
+            key_entities=[],
+            component_id=component_id,
+            file_methods=[
+                FileMethodGroup(
+                    file_path=path,
+                    methods=[
+                        MethodEntry(qualified_name=qualified_name, start_line=1, end_line=5, node_type="FUNCTION")
+                        for qualified_name in qualified_names
+                    ],
+                )
+                for path, qualified_names in files.items()
+            ],
+        )
+
+    def _logging_edge(self, line: int) -> RelationEdge:
+        return RelationEdge(
+            source=SourceCodeReference(
+                qualified_name="log.use_stderr_sink",
+                reference_file="include/cucascade/log/logging.hpp",
+            ),
+            target=SourceCodeReference(
+                qualified_name="log.make_stderr_sink",
+                reference_file="src/log/logging.cpp",
+            ),
+            call_sites=[RelationCallSite(line=line, column=12 if line == 268 else 4)],
+        )
+
+    def test_unchanged_logging_relation_survives_when_references_are_empty(self):
+        caller = Node(
+            fully_qualified_name="log.use_stderr_sink",
+            node_type=NodeType.FUNCTION,
+            file_path="include/cucascade/log/logging.hpp",
+            line_start=260,
+            line_end=275,
+        )
+        callee = Node(
+            fully_qualified_name="log.make_stderr_sink",
+            node_type=NodeType.FUNCTION,
+            file_path="src/log/logging.cpp",
+            line_start=1,
+            line_end=30,
+        )
+        cfg = CallGraph(language="cpp")
+        cfg.add_node(caller)
+        cfg.add_node(callee)
+        cfg.add_edge("log.use_stderr_sink", "log.make_stderr_sink", call_sites=[{"line": 268, "column": 12}])
+        gen = self._generator(cfg)
+        root = AnalysisInsights(
+            description="d",
+            components=[
+                self._component(
+                    "1",
+                    "Headers",
+                    {
+                        "include/cucascade/log/logging.hpp": ["log.use_stderr_sink"],
+                        "include/cucascade/io/object_identity.hpp": ["object_identity.cache_key"],
+                    },
+                ),
+                self._component("2", "Implementation", {"src/log/logging.cpp": ["log.make_stderr_sink"]}),
+            ],
+            components_relations=[],
+        )
+        baseline = Relation(
+            relation="instantiates default sink from",
+            src_name="Headers",
+            dst_name="Implementation",
+            src_id="1",
+            dst_id="2",
+            is_static=True,
+            all_edges=[self._logging_edge(12)],
+        )
+        gen._baseline_global_relations = {("1", "2"): baseline}
+        gen._baseline_component_ids = {"1", "2"}
+        gen._baseline_member_keys = {
+            component.component_id: frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            for component in root.components
+        }
+        gen._changed_members = {"object_identity.cache_key"}
+
+        gen.rebuild_global_relations(root, {})
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in root.components_relations], [("1", "2")])
+        relation = root.components_relations[0]
+        self.assertEqual(relation.relation, "instantiates default sink from")
+        self.assertEqual(
+            [(edge.source.qualified_name, edge.target.qualified_name) for edge in relation.all_edges],
+            [("log.use_stderr_sink", "log.make_stderr_sink")],
+        )
+        self.assertEqual(
+            [(site.line, site.column) for edge in relation.all_edges for site in edge.call_sites], [(268, 12)]
+        )
+
+    def test_edge_whose_endpoints_are_the_same_cfg_node_stays_dropped(self):
+        shared = "include/cucascade/log/logging.hpp"
+        cfg = CallGraph(language="cpp")
+        cfg.add_node(
+            Node(
+                fully_qualified_name="log.use_stderr_sink",
+                node_type=NodeType.FUNCTION,
+                file_path=shared,
+                line_start=10,
+                line_end=20,
+            )
+        )
+        cfg.add_node(
+            Node(
+                fully_qualified_name="log.make_stderr_sink",
+                node_type=NodeType.FUNCTION,
+                file_path=shared,
+                line_start=10,
+                line_end=20,
+            )
+        )
+        self.assertEqual(cfg.canonical_name("log.use_stderr_sink"), cfg.canonical_name("log.make_stderr_sink"))
+        gen = self._generator(cfg)
+        edge = self._logging_edge(268)
+        relation = Relation(
+            relation="calls",
+            src_name="Headers",
+            dst_name="Implementation",
+            src_id="1",
+            dst_id="2",
+            is_static=True,
+            all_edges=[edge],
+        )
+        root = AnalysisInsights(
+            description="d",
+            components=[
+                self._component("1", "Headers", {shared: ["log.use_stderr_sink"]}),
+                self._component("2", "Implementation", {"src/log/logging.cpp": ["log.make_stderr_sink"]}),
+            ],
+            components_relations=[relation],
+        )
+        gen._baseline_global_relations = {("1", "2"): relation.model_copy(deep=True)}
+        gen._baseline_component_ids = {"1", "2"}
+        gen._baseline_member_keys = {
+            component.component_id: frozenset(
+                (group.file_path, method.qualified_name) for group in component.file_methods for method in group.methods
+            )
+            for component in root.components
+        }
+
+        gen.rebuild_global_relations(root, {})
+
+        self.assertEqual(root.components_relations, [])
+
+
 if __name__ == "__main__":
     unittest.main()

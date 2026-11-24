@@ -1493,13 +1493,31 @@ class DiagramGenerator:
                 live_ids,
                 live_qnames,
                 self._changed_members,
+                gated_members=self._changed_members,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
+            # keep_relation_edge rejects a CFG edge whose C++ name is an alias or a display[usr]
+            # key the reference list does not store. The call is real when both ends are
+            # distinct live nodes.
+            resolver = StaticReferenceResolver(self.repo_location, self.static_analysis)
+
+            def keep_preserved_edge(edge) -> bool:
+                if resolver.keep_relation_edge(edge):
+                    return True
+                source_name = edge.source.qualified_name
+                target_name = edge.target.qualified_name
+                return any(
+                    cfg.has_node(source_name)
+                    and cfg.has_node(target_name)
+                    and cfg.canonical_name(source_name) != cfg.canonical_name(target_name)
+                    for cfg in cfg_graphs.values()
+                )
+
             global_relations = prune_ungrounded_edges(
                 global_relations,
                 ownership.owner_of,
-                StaticReferenceResolver(self.repo_location, self.static_analysis).keep_relation_edge,
+                keep_preserved_edge,
                 self._changed_members,
             )
         root_analysis.components_relations = global_relations

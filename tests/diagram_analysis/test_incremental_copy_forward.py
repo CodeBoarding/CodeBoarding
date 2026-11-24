@@ -511,6 +511,109 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
 
+    def test_rebuilt_pair_with_the_same_untouched_backing_is_kept_once(self):
+        # The calls moved to new component ids, but neither qualified name changed. Keep the
+        # rebuilt filing, with the reader's wording and the fresh call sites, and do not also
+        # restore the baseline pair the changed endpoints would otherwise bring back.
+        stale = self._relation("1", "2", "instantiates default sink from")
+        stale.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=12, column=4)],
+            )
+        ]
+        fresh = self._relation("3", "4", "rebuilt wording")
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=268, column=12)],
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"1", "2"},
+            {"1", "2", "3", "4"},
+            {"log.use_stderr_sink", "log.make_stderr_sink"},
+            changed_members={"object_identity.cache_key"},
+            gated_members={"object_identity.cache_key"},
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("3", "4")])
+        self.assertEqual(kept[0].relation, "instantiates default sink from")
+        self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [268])
+
+    def test_changed_co_owner_keeps_untouched_logging_relation_with_fresh_call_sites(self):
+        # The endpoint is flagged because it co-owns the moved symbol. The logging names are
+        # absent from that set, so the relation stays, and its call sites come from the rebuild.
+        stale = self._relation("1", "2", "instantiates default sink from")
+        stale.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=12, column=4)],
+            )
+        ]
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=268, column=12)],
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            {"log.use_stderr_sink", "log.make_stderr_sink"},
+            changed_members={"object_identity.cache_key"},
+            gated_members={"object_identity.cache_key"},
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("1", "2")])
+        self.assertEqual(kept[0].relation, "instantiates default sink from")
+        self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [268])
+
+    def test_baseline_whose_backing_names_changed_stays_dropped_when_rebuild_misses_it(self):
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.changed"), target=_ref("pkg.callee"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): stale},
+            {"1", "2"},
+            {"1", "2"},
+            {"pkg.changed", "pkg.callee"},
+            changed_members={"pkg.changed"},
+            gated_members={"pkg.changed"},
+        )
+
+        self.assertEqual(kept, [])
+
+    def test_fresh_edge_with_no_matching_baseline_backing_stays_dropped(self):
+        baseline = self._relation("1", "2", "baseline wording")
+        baseline.all_edges = [RelationEdge(source=_ref("log.use_stderr_sink"), target=_ref("log.make_stderr_sink"))]
+        fresh = self._relation("3", "4", "invented")
+        fresh.all_edges = [RelationEdge(source=_ref("pkg.other"), target=_ref("pkg.else"))]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): baseline},
+            {"1", "2"},
+            {"1", "2", "3", "4"},
+            {"log.use_stderr_sink", "log.make_stderr_sink", "pkg.other", "pkg.else"},
+            changed_members={"object_identity.cache_key"},
+            gated_members={"object_identity.cache_key"},
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("1", "2")])
+
 
 class TestGraftEnteredMethods(unittest.TestCase):
     def test_entered_method_lands_on_the_child_owning_most_of_its_file(self):

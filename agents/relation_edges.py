@@ -345,6 +345,29 @@ def _commit_deleted_the_backing(rebuilt: Relation, previous: Relation, changed_m
     return any(_edge_touches_changed_method(edge, changed_members) for edge in baseline_edges)
 
 
+def _untouched_baseline_matches(
+    relation: Relation,
+    baseline_by_pair: dict[tuple[str, str], Relation],
+    changed_members: set[str] | None,
+) -> list[tuple[tuple[str, str], Relation]]:
+    """Baseline relations whose call pairs equal this one's, when the commit left those names alone.
+
+    A repartition files the same untouched calls under new component ids. The rebuilt relation
+    is that connection, so those baseline pairs must not be restored beside it.
+    """
+    backing = _backing_edge_pairs(relation)
+    if not backing or changed_members is None:
+        return []
+    if any(source in changed_members or target in changed_members for source, target in backing):
+        return []
+    own_pair = (relation.src_id, relation.dst_id)
+    return [
+        (pair, previous)
+        for pair, previous in baseline_by_pair.items()
+        if pair != own_pair and _backing_edge_pairs(previous) == backing
+    ]
+
+
 def preserve_unchanged_relations(
     rebuilt_relations: list[Relation],
     baseline_by_pair: dict[tuple[str, str], Relation],
@@ -376,7 +399,14 @@ def preserve_unchanged_relations(
     dropped is restored — but only when its backing edges still exist in live code. The
     deterministic rebuild drops a pair when the code connecting the two components was
     deleted; restoring it then would resurrect an edge citing a symbol that no longer
-    exists.
+    exists. Passing ``gated_members`` restores that pair even when an endpoint component
+    is flagged changed, as long as the commit did not touch the pair's own qualified names.
+
+    A rebuilt pair filed under component ids the baseline does not have is the same
+    connection when its ``(source, target)`` qualified-name pairs equal a baseline
+    relation's backing pairs and neither name is in ``changed_members``. That rebuilt
+    relation is kept, with the baseline wording and the fresh call sites, and the baseline
+    pair is not restored beside it.
 
     Wording is all this layer carries; CFG-backed edges always come from the fresh rebuild.
     Why: extraction is deterministic, and a baseline edge carried forward keeps the line
@@ -390,6 +420,7 @@ def preserve_unchanged_relations(
 
     kept: list[Relation] = []
     rebuilt_pairs: set[tuple[str, str]] = set()
+    adopted_baseline_pairs: set[tuple[str, str]] = set()
     for relation in rebuilt_relations:
         if (relation.src_id, relation.dst_id) not in baseline_by_pair:
             relation = _restore_baseline_orientation(relation, baseline_by_pair)
@@ -397,9 +428,16 @@ def preserve_unchanged_relations(
         rebuilt_pairs.add(pair)
         previous = baseline_by_pair.get(pair)
         if previous is None:
-            # No baseline for this pair. A genuinely new connection into a changed area is
-            # kept; a fresh edge invented between two untouched components is a re-attribution
-            # artifact and is dropped.
+            # No baseline for this pair. The same untouched calls filed under new component
+            # ids keep the baseline wording once; the baseline pair is not restored as well.
+            matches = _untouched_baseline_matches(relation, baseline_by_pair, changed_members)
+            if matches:
+                relation = _restore_baseline_wording(relation, matches[0][1])
+                adopted_baseline_pairs.update(matched_pair for matched_pair, _baseline in matches)
+                kept.append(relation)
+                continue
+            # A genuinely new connection into a changed area is kept; a fresh edge invented
+            # between two untouched components is a re-attribution artifact and is dropped.
             if not touches_change(*pair):
                 continue
             # The pair asserts no connection at all.
@@ -423,7 +461,12 @@ def preserve_unchanged_relations(
             relation = _restore_baseline_wording(relation, previous)
         kept.append(relation)
     for pair, relation in baseline_by_pair.items():
-        if pair in rebuilt_pairs or pair[0] not in live_ids or pair[1] not in live_ids:
+        if (
+            pair in rebuilt_pairs
+            or pair in adopted_baseline_pairs
+            or pair[0] not in live_ids
+            or pair[1] not in live_ids
+        ):
             continue
         if touches_change(*pair) and not pair_untouched_by_change(relation, gated_members):
             continue
