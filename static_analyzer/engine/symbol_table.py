@@ -167,6 +167,7 @@ class SymbolTable:
             info.owner_qualified_name = owner_qualified_name
             info.explicit_identity = bool(sym.get("qualified_name"))
             info.is_definition = sym.get("is_definition", True)
+            info.graph_kind = sym.get("graph_kind")
 
             if info.is_definition or qualified_name not in self._symbols:
                 self._symbols[qualified_name] = info

@@ -86,7 +86,7 @@ class TypeScriptAdapter(LanguageAdapter):
             if symbol["kind"] in (NodeType.CONSTANT, NodeType.VARIABLE):
                 start = symbol["selectionRange"]["start"]
                 if (start["line"], start["character"]) in arrows:
-                    symbol["kind"] = NodeType.FUNCTION
+                    symbol["graph_kind"] = NodeType.FUNCTION
         return symbols
 
     def extract_package(self, qualified_name: str) -> str:

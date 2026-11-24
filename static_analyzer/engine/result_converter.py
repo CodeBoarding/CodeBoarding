@@ -60,7 +60,7 @@ def convert_to_codeboarding_format(
         # A declaration known only from the cache is output only as an edge's endpoint; the cache keeps its node.
         if qname in known and qname not in edge_participants:
             continue
-        node_type = _map_symbol_kind(sym.kind)
+        node_type = _map_symbol_kind(sym.graph_kind or sym.kind)
         # Include symbols that are graph node types OR that participate in edges
         if node_type not in GRAPH_NODE_TYPES and qname not in edge_participants:
             continue
@@ -172,7 +172,7 @@ def convert_to_codeboarding_format(
 def _node(sym: SymbolInfo) -> Node:
     return Node(
         fully_qualified_name=sym.qualified_name,
-        node_type=_map_symbol_kind(sym.kind),
+        node_type=_map_symbol_kind(sym.graph_kind or sym.kind),
         file_path=str(sym.file_path),
         line_start=sym.start_line + 1,
         line_end=sym.end_line + 1,

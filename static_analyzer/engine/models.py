@@ -33,6 +33,8 @@ class SymbolInfo:
     owner_qualified_name: str = ""
     explicit_identity: bool = False
     is_definition: bool = True
+    # Output classification must not change how the engine resolves calls or scopes children.
+    graph_kind: int | None = None
 
     @property
     def definition_location(self) -> tuple[str, int, int]:
