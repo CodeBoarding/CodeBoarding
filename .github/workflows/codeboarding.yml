@@ -1,45 +1,72 @@
-name: CodeBoarding review
+name: CodeBoarding
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review, closed, synchronize]
+    types: [opened, reopened, closed, synchronize]
   issue_comment:
     types: [created]
+  # Sync keeps one branch's analysis, so this lists exactly one. There is no manual
+  # trigger: a dispatch could run sync on any branch.
+  push:
+    branches: ['main']
+    # Loop guard: sync commits these to main. Generated files only, so an edit to
+    # the user-authored configuration under .codeboarding/ still triggers a sync.
+    paths-ignore:
+      - '.codeboarding/analysis.json'
+      - '.codeboarding/fingerprint.json'
+      - '.codeboarding/static_analysis.pkl'
+      - '.codeboarding/static_analysis.sha'
+      - '.codeboarding/codeboarding_version.json'
+      - '.codeboarding/health/health_report.json'
 
 # No workflow-level permissions: each job requests only what it needs (least
 # privilege), so the default token starts with none.
 permissions: {}
 
+# Reviews queue per pull request, syncs per branch. Closing a pull request cancels its review.
 concurrency:
-  group: codeboarding-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: codeboarding-${{ github.event.pull_request.number || github.event.issue.number || github.ref_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' }}
 
 jobs:
   review:
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      contents: read        # check out the repo + read the committed baseline (no writes in review mode)
-      actions: read         # download the analysis an earlier run published, instead of re-deriving this PR every push
-      pull-requests: write  # post the architecture-diff PR comment
-      issues: write         # the /codeboarding issue_comment trigger + comment API
-      id-token: write       # mint a GitHub OIDC token; both hosted tiers, free and licensed, need it
     if: >
       (github.event_name == 'pull_request' && github.event.action != 'closed' &&
        github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request != null &&
        startsWith(github.event.comment.body, '/codeboarding') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read        # check out the repo + read the saved analysis (no writes in review mode)
+      pull-requests: write  # post the architecture-diff PR comment
+      issues: write         # the /codeboarding issue_comment trigger + comment API
+      id-token: write       # mint a GitHub OIDC token for the free hosted tier (write is the only level for id-token)
+      actions: read         # let a repeat review download the analysis an earlier run published, instead of re-deriving the whole PR
     steps:
       - uses: CodeBoarding/CodeBoarding-action@v1
         with:
-          # Cap review analysis at depth 4, including baseline bootstrapping.
-          # Requires the licensed tier (the free tier caps depth at 3).
-          depth_cap: 4
-          # Named, not inferred: the action requires `llm` and fails rather than falling
-          # back to anything. CodeBoarding's own repositories run on the CodeBoarding
-          # plan, which is also what lifts the free tier's depth cap off `depth_cap: 4`.
-          # Both secrets used to be wired here at once and OPENROUTER_API_KEY silently
-          # won, so the plan was never actually spent; this is the deliberate choice.
+          codeboarding_analysis_location: in_place
+          # Your CodeBoarding plan, on CodeBoarding's hosted tier. The run fails with
+          # a message naming this secret if CODEBOARDING_LICENSE is not set.
+          llm: license
+          license_key: ${{ secrets.CODEBOARDING_LICENSE }}
+
+  sync:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write       # commit the generated analysis to main
+      actions: read         # continue from an analysis an earlier run published
+      id-token: write       # identifies this repo to CodeBoarding's hosted tier
+    steps:
+      - uses: CodeBoarding/CodeBoarding-action@v1
+        with:
+          mode: sync
+          codeboarding_analysis_location: in_place
+          # Your CodeBoarding plan, on CodeBoarding's hosted tier. The run fails with
+          # a message naming this secret if CODEBOARDING_LICENSE is not set.
           llm: license
           license_key: ${{ secrets.CODEBOARDING_LICENSE }}
