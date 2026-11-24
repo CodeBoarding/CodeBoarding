@@ -290,6 +290,13 @@ def _relation_edges_unmoved(rebuilt: Relation, previous: Relation) -> bool:
     return bool(rebuilt_edges) and rebuilt_edges == _backing_edge_pairs(previous)
 
 
+def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
+    """False when both relations have backing calls and those calls differ."""
+    rebuilt_edges = _backing_edge_pairs(rebuilt)
+    previous_edges = _backing_edge_pairs(previous)
+    return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
+
+
 def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) -> bool:
     return edge.source.qualified_name in changed_members
 
@@ -394,7 +401,8 @@ def preserve_unchanged_relations(
     dropped is restored with only its surviving CFG calls. Relations without static backing
     are also eligible. An evidence-backed baseline relation is restored only while one of its
     backing edges still has both endpoints in ``has_symbol``. Passing ``gated_members`` restores a pair even when an endpoint component
-    is flagged changed, as long as the commit did not touch the pair's own qualified names.
+    is flagged changed, as long as the commit did not touch the pair's own qualified names
+    and the rebuilt pair is backed by the same calls as the baseline pair.
 
     A rebuilt pair filed under component ids the baseline does not have is the same
     connection when its ``(source, target)`` qualified-name pairs equal a baseline
@@ -437,7 +445,12 @@ def preserve_unchanged_relations(
             continue
         if changed_members is not None and _commit_deleted_the_backing(relation, previous, changed_members):
             continue
-        pair_untouched = pair_untouched_by_change(relation, gated_members, previous)
+        # The member gate only vouches for the names it saw. A repartition can reuse the
+        # component pair for different calls, so the wording carries over only while the
+        # rebuilt pair is still backed by the baseline's calls.
+        pair_untouched = pair_untouched_by_change(relation, gated_members, previous) and _same_backing_or_edgeless(
+            relation, previous
+        )
         pair_has_edges = bool(relation.all_edges or relation.key_edges or previous.all_edges or previous.key_edges)
         pair_touched = bool(gated_members) and pair_has_edges and not pair_untouched
         if pair_untouched or (

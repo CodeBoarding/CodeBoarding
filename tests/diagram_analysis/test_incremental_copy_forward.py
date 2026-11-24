@@ -637,6 +637,30 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         self.assertEqual(kept[0].relation, "instantiates default sink from")
         self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [268])
 
+    def test_reused_pair_backing_different_calls_keeps_fresh_wording(self):
+        # The repartition moved a -> b under 3 -> 2 and filed an unrelated x -> y under 1 -> 2.
+        # The gate saw no changed name on either call, but 1 -> 2 now backs different calls, so
+        # its baseline label must not land on x -> y; the moved call keeps it under 3 -> 2.
+        baseline = self._relation("1", "2", "a calls b")
+        baseline.all_edges = [RelationEdge(source=_ref("pkg.a"), target=_ref("pkg.b"))]
+        reused = self._relation("1", "2", "x calls y")
+        reused.all_edges = [RelationEdge(source=_ref("pkg.x"), target=_ref("pkg.y"))]
+        moved = self._relation("3", "2", "rebuilt wording")
+        moved.all_edges = [RelationEdge(source=_ref("pkg.a"), target=_ref("pkg.b"))]
+
+        kept = preserve_unchanged_relations(
+            [reused, moved],
+            {("1", "2"): baseline},
+            {"1", "2", "3"},
+            {"1", "2", "3"},
+            _live_calls(("pkg.a", "pkg.b"), ("pkg.x", "pkg.y")),
+            changed_members={"pkg.unrelated"},
+            gated_members={"pkg.unrelated"},
+        )
+
+        wording = {(relation.src_id, relation.dst_id): relation.relation for relation in kept}
+        self.assertEqual(wording, {("1", "2"): "x calls y", ("3", "2"): "a calls b"})
+
     def test_baseline_whose_backing_names_changed_stays_dropped_when_rebuild_misses_it(self):
         stale = self._relation("1", "2", "baseline wording")
         stale.all_edges = [RelationEdge(source=_ref("pkg.changed"), target=_ref("pkg.callee"))]
