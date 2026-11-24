@@ -242,7 +242,7 @@ def _qualified_names_match(first: str, second: str) -> bool:
 def _restore_relation_backing(
     relation: Relation,
     has_call: Callable[[str, str], bool],
-    has_symbol: Callable[[str], bool] | None = None,
+    has_symbol: Callable[[str], bool],
 ) -> Relation | None:
     """Keep edgeless and evidence-backed relations; filter static backing to surviving calls.
 
@@ -255,9 +255,7 @@ def _restore_relation_backing(
     if not edges:
         return relation
     if relation.evidence.strip():
-        if has_symbol is None or any(
-            has_symbol(edge.source.qualified_name) and has_symbol(edge.target.qualified_name) for edge in edges
-        ):
+        if any(has_symbol(edge.source.qualified_name) and has_symbol(edge.target.qualified_name) for edge in edges):
             return relation
         return None
 
@@ -377,7 +375,8 @@ def preserve_unchanged_relations(
     has_call: Callable[[str, str], bool],
     changed_members: set[str] | None = None,
     gated_members: Collection[str] = (),
-    has_symbol: Callable[[str], bool] | None = None,
+    *,
+    has_symbol: Callable[[str], bool],
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
