@@ -349,29 +349,6 @@ def _commit_deleted_the_backing(rebuilt: Relation, previous: Relation, changed_m
     return any(_edge_touches_changed_method(edge, changed_members) for edge in baseline_edges)
 
 
-def _untouched_baseline_matches(
-    relation: Relation,
-    baseline_by_pair: dict[tuple[str, str], Relation],
-    changed_members: set[str] | None,
-) -> list[tuple[tuple[str, str], Relation]]:
-    """Baseline relations whose call pairs equal this one's, when the commit left those names alone.
-
-    A repartition files the same untouched calls under new component ids. The rebuilt relation
-    is that connection, so those baseline pairs must not be restored beside it.
-    """
-    backing = _backing_edge_pairs(relation)
-    if not backing or changed_members is None:
-        return []
-    if any(source in changed_members or target in changed_members for source, target in backing):
-        return []
-    own_pair = (relation.src_id, relation.dst_id)
-    return [
-        (pair, previous)
-        for pair, previous in baseline_by_pair.items()
-        if pair != own_pair and _backing_edge_pairs(previous) == backing
-    ]
-
-
 def preserve_unchanged_relations(
     rebuilt_relations: list[Relation],
     baseline_by_pair: dict[tuple[str, str], Relation],
@@ -472,3 +449,26 @@ def preserve_unchanged_relations(
         if restored is not None:
             kept.append(restored)
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))
+
+
+def _untouched_baseline_matches(
+    relation: Relation,
+    baseline_by_pair: dict[tuple[str, str], Relation],
+    changed_members: set[str] | None,
+) -> list[tuple[tuple[str, str], Relation]]:
+    """Baseline relations whose call pairs equal this one's, when the commit left those names alone.
+
+    A repartition files the same untouched calls under new component ids. The rebuilt relation
+    is that connection, so those baseline pairs must not be restored beside it.
+    """
+    backing = _backing_edge_pairs(relation)
+    if not backing or changed_members is None:
+        return []
+    if any(source in changed_members or target in changed_members for source, target in backing):
+        return []
+    own_pair = (relation.src_id, relation.dst_id)
+    return [
+        (pair, previous)
+        for pair, previous in baseline_by_pair.items()
+        if pair != own_pair and _backing_edge_pairs(previous) == backing
+    ]
