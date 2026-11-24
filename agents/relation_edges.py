@@ -288,13 +288,6 @@ def _relation_edges_unmoved(rebuilt: Relation, previous: Relation) -> bool:
     return bool(rebuilt_edges) and rebuilt_edges == _backing_edge_pairs(previous)
 
 
-def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
-    """False when both relations have backing calls and those calls differ."""
-    rebuilt_edges = _backing_edge_pairs(rebuilt)
-    previous_edges = _backing_edge_pairs(previous)
-    return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
-
-
 def _edge_touches_changed_method(edge: RelationEdge, changed_members: set[str]) -> bool:
     return edge.source.qualified_name in changed_members
 
@@ -499,3 +492,10 @@ def _untouched_baseline_matches(
         for pair, previous in baseline_by_pair.items()
         if pair != own_pair and _backing_edge_pairs(previous) == backing
     ]
+
+
+def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
+    """False when both relations have backing calls and those calls differ."""
+    rebuilt_edges = _backing_edge_pairs(rebuilt)
+    previous_edges = _backing_edge_pairs(previous)
+    return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
