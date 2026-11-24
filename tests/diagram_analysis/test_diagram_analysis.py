@@ -2432,8 +2432,7 @@ class TestSubScopeRelationsAreGloballyGated(unittest.TestCase):
 class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
     """An incremental save must keep a CFG call whose files did not change.
 
-    The reference list can omit a C++ name, and an endpoint component can be flagged because
-    it co-owns some other moved symbol. Neither is a reason to drop the call.
+    Why: empty C++ references or a co-owned moved symbol must not drop the call.
     """
 
     def test_unchanged_logging_relation_survives_when_references_are_empty(self):
