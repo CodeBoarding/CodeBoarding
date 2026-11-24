@@ -2489,6 +2489,8 @@ class TestIncrementalCfgRelationSurvivesSave(unittest.TestCase):
             )
         )
         self.assertEqual(cfg.canonical_name("log.use_stderr_sink"), cfg.canonical_name("log.make_stderr_sink"))
+        cfg.add_edge("log.use_stderr_sink", "log.make_stderr_sink")
+        self.assertTrue(cfg.has_edge("log.use_stderr_sink", "log.make_stderr_sink"))
         gen = self._generator(cfg)
         edge = self._logging_edge(268)
         relation = Relation(
