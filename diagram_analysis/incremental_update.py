@@ -308,7 +308,12 @@ class IncrementalUpdater:
             cfgs = self.static_analysis.available_cfgs().values()
 
             def has_call(source_name: str, target_name: str) -> bool:
-                return any(cfg.has_edge(source_name, target_name) for cfg in cfgs)
+                # Two aliases of one node resolve to a self-call, which backs no relation.
+                for cfg in cfgs:
+                    edge = cfg.get_edge(source_name, target_name)
+                    if edge is not None and edge.get_source() != edge.get_destination():
+                        return True
+                return False
 
             def has_symbol(name: str) -> bool:
                 return any(cfg.has_node(name) for cfg in cfgs)
