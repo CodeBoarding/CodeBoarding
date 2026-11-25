@@ -286,14 +286,9 @@ def _restore_relation_backing(
     has_symbol: Callable[[str], bool],
     owner_of: Callable[[SourceCodeReference], str],
 ) -> Relation | None:
-    """Keep edgeless and evidence-backed relations; filter static backing to surviving calls.
+    """Keep edgeless relations, keep evidence relations with a live in-pair edge, filter the rest to live calls.
 
-    A relation with ``evidence`` is a semantic queue, REST, or config link whose key edges are
-    not direct calls, so the call graph cannot confirm or refute it. It still needs one backing
-    edge whose two endpoints remain live symbols: once every referenced producer or consumer is
-    gone, the relation cites code that no longer exists. A backing edge whose endpoints are
-    now both owned outside the pair does not count: the connection moved with them.
-    A CFG-backed (``is_static``) relation keeps its evidence but is still filtered to live calls.
+    Why: evidence links (queue, REST, config) are not direct calls, so the call graph cannot confirm them.
     """
     edges = relation.all_edges or relation.key_edges
     if not edges:
