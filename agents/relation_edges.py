@@ -2,10 +2,13 @@
 
 from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
+from types import MappingProxyType
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from infra.clustering_ids import is_self_or_descendant
 from infra.repo_utils.path_utils import normalize_repo_path
+
+_NO_NAME_OVERRIDES: Mapping[str, str] = MappingProxyType({})
 
 
 def append_or_merge_relation(
@@ -415,7 +418,7 @@ def preserve_unchanged_relations(
     *,
     has_symbol: Callable[[str], bool],
     owner_of: Callable[[SourceCodeReference], str],
-    live_names: Mapping[str, str] | None = None,
+    live_names: Mapping[str, str] = _NO_NAME_OVERRIDES,
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
@@ -518,7 +521,7 @@ def preserve_unchanged_relations(
             continue
         restored = _restore_relation_backing(relation, has_call, has_symbol, owner_of)
         if restored is not None:
-            kept.append(_with_live_names(restored, live_names or {}))
+            kept.append(_with_live_names(restored, live_names))
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))
 
 
