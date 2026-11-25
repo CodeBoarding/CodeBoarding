@@ -688,6 +688,28 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual(kept, [baseline])
 
+    def test_restored_static_evidence_relation_without_a_live_call_is_dropped(self):
+        # Scope assembly keeps LLM evidence on CFG-backed relations. A redirected caller leaves
+        # both endpoints live, so only the call graph can say the cross-scope call is gone.
+        baseline = self._relation("1", "2", "calls")
+        baseline.evidence = "a.caller invokes b.callee"
+        baseline.is_static = True
+        edge = RelationEdge(source=_ref("a.caller"), target=_ref("b.callee"))
+        baseline.all_edges = [edge]
+        baseline.key_edges = [edge]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(kept, [])
+
     def test_restored_evidence_relation_whose_backing_symbols_are_gone_is_dropped(self):
         # Both components stay live, but the queue producer the relation cites was deleted, so
         # no backing edge has two live endpoints and the relation would cite missing code.

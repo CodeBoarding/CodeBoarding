@@ -293,11 +293,12 @@ def _restore_relation_backing(
     edge whose two endpoints remain live symbols: once every referenced producer or consumer is
     gone, the relation cites code that no longer exists. A backing edge whose endpoints are
     now both owned outside the pair does not count: the connection moved with them.
+    A CFG-backed (``is_static``) relation keeps its evidence but is still filtered to live calls.
     """
     edges = relation.all_edges or relation.key_edges
     if not edges:
         return relation
-    if relation.evidence.strip():
+    if relation.evidence.strip() and not relation.is_static:
         if any(
             has_symbol(edge.source.qualified_name)
             and has_symbol(edge.target.qualified_name)
