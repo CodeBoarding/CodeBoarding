@@ -198,17 +198,27 @@ def prune_ungrounded_edges(
 
 
 def refresh_edges_from_calls(
-    relations: list[Relation], live_call: Callable[[str, str], RelationEdge | None]
+    relations: list[Relation],
+    live_calls: Callable[[str, str], list[RelationEdge]],
+    repo_dir: Path,
 ) -> list[Relation]:
     """Copy call sites and endpoint spans onto each edge from its live CFG call, keeping its names.
 
     Why: a baseline edge kept because its aliased names still call carries the baseline's line numbers.
+    When several CFGs hold a call under the same names, the one in the edge's own files wins.
     """
 
+    def files(edge: RelationEdge) -> tuple[str, str]:
+        return (
+            normalize_repo_path(edge.source.reference_file or "", repo_dir),
+            normalize_repo_path(edge.target.reference_file or "", repo_dir),
+        )
+
     def refresh(edge: RelationEdge) -> RelationEdge:
-        call = live_call(edge.source.qualified_name, edge.target.qualified_name)
-        if call is None:
+        calls = live_calls(edge.source.qualified_name, edge.target.qualified_name)
+        if not calls:
             return edge
+        call = next((call for call in calls if files(call) == files(edge)), calls[0])
         return edge.model_copy(
             update={
                 "source": _with_span_of(edge.source, call.source),

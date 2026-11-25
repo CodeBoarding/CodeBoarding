@@ -1484,15 +1484,16 @@ class DiagramGenerator:
                 if component.component_id
             }
 
-            def live_call(source_name: str, target_name: str) -> RelationEdge | None:
-                for cfg in cfg_graphs.values():
-                    edge = cfg.get_edge(source_name, target_name)
-                    if edge is not None and edge.get_source() != edge.get_destination():
-                        return RelationEdge.from_edge(edge)
-                return None
+            def live_calls(source_name: str, target_name: str) -> list[RelationEdge]:
+                return [
+                    RelationEdge.from_edge(edge)
+                    for cfg in cfg_graphs.values()
+                    if (edge := cfg.get_edge(source_name, target_name)) is not None
+                    and edge.get_source() != edge.get_destination()
+                ]
 
             def has_call(source_name: str, target_name: str) -> bool:
-                return live_call(source_name, target_name) is not None
+                return bool(live_calls(source_name, target_name))
 
             def has_symbol(name: str) -> bool:
                 return any(cfg.has_node(name) for cfg in cfg_graphs.values())
@@ -1522,7 +1523,7 @@ class DiagramGenerator:
                 )
 
             global_relations = prune_ungrounded_edges(
-                refresh_edges_from_calls(global_relations, live_call),
+                refresh_edges_from_calls(global_relations, live_calls, self.repo_location),
                 ownership.owner_of,
                 keep_preserved_edge,
                 self._changed_members,
