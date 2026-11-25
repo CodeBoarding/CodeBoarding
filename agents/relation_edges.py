@@ -207,8 +207,7 @@ def refresh_edges_from_calls(
 ) -> list[Relation]:
     """Copy call sites and endpoint spans onto each edge from its live CFG call, keeping its names.
 
-    Why: a baseline edge kept because its aliased names still call carries the baseline's line numbers.
-    When several CFGs hold a call under the same names, the one in the edge's own files wins.
+    Why: a kept baseline edge still carries the baseline's line numbers.
     """
 
     def files(edge: RelationEdge) -> tuple[str, str]:
