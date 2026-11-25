@@ -1,6 +1,6 @@
 """Merge component relations and index their source endpoints."""
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
@@ -415,6 +415,7 @@ def preserve_unchanged_relations(
     *,
     has_symbol: Callable[[str], bool],
     owner_of: Callable[[SourceCodeReference], str],
+    live_names: Mapping[str, str] | None = None,
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
@@ -517,7 +518,7 @@ def preserve_unchanged_relations(
             continue
         restored = _restore_relation_backing(relation, has_call, has_symbol, owner_of)
         if restored is not None:
-            kept.append(restored)
+            kept.append(_with_live_names(restored, live_names or {}))
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))
 
 
@@ -547,6 +548,15 @@ def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
     rebuilt_edges = _backing_edge_pairs(rebuilt)
     previous_edges = _backing_edge_pairs(previous)
     return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
+
+
+def _with_live_names(relation: Relation, live_names: Mapping[str, str]) -> Relation:
+    """Rebind a restored relation's endpoint names to its components' current names."""
+    src_name = live_names.get(relation.src_id, relation.src_name)
+    dst_name = live_names.get(relation.dst_id, relation.dst_name)
+    if (src_name, dst_name) == (relation.src_name, relation.dst_name):
+        return relation
+    return relation.model_copy(update={"src_name": src_name, "dst_name": dst_name})
 
 
 def _filed_elsewhere(edge: RelationEdge, relation: Relation, owner_of: Callable[[SourceCodeReference], str]) -> bool:

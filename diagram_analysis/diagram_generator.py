@@ -1477,12 +1477,13 @@ class DiagramGenerator:
                 self._changed_members,
                 self._changed_unattributed_files,
             )
-            live_ids = {
-                component.component_id
+            live_names = {
+                component.component_id: component.name
                 for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
                 for component in analysis.components
                 if component.component_id
             }
+            live_ids = set(live_names)
 
             def live_calls(source_name: str, target_name: str) -> list[RelationEdge]:
                 return [
@@ -1510,6 +1511,7 @@ class DiagramGenerator:
                 gated_members=set() if self._changed_unattributed_files else self._changed_members,
                 has_symbol=has_symbol,
                 owner_of=ownership.owner_of,
+                live_names=live_names,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.

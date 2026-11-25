@@ -439,6 +439,24 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
 
         self.assertEqual(kept, [relation])
 
+    def test_restored_relation_takes_the_renamed_components_current_names(self):
+        relation = self._relation("1", "2", "baseline wording")
+        relation.evidence = "Configured at runtime."
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): relation},
+            changed_component_ids=set(),
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+            live_names={"1": "Renamed Source", "2": "Renamed Target"},
+        )
+
+        self.assertEqual([(rel.src_name, rel.dst_name) for rel in kept], [("Renamed Source", "Renamed Target")])
+        self.assertEqual(kept[0].relation, "baseline wording")
+
     def test_baseline_edge_to_a_component_that_no_longer_exists_is_dropped(self):
         baseline = {("1", "9"): self._relation("1", "9", "baseline wording")}
 
