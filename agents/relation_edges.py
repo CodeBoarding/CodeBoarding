@@ -436,11 +436,7 @@ def preserve_unchanged_relations(
     is flagged changed, as long as the commit did not touch the pair's own qualified names
     and the rebuilt pair is backed by the same calls as the baseline pair.
 
-    A rebuilt pair filed under component ids the baseline does not have is the same
-    connection when its ``(source, target)`` qualified-name pairs equal a baseline
-    relation's backing pairs and neither name is in ``changed_members``. That rebuilt
-    relation is kept, with the baseline wording and the fresh call sites, and the baseline
-    pair is not restored beside it.
+    Why: a repartitioned pair with unchanged backing calls is the same connection, so it keeps the baseline wording.
 
     Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
     """
