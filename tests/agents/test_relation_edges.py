@@ -131,20 +131,6 @@ def test_a_new_call_to_an_untouched_function_still_counts() -> None:
     assert _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.old"), {"pkg.caller"})
 
 
-def _located_edge(source_file: str, target_file: str, line: int) -> RelationEdge:
-    return RelationEdge(
-        source=SourceCodeReference(
-            qualified_name="pkg.caller", reference_file=source_file, reference_start_line=line, reference_end_line=line
-        ),
-        target=SourceCodeReference(
-            qualified_name="other.target",
-            reference_file=target_file,
-            reference_start_line=line,
-            reference_end_line=line,
-        ),
-    )
-
-
 def test_refresh_takes_the_call_from_the_edges_own_files() -> None:
     # A Python and a Go CFG can both hold pkg.caller -> other.target; the Go edge must not
     # pick up the Python call's files and spans.
@@ -157,3 +143,17 @@ def test_refresh_takes_the_call_from_the_edges_own_files() -> None:
 
     assert refreshed.all_edges[0].source.reference_file == "/repo/pkg.go"
     assert refreshed.all_edges[0].source.reference_start_line == 20
+
+
+def _located_edge(source_file: str, target_file: str, line: int) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(
+            qualified_name="pkg.caller", reference_file=source_file, reference_start_line=line, reference_end_line=line
+        ),
+        target=SourceCodeReference(
+            qualified_name="other.target",
+            reference_file=target_file,
+            reference_start_line=line,
+            reference_end_line=line,
+        ),
+    )
