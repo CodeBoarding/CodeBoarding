@@ -451,6 +451,7 @@ def preserve_unchanged_relations(
     kept: list[Relation] = []
     rebuilt_pairs: set[tuple[str, str]] = set()
     adopted_baseline_pairs: set[tuple[str, str]] = set()
+    baseline_by_backing: dict[frozenset[tuple[str, str]], list[tuple[tuple[str, str], Relation]]] | None = None
     for relation in rebuilt_relations:
         if (relation.src_id, relation.dst_id) not in baseline_by_pair:
             relation = _restore_baseline_orientation(relation, baseline_by_pair)
@@ -458,9 +459,16 @@ def preserve_unchanged_relations(
         rebuilt_pairs.add(pair)
         previous = baseline_by_pair.get(pair)
         if previous is None:
+            if baseline_by_backing is None:
+                baseline_by_backing = {}
+                if changed_members is not None:
+                    for baseline_pair, baseline_relation in baseline_by_pair.items():
+                        backing = frozenset(_backing_edge_pairs(baseline_relation))
+                        if backing:
+                            baseline_by_backing.setdefault(backing, []).append((baseline_pair, baseline_relation))
             # No baseline for this pair. The same untouched calls filed under new component
             # ids keep the baseline wording once; the baseline pair is not restored as well.
-            matches = _untouched_baseline_matches(relation, baseline_by_pair, changed_members, gated_members)
+            matches = _untouched_baseline_matches(relation, baseline_by_backing, changed_members, gated_members)
             if matches:
                 relation = _restore_baseline_wording(relation, matches[0][1])
                 adopted_baseline_pairs.update(matched_pair for matched_pair, _baseline in matches)
@@ -513,7 +521,7 @@ def preserve_unchanged_relations(
 
 def _untouched_baseline_matches(
     relation: Relation,
-    baseline_by_pair: dict[tuple[str, str], Relation],
+    baseline_by_backing: dict[frozenset[tuple[str, str]], list[tuple[tuple[str, str], Relation]]],
     changed_members: set[str] | None,
     gated_members: Collection[str] = (),
 ) -> list[tuple[tuple[str, str], Relation]]:
@@ -529,11 +537,7 @@ def _untouched_baseline_matches(
     if any(source in changed_members or target in changed_members for source, target in backing):
         return []
     own_pair = (relation.src_id, relation.dst_id)
-    return [
-        (pair, previous)
-        for pair, previous in baseline_by_pair.items()
-        if pair != own_pair and _backing_edge_pairs(previous) == backing
-    ]
+    return [(pair, previous) for pair, previous in baseline_by_backing.get(frozenset(backing), []) if pair != own_pair]
 
 
 def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
