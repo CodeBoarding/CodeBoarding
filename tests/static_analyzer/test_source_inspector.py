@@ -1164,6 +1164,15 @@ class TestDeclaresFunctionValue:
             (8, 25),
         }
 
+    @pytest.mark.parametrize("extension", ["ts", "js"])
+    def test_a_callback_array_is_not_a_function_binding(self, tmp_path: Path, extension: str):
+        path = tmp_path / f"app.{extension}"
+        path.write_text("export const handlers = [() => 1];\nexport const handler = (() => 2);\n")
+        inspector = SourceInspector()
+
+        assert inspector.arrow_bindings(path) == {(1, 13)}
+        assert not inspector.declares_function_value(path, 0, 13)
+
     def test_a_function_in_an_object_literal(self, tmp_path: Path):
         f = tmp_path / "app.ts"
         f.write_text("const api = { load: function () {} };\n")

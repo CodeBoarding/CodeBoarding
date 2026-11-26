@@ -1203,13 +1203,14 @@ class SourceInspector:
         setter_positions: set[tuple[int, int]] = set()
         overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
         language = SOURCE_EXTENSION_TO_LANGUAGE.get(file_path.suffix.lower())
+        is_js_family = language in (Language.TYPESCRIPT, Language.JAVASCRIPT)
         for node in self._walk(parsed.tree.root_node):
-            binding = self._function_value_binding(node, file_path)
+            binding = self._function_value_binding(node, file_path, unwrap_value_groups=not is_js_family)
             if binding is not None:
                 name, literal = binding
                 position = parsed.lsp_position(name.start_point)
                 function_values[position] = parsed.lsp_position(literal.start_point)
-                if literal.type == "arrow_function" and language in (Language.TYPESCRIPT, Language.JAVASCRIPT):
+                if is_js_family and literal.type == "arrow_function":
                     arrow_bindings.add(position)
 
             setter = self._setter_name(node)
@@ -1250,14 +1251,19 @@ class SourceInspector:
         return usage_index
 
     def _function_value_binding(
-        self, node: TreeSitterNode, file_path: Path
+        self, node: TreeSitterNode, file_path: Path, *, unwrap_value_groups: bool
     ) -> tuple[TreeSitterNode, TreeSitterNode] | None:
         """The name a binding declares and the function literal it binds that name to, when it binds one."""
         if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
             return None
         value = node.child_by_field_name(_VALUE_FIELD_BY_BINDING.get(node.type, "value"))
-        # Go wraps both sides of a declaration in an expression_list even when it holds one.
-        if value is not None and value.type in _VALUE_GROUP_NODE_TYPES and len(value.named_children) == 1:
+        # Go wraps single bindings in lists; JS/TS collections are not binding wrappers.
+        if (
+            unwrap_value_groups
+            and value is not None
+            and value.type in _VALUE_GROUP_NODE_TYPES
+            and len(value.named_children) == 1
+        ):
             value = value.named_children[0]
         # ``var a = (M.a = function () {})`` binds both names to the one literal.
         while value is not None:
