@@ -14,7 +14,7 @@ from tree_sitter import Language as TreeSitterLanguage
 from tree_sitter import Node as TreeSitterNode
 from tree_sitter import Parser, Point, Tree
 
-from static_analyzer.config import LANGUAGE_EXTENSIONS, Language, NodeType
+from static_analyzer.config import LANGUAGE_EXTENSIONS, SOURCE_EXTENSION_TO_LANGUAGE, Language, NodeType
 from static_analyzer.engine.models import CallSite
 from infra.tool_registry import kotlin_language
 
@@ -486,6 +486,7 @@ class SourceUsageIndex:
     construction_start_positions: set[tuple[int, int]]
     # Each name bound to a function literal, to where the literal starts.
     function_values: dict[tuple[int, int], tuple[int, int]]
+    arrow_bindings: set[tuple[int, int]]
     base_member_positions: set[tuple[int, int]]
     setter_positions: set[tuple[int, int]]
     # Each overload signature's name, to the name of the implementation it overloads.
@@ -514,6 +515,7 @@ class SourceInspector:
         usage_entries = sum(
             len(index.construction_start_positions)
             + len(index.function_values)
+            + len(index.arrow_bindings)
             + len(index.base_member_positions)
             + len(index.setter_positions)
             + len(index.overload_implementations)
@@ -775,6 +777,11 @@ class SourceInspector:
         """Each name the file binds to a function literal, mapped to where that literal starts."""
         usage_index = self._usage_index(file_path)
         return usage_index.function_values if usage_index is not None else {}
+
+    def arrow_bindings(self, file_path: Path) -> set[tuple[int, int]]:
+        """LSP positions of names bound to arrow functions."""
+        usage_index = self._usage_index(file_path)
+        return usage_index.arrow_bindings if usage_index is not None else set()
 
     def overload_implementations(self, file_path: Path) -> dict[tuple[int, int], tuple[int, int]]:
         """Each overload signature the file declares, by its name's position, to where its implementation is named."""
@@ -1191,14 +1198,20 @@ class SourceInspector:
 
         construction_start_positions: set[tuple[int, int]] = set()
         function_values: dict[tuple[int, int], tuple[int, int]] = {}
+        arrow_bindings: set[tuple[int, int]] = set()
         base_member_positions: set[tuple[int, int]] = set()
         setter_positions: set[tuple[int, int]] = set()
         overload_implementations: dict[tuple[int, int], tuple[int, int]] = {}
+        language = SOURCE_EXTENSION_TO_LANGUAGE.get(file_path.suffix.lower())
+        is_js_family = language in (Language.TYPESCRIPT, Language.JAVASCRIPT)
         for node in self._walk(parsed.tree.root_node):
-            binding = self._function_value_binding(node, file_path)
+            binding = self._function_value_binding(node, file_path, unwrap_value_groups=not is_js_family)
             if binding is not None:
                 name, literal = binding
-                function_values[parsed.lsp_position(name.start_point)] = parsed.lsp_position(literal.start_point)
+                position = parsed.lsp_position(name.start_point)
+                function_values[position] = parsed.lsp_position(literal.start_point)
+                if is_js_family and literal.type == "arrow_function":
+                    arrow_bindings.add(position)
 
             setter = self._setter_name(node)
             if setter is not None:
@@ -1229,6 +1242,7 @@ class SourceInspector:
         usage_index = SourceUsageIndex(
             construction_start_positions=construction_start_positions,
             function_values=function_values,
+            arrow_bindings=arrow_bindings,
             base_member_positions=base_member_positions,
             setter_positions=setter_positions,
             overload_implementations=overload_implementations,
@@ -1237,21 +1251,36 @@ class SourceInspector:
         return usage_index
 
     def _function_value_binding(
-        self, node: TreeSitterNode, file_path: Path
+        self, node: TreeSitterNode, file_path: Path, *, unwrap_value_groups: bool
     ) -> tuple[TreeSitterNode, TreeSitterNode] | None:
         """The name a binding declares and the function literal it binds that name to, when it binds one."""
         if node.type not in _FUNCTION_VALUE_HOLDER_NODE_TYPES:
             return None
         value = node.child_by_field_name(_VALUE_FIELD_BY_BINDING.get(node.type, "value"))
-        # Go wraps both sides of a declaration in an expression_list even when it holds one.
-        if value is not None and value.type in _VALUE_GROUP_NODE_TYPES and len(value.named_children) == 1:
+        # Go wraps single bindings in lists; JS/TS collections are not binding wrappers.
+        if (
+            unwrap_value_groups
+            and value is not None
+            and value.type in _VALUE_GROUP_NODE_TYPES
+            and len(value.named_children) == 1
+        ):
             value = value.named_children[0]
         # ``var a = (M.a = function () {})`` binds both names to the one literal.
-        while value is not None and (value.type == "parenthesized_expression" or value.type in _VALUE_FIELD_BY_BINDING):
-            if value.type == "parenthesized_expression":
-                value = value.named_children[0] if value.named_children else None
-            else:
+        while value is not None:
+            if value.type in _VALUE_FIELD_BY_BINDING:
                 value = value.child_by_field_name(_VALUE_FIELD_BY_BINDING[value.type])
+            elif value.type in {
+                "parenthesized_expression",
+                "as_expression",
+                "satisfies_expression",
+                "type_assertion",
+                "non_null_expression",
+                "instantiation_expression",
+            }:
+                children = [child for child in value.named_children if not child.is_extra]
+                value = (children[-1] if value.type == "type_assertion" else children[0]) if children else None
+            else:
+                break
         if value is None or value.type not in _FUNCTION_LITERAL_NODE_TYPES:
             return None
         if value.type == "lambda_expression" and file_path.suffix.lower() not in LANGUAGE_EXTENSIONS[Language.CPP]:

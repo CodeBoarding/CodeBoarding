@@ -301,15 +301,16 @@ def _declarations(call_graph: CallGraph) -> list[SymbolInfo]:
                 name=getattr(node, "symbol_name", "")
                 or (qualified_name[len(owner_name) + 1 :] if owner_name else qualified_name),
                 qualified_name=qualified_name,
-                kind=node.type,
+                kind=node.declaration_kind,
                 file_path=Path(node.file_path),
                 start_line=node.line_start - 1,
                 start_char=node.col_start,
                 end_line=node.line_end - 1,
                 end_char=0,
-                parent_chain=[(owner_name.rpartition(".")[2], owner.type)] if owner is not None else [],
+                parent_chain=[(owner_name.rpartition(".")[2], owner.declaration_kind)] if owner is not None else [],
                 owner_qualified_name=owner_name if owner is not None else "",
                 explicit_identity=getattr(node, "explicit_identity", False),
+                graph_kind=node.type if node.declaration_kind != node.type else None,
             )
         )
     return declarations

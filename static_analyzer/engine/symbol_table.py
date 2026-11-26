@@ -93,6 +93,7 @@ class SymbolTable:
         project_root: Path,
         owner_qualified_name: str = "",
         function_values: Collection[tuple[int, int]] = (),
+        arrow_bindings: Collection[tuple[int, int]] = (),
     ) -> None:
         """Recursively register symbols with dual registration.
 
@@ -126,6 +127,7 @@ class SymbolTable:
             start_char = sel_start.get("character", 0)
             end_line = end.get("line", 0)
             end_char = end.get("character", 0)
+            position = (start_line, start_char)
 
             # A class member bound to a function literal -- ``onMove = (e) => ...`` -- is a method,
             # whichever kind the server files it under.
@@ -133,7 +135,7 @@ class SymbolTable:
                 kind in _VALUE_KINDS
                 and parent_chain
                 and self._naming.is_class_like(parent_chain[-1][1])
-                and (start_line, start_char) in function_values
+                and position in function_values
             ):
                 kind = NodeType.METHOD
 
@@ -162,6 +164,9 @@ class SymbolTable:
                 end_line=end_line,
                 end_char=end_char,
                 promoted_from_variable=promoted,
+                graph_kind=(
+                    NodeType.FUNCTION if (kind in _VALUE_KINDS or promoted) and position in arrow_bindings else None
+                ),
             )
             info.parent_chain = list(parent_chain)
             info.owner_qualified_name = owner_qualified_name
@@ -187,7 +192,9 @@ class SymbolTable:
 
             if children:
                 child_chain = parent_chain + [(name, kind)]
-                self.register_symbols(file_path, children, child_chain, project_root, qualified_name, function_values)
+                self.register_symbols(
+                    file_path, children, child_chain, project_root, qualified_name, function_values, arrow_bindings
+                )
 
     def build_indices(self) -> None:
         """Build optimized lookup indices after symbol registration.
@@ -235,9 +242,10 @@ class SymbolTable:
 
         return best
 
-    def lift_to_callable(self, sym: SymbolInfo) -> SymbolInfo | None:
+    def lift_to_callable(self, sym: SymbolInfo, *, use_graph_kind: bool = True) -> SymbolInfo:
         """If sym is a variable/property, find its parent callable symbol."""
-        if self._naming.is_callable(sym.kind) or self._naming.is_class_like(sym.kind):
+        kind = (sym.graph_kind or sym.kind) if use_graph_kind else sym.kind
+        if self._naming.is_callable(kind) or self._naming.is_class_like(sym.kind):
             return sym
 
         file_key = str(sym.file_path)
@@ -277,12 +285,12 @@ class SymbolTable:
         for other in self._file_symbols.get(str(sym.file_path), []):
             if other.qualified_name == sym.qualified_name or self._is_anonymous(other):
                 continue
-            if not (self._naming.is_callable(other.kind) or self._naming.is_class_like(other.kind)):
+            if not (self._naming.is_callable(other.graph_kind or other.kind) or self._naming.is_class_like(other.kind)):
                 continue
             if not self._encloses(other, sym):
                 continue
             size = (other.end_line - other.start_line) * 10000 + (other.end_char - other.start_char)
-            if other.promoted_from_variable:
+            if other.promoted_from_variable and other.graph_kind is None:
                 if size < fallback_size:
                     fallback = other
                     fallback_size = size
@@ -334,6 +342,8 @@ class SymbolTable:
         Also catches unqualified aliases (dual registration) by checking if
         any symbol at the same position has a parent.
         """
+        if sym.graph_kind is not None and self._naming.is_callable(sym.graph_kind):
+            return False
         if sym.kind in (NodeType.VARIABLE, NodeType.CONSTANT):
             if sym.parent_chain:
                 return True
@@ -374,6 +384,7 @@ class SymbolTable:
             end_char=primary.end_char,
             parent_chain=list(chain),
             promoted_from_variable=primary.promoted_from_variable,
+            graph_kind=primary.graph_kind,
         )
         self._symbols[alias_name] = alias
         self._ref_key_to_symbol[self._naming.build_reference_key(alias_name)] = alias
@@ -381,7 +392,7 @@ class SymbolTable:
 
     def _is_unnameable(self, sym: SymbolInfo) -> bool:
         """Whether this symbol's own name is not one a reader would use as a caller."""
-        return sym.promoted_from_variable or self._is_anonymous(sym)
+        return (sym.promoted_from_variable and sym.graph_kind is None) or self._is_anonymous(sym)
 
     @staticmethod
     def _is_anonymous(sym: SymbolInfo) -> bool:
