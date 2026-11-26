@@ -8,12 +8,9 @@ from collections.abc import Collection
 from pathlib import Path
 
 from infra.repo_utils.ignore import RepoIgnoreManager
-from static_analyzer.config import Language, NodeType
+from static_analyzer.config import Language
 from static_analyzer.engine.language_adapter import LanguageAdapter
-from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.source_inspector import SourceInspector
 from static_analyzer.exceptions import WorkspaceSetupError
-from static_analyzer.lsp_client.diagnostics import FileDiagnosticsMap
 from static_analyzer.typescript_workspace import PLUGIN_LOCATION, PLUGIN_NAME, workspace_members
 
 logger = logging.getLogger(__name__)
@@ -72,22 +69,6 @@ class TypeScriptAdapter(LanguageAdapter):
     def get_lsp_heap_options(self, heap_bytes: int) -> dict:
         # Why: at Node's default heap tsserver runs out of memory on a large tsconfig project and answers nothing.
         return {"maxTsServerMemory": heap_bytes // 1024**2}
-
-    def refine_document_symbols(
-        self,
-        file_path: Path,
-        symbols: list[dict],
-        inspector: SourceInspector,
-        client: LSPClient,
-        diagnostics: FileDiagnosticsMap,
-    ) -> list[dict]:
-        arrows = inspector.top_level_arrow_bindings(file_path)
-        for symbol in symbols:
-            if symbol["kind"] in (NodeType.CONSTANT, NodeType.VARIABLE):
-                start = symbol["selectionRange"]["start"]
-                if (start["line"], start["character"]) in arrows:
-                    symbol["graph_kind"] = NodeType.FUNCTION
-        return symbols
 
     def extract_package(self, qualified_name: str) -> str:
         return self._extract_deep_package(qualified_name)

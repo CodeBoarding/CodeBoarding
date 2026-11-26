@@ -27,6 +27,7 @@ class Node:
         symbol_name: str = "",
         owner_qualified_name: str = "",
         explicit_identity: bool = False,
+        declaration_kind: int | None = None,
     ) -> None:
         self.fully_qualified_name = fully_qualified_name
         self.symbol_name = symbol_name
@@ -37,7 +38,13 @@ class Node:
         self.line_end = line_end
         self.col_start = col_start
         self.type: NodeType = NodeType(node_type)
+        self._declaration_kind = declaration_kind
         self.methods_called_by_me: set[str] = set()
+
+    @property
+    def declaration_kind(self) -> int:
+        """Engine kind for resolving definitions from a cached graph."""
+        return getattr(self, "_declaration_kind", None) or self.type
 
     def entity_label(self) -> str:
         """Return human-readable label based on LSP SymbolKind."""

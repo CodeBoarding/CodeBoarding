@@ -180,6 +180,7 @@ def _node(sym: SymbolInfo) -> Node:
         symbol_name=sym.name if sym.explicit_identity else "",
         owner_qualified_name=sym.owner_qualified_name if sym.explicit_identity else "",
         explicit_identity=sym.explicit_identity,
+        declaration_kind=sym.kind if sym.graph_kind is not None else None,
     )
 
 

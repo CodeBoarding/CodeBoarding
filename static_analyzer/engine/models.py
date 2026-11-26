@@ -33,7 +33,7 @@ class SymbolInfo:
     owner_qualified_name: str = ""
     explicit_identity: bool = False
     is_definition: bool = True
-    # Output classification must not change how the engine resolves calls or scopes children.
+    # Graph classification and caller credit can differ from the kind used to resolve targets.
     graph_kind: int | None = None
 
     @property

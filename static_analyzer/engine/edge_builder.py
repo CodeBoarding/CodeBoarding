@@ -118,11 +118,18 @@ class CallEdgeSink:
     ) -> None:
         """Record the call from *caller* to *target*, unless the pair is not an edge at all."""
         if not _is_valid_edge(self._adapter, caller, target):
-            return
+            if caller.graph_kind is None:
+                return
+            # Giving an arrow credit must not erase an existing edge as containment.
+            caller = self._st.lift_to_callable(caller, use_graph_kind=False)
+            if not _is_valid_edge(self._adapter, caller, target):
+                return
         # Guards keep the innermost caller; only the credit line rolls up.
         attributed = self._st.attribution_symbol(caller)
         if not _is_valid_edge(self._adapter, attributed, target):
-            return
+            if attributed.graph_kind is None:
+                return
+            attributed = caller
 
         _add_edge_call_site(self.edges, attributed.qualified_name, target.qualified_name, call_site)
 
