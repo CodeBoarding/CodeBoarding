@@ -39,7 +39,7 @@ _PROVIDER_SECRETS: dict[str, str] = {
     "orcarouter_api_key": "ORCAROUTER_API_KEY",
     "requesty_api_key": "REQUESTY_API_KEY",
     "opper_api_key": "OPPER_API_KEY",
-    "uberllm_api_key": "UBERLLM_API_KEY",
+    "martllm_api_key": "MARTLLM_API_KEY",
     "litellm_api_key": "LITELLM_API_KEY",
 }
 
@@ -91,7 +91,7 @@ CONFIG_TEMPLATE = """\
 # orcarouter_api_key        = "sk-orca-..."
 # requesty_api_key          = "rqsty-..."
 # opper_api_key             = "..."
-# uberllm_api_key           = "ull_..."
+# martllm_api_key           = "ull_..."
 # litellm_base_url          = "http://localhost:4000"  # LiteLLM proxy server URL (required)
 # litellm_api_key           = "sk-..."           # LiteLLM proxy server key (optional)
 
@@ -131,7 +131,7 @@ class ProviderUserConfig:
     orcarouter_api_key: str | None = None
     requesty_api_key: str | None = None
     opper_api_key: str | None = None
-    uberllm_api_key: str | None = None
+    martllm_api_key: str | None = None
     litellm_api_key: str | None = None
     litellm_base_url: str | None = None
 
@@ -197,7 +197,7 @@ def load_user_config(path: Path = CONFIG_PATH) -> UserConfig:
             orcarouter_api_key=provider_data.get("orcarouter_api_key") or None,
             requesty_api_key=provider_data.get("requesty_api_key") or None,
             opper_api_key=provider_data.get("opper_api_key") or None,
-            uberllm_api_key=provider_data.get("uberllm_api_key") or None,
+            martllm_api_key=provider_data.get("martllm_api_key") or None,
             litellm_api_key=provider_data.get("litellm_api_key") or None,
             litellm_base_url=provider_data.get("litellm_base_url") or None,
         ),

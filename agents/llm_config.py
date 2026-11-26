@@ -315,13 +315,13 @@ LLM_PROVIDERS = {
             "max_retries": 0,
         },
     ),
-    "uberllm": LLMConfig(
+    "martllm": LLMConfig(
         chat_class=ChatOpenAI,
-        selection_envs=["UBERLLM_API_KEY"],
-        api_key_env="UBERLLM_API_KEY",
+        selection_envs=["MARTLLM_API_KEY"],
+        api_key_env="MARTLLM_API_KEY",
         agent_model="google/gemini-3.8-flash",
-        base_url_env="UBERLLM_BASE_URL",
-        default_base_url="https://api.uberllm.dev/v1",
+        base_url_env="MARTLLM_BASE_URL",
+        default_base_url="https://api.martllm.com/v1",
         extra_args={
             "max_tokens": None,
             "timeout": LLMDefaults.REQUEST_TIMEOUT_SECONDS,

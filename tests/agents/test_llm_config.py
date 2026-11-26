@@ -108,7 +108,7 @@ class TestProviderSelection:
             "orcarouter": "openai/gpt-5.4-mini",
             "requesty": "gemini-3.8-flash",
             "opper": "gemini-3.8-flash",
-            "uberllm": "google/gemini-3.8-flash",
+            "martllm": "google/gemini-3.8-flash",
             "litellm": "gpt-4o",
         }
 
@@ -126,7 +126,7 @@ class TestProviderSelection:
             ("orcarouter", "ORCAROUTER_BASE_URL", "https://api.orcarouter.ai/v1"),
             ("requesty", "REQUESTY_BASE_URL", "https://router.requesty.ai/v1"),
             ("opper", "OPPER_BASE_URL", "https://api.opper.ai/v3/compat"),
-            ("uberllm", "UBERLLM_BASE_URL", "https://api.uberllm.dev/v1"),
+            ("martllm", "MARTLLM_BASE_URL", "https://api.martllm.com/v1"),
             ("litellm", "LITELLM_BASE_URL", None),
         ],
     )
@@ -208,13 +208,13 @@ class TestProviderSelection:
             assert opper.has_real_api_key() is True
             assert opper.get_resolved_extra_args()["base_url"] == "https://api.opper.ai/v3/compat"
 
-    def test_uberllm_selected_via_api_key(self):
-        uberllm = LLM_PROVIDERS["uberllm"]
-        env = {"UBERLLM_API_KEY": "ull_test"}
+    def test_martllm_selected_via_api_key(self):
+        martllm = LLM_PROVIDERS["martllm"]
+        env = {"MARTLLM_API_KEY": "ull_test"}
         with patch.dict(os.environ, env, clear=True):
-            assert uberllm.is_selected_by_env() is True
-            assert uberllm.has_real_api_key() is True
-            assert uberllm.get_resolved_extra_args()["base_url"] == "https://api.uberllm.dev/v1"
+            assert martllm.is_selected_by_env() is True
+            assert martllm.has_real_api_key() is True
+            assert martllm.get_resolved_extra_args()["base_url"] == "https://api.martllm.com/v1"
 
     def test_aws_has_no_api_key_env(self):
         # botocore consumes AWS_BEARER_TOKEN_BEDROCK directly; it is never passed as a kwarg.

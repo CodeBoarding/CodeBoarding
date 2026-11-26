@@ -155,11 +155,11 @@ class TestOpenrouterResolution:
         assert cw.input_tokens == 1_000_000
         assert cw.output_tokens == 128_000
 
-    def test_uberllm_namespaced_model_resolves_via_aggregator_id(self, fake_catalogs, monkeypatch):
-        # UberLLM is not on models.dev; its model ids are namespaced (google/gemini-3.8-flash)
+    def test_martllm_namespaced_model_resolves_via_aggregator_id(self, fake_catalogs, monkeypatch):
+        # MartLLM is not on models.dev; its model ids are namespaced (google/gemini-3.8-flash)
         # exactly like the OpenRouter catalog keys, so they resolve there.
-        monkeypatch.delenv("CB_CTX_UBERLLM_GOOGLE_GEMINI_3_8_FLASH", raising=False)
-        cw = get_context_window("uberllm", "google/gemini-3.8-flash")
+        monkeypatch.delenv("CB_CTX_MARTLLM_GOOGLE_GEMINI_3_8_FLASH", raising=False)
+        cw = get_context_window("martllm", "google/gemini-3.8-flash")
         assert cw.input_tokens == 1_048_576
         assert cw.output_tokens == 65_536
         assert not cw.is_fallback
