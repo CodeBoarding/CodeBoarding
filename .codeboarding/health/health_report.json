@@ -1,17 +1,17 @@
 {
   "repository_name": ".codeboarding-target",
-  "timestamp": "2026-11-17T10:37:57.345353+00:00",
-  "overall_score": 0.9885379061371842,
+  "timestamp": "2026-11-26T13:43:53.312288+00:00",
+  "overall_score": 0.9969486404833837,
   "check_summaries": [
     {
       "check_name": "function_size",
       "description": "Checks that functions/methods do not exceed line count thresholds",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 1643,
+      "total_entities_checked": 1646,
       "findings_count": 1,
       "warning_count": 1,
-      "score": 0.9993913572732805,
+      "score": 0.9993924665856622,
       "finding_groups": [
         {
           "severity": "warning",
@@ -30,34 +30,14 @@
       ]
     },
     {
-      "check_name": "circular_dependencies",
-      "description": "Detects circular dependencies between packages",
-      "languages": [],
-      "check_type": "circular_dependencies",
-      "cycles": [
-        "codeboarding_cli -> codeboarding_cli.commands -> codeboarding_cli",
-        "health.checks -> health -> health.checks",
-        "agents -> agents.llm_renderers -> agents",
-        "static_analyzer.cfg -> static_analyzer -> static_analyzer.cfg",
-        "static_analyzer.cfg -> static_analyzer -> static_analyzer.engine -> static_analyzer.cfg",
-        "static_analyzer.cfg -> static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer.cfg",
-        "static_analyzer -> static_analyzer.engine -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer",
-        "static_analyzer -> static_analyzer.engine.adapters -> static_analyzer.engine -> static_analyzer",
-        "infra.tool_registry -> infra -> infra.tool_registry"
-      ],
-      "packages_checked": 25,
-      "packages_in_cycles": 12
-    },
-    {
       "check_name": "unused_code_diagnostics",
       "description": "Detects unused imports, variables, functions, and dead code via LSP diagnostics",
       "languages": [],
       "check_type": "standard",
-      "total_entities_checked": 19,
-      "findings_count": 19,
+      "total_entities_checked": 9,
+      "findings_count": 9,
       "warning_count": 1,
-      "score": 0.04999999999999993,
+      "score": 0.55,
       "finding_groups": [
         {
           "severity": "info",
@@ -107,87 +87,10 @@
               "metric_value": 0.0
             },
             {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 153,
-              "line_end": 153,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 204,
-              "line_end": 204,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 308,
-              "line_end": 308,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 390,
-              "line_end": 390,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 366,
-              "line_end": 366,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 423,
-              "line_end": 423,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 502,
-              "line_end": 502,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_path\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 525,
-              "line_end": 525,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 510,
-              "line_end": 510,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1030,
-              "line_end": 1030,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_expanded_components\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1413,
-              "line_end": 1413,
-              "metric_value": 0.0
-            },
-            {
-              "entity_name": "[unused_variable] \"_scope_id\" is not accessed",
-              "file_path": "diagram_analysis/diagram_generator.py",
-              "line_start": 1480,
-              "line_end": 1480,
+              "entity_name": "[unused_variable] \"_old_dst_node\" is not accessed",
+              "file_path": "static_analyzer/incremental_orchestrator.py",
+              "line_start": 161,
+              "line_end": 161,
               "metric_value": 0.0
             }
           ]
@@ -205,17 +108,25 @@
               "metric_value": 0.0
             }
           ]
+        },
+        {
+          "severity": "info",
+          "threshold": 0,
+          "description": "Code that cannot be reached during execution",
+          "entities": [
+            {
+              "entity_name": "[unreachable_code] Type analysis indicates code is unreachable",
+              "file_path": "static_analyzer/node.py",
+              "line_start": 82,
+              "line_end": 82,
+              "metric_value": 0.0
+            }
+          ]
         }
       ]
     }
   ],
   "file_summaries": [
-    {
-      "file_path": "diagram_analysis/diagram_generator.py",
-      "total_findings": 12,
-      "warning_findings": 0,
-      "composite_risk_score": 50.0
-    },
     {
       "file_path": "codeboarding_workflows/analysis.py",
       "total_findings": 2,
@@ -248,6 +159,18 @@
     },
     {
       "file_path": "agents/retry.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "static_analyzer/incremental_orchestrator.py",
+      "total_findings": 1,
+      "warning_findings": 0,
+      "composite_risk_score": 10.0
+    },
+    {
+      "file_path": "static_analyzer/node.py",
       "total_findings": 1,
       "warning_findings": 0,
       "composite_risk_score": 10.0
