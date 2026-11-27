@@ -95,11 +95,14 @@ class HierarchyBuilder:
                         supertypes = self._lsp.type_hierarchy_supertypes(item)
                     for st in supertypes:
                         super_name = self._resolve_type_hierarchy_item(st)
-                        if super_name and super_name in hierarchy:
-                            if super_name not in hierarchy[sym.qualified_name]["superclasses"]:
-                                hierarchy[sym.qualified_name]["superclasses"].append(super_name)
-                            if sym.qualified_name not in hierarchy[super_name]["subclasses"]:
-                                hierarchy[super_name]["subclasses"].append(sym.qualified_name)
+                        if not super_name:
+                            continue
+                        # A lookup-only base is not in this run's hierarchy, but the child's link to it is
+                        # still what a later merge rebuilds the reverse links from.
+                        if super_name not in hierarchy[sym.qualified_name]["superclasses"]:
+                            hierarchy[sym.qualified_name]["superclasses"].append(super_name)
+                        if super_name in hierarchy and sym.qualified_name not in hierarchy[super_name]["subclasses"]:
+                            hierarchy[super_name]["subclasses"].append(sym.qualified_name)
                 except MethodNotFoundError:
                     pass
                 except Exception as e:

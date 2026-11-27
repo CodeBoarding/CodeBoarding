@@ -236,6 +236,27 @@ class TestBuildWithSourceInference:
 
         assert "mod.Base" in hierarchy["mod.Child"]["superclasses"]
 
+    def test_a_lookup_only_base_is_kept_on_the_child(self):
+        """A warm-start rebuilds only some files: the base arrives as a cached declaration, not as a class here."""
+        adapter = _make_adapter()
+        base = _sym("Base", "mod.Base", NodeType.CLASS, start_line=0)
+        child = _sym("Child", "mod.Child", NodeType.CLASS, start_line=5)
+        st = _setup_symbol_table(adapter, [child])
+        st.register_known([base])
+
+        lsp = MagicMock()
+        lsp.type_hierarchy_prepare.side_effect = lambda fp, line, char: [
+            {"name": "stub", "uri": fp.as_uri() if hasattr(fp, "as_uri") else MOD_PATH.as_uri()}
+        ]
+        lsp.type_hierarchy_supertypes.side_effect = lambda item: [
+            {"name": "Base", "uri": MOD_PATH.as_uri(), "selectionRange": {"start": {"line": 0}}}
+        ]
+
+        hierarchy = HierarchyBuilder(lsp, st, SourceInspector(), adapter).build()
+
+        assert hierarchy["mod.Child"]["superclasses"] == ["mod.Base"]
+        assert "mod.Base" not in hierarchy
+
     def test_a_base_outside_the_engine_is_kept_for_the_merge(self):
         """A class extending another project's: no candidate here, but the name is what the merge links."""
         adapter = _make_adapter()

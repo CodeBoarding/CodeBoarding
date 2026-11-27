@@ -19,6 +19,7 @@ from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, potential_calls, implemented_by
 from static_analyzer.incremental_orchestrator import (
     _declarations,
+    _filter_to_live_files,
     _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
 )
@@ -191,6 +192,48 @@ class TestMergeResults(unittest.TestCase):
 
         self.assertEqual(merged.diagnostics, {"a.py": ["old-a"], "b.py": ["new-b"]})
 
+    def test_changed_superclass_keeps_unchanged_subclasses(self) -> None:
+        # ``Child extends Base`` lives in the unchanged child.py; only ``Base`` is re-LSPed, so
+        # its fresh entry carries no subclasses. The merge must not drop the cached reverse link.
+        cached = _result(
+            CallGraph(language="python"),
+            source_files=["base.py", "child.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": ["pkg.Child"]},
+                "pkg.Child": {"file_path": "child.py", "superclasses": ["pkg.Base"], "subclasses": []},
+            },
+        )
+        new = _result(
+            CallGraph(language="python"),
+            source_files=["base.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": []},
+            },
+        )
+
+        merged = merge_results(_analysis_data(cached), new)
+
+        self.assertEqual(merged.class_hierarchies["pkg.Base"]["subclasses"], ["pkg.Child"])
+        self.assertEqual(merged.class_hierarchies["pkg.Child"]["superclasses"], ["pkg.Base"])
+
+    def test_subclasses_derived_from_superclasses_ignore_stale_links(self) -> None:
+        # A stale reverse link to a class that no longer declares this base must not survive:
+        # ``subclasses`` is rebuilt from the superclasses the merged hierarchy actually holds.
+        # The fresh half carries no hierarchy, so nothing overwrites the cached entry — only the
+        # rebuild can drop the stale link.
+        cached = _result(
+            CallGraph(language="python"),
+            source_files=["base.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": ["pkg.Stale"]},
+            },
+        )
+        new = _result(CallGraph(language="python"), source_files=["other.py"])
+
+        merged = merge_results(_analysis_data(cached), new)
+
+        self.assertEqual(merged.class_hierarchies["pkg.Base"]["subclasses"], [])
+
 
 class TestWarmStartDeletion(unittest.TestCase):
     def test_deleted_changed_file_is_removed_from_cached_cfg(self) -> None:
@@ -230,6 +273,93 @@ class TestWarmStartDeletion(unittest.TestCase):
             self.assertNotIn("a.foo", updated["call_graph"].nodes)
             self.assertIn("b.bar", updated["call_graph"].nodes)
             self.assertEqual([str(path) for path in updated["source_files"]], [str(live_file)])
+
+    def test_a_deleted_subclass_is_dropped_from_its_base_reverse_links(self) -> None:
+        # The changed base kept a reverse link to a child whose file is gone; the merged hierarchy
+        # derives it before the live-file filter runs, so the filter has to drop it as well.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir)
+            base_file = project_path / "base.py"
+            base_file.write_text("class Base:\n    pass\n", encoding="utf-8")
+
+            cg = CallGraph(language="python")
+            cg.add_node(
+                Node(
+                    fully_qualified_name="pkg.Base",
+                    node_type=NodeType.CLASS,
+                    file_path=str(base_file),
+                    line_start=1,
+                    line_end=2,
+                )
+            )
+            cached = _result(
+                cg,
+                source_files=[str(base_file)],
+                class_hierarchies={
+                    "pkg.Base": {"superclasses": [], "subclasses": ["pkg.Child"]},
+                },
+            )
+            cached["class_hierarchies"]["pkg.Child"] = {"superclasses": ["pkg.Base"], "subclasses": []}
+            cached["source_files"] = [base_file, project_path / "child.py"]
+
+            adapter = MagicMock()
+            adapter.file_extensions = [".py"]
+            adapter.language = "python"
+            engine_client = MagicMock()
+            engine_client.get_collected_diagnostics.return_value = {}
+            ignore_manager = MagicMock()
+            ignore_manager.should_ignore.return_value = False
+
+            updated = update_cfg_for_changed_files(
+                cached,
+                {project_path / "child.py"},
+                adapter,
+                project_path,
+                project_path,
+                engine_client,
+                ignore_manager,
+            )
+
+            self.assertNotIn("pkg.Child", updated["class_hierarchies"])
+            self.assertEqual(updated["class_hierarchies"]["pkg.Base"]["subclasses"], [])
+
+    def test_a_class_name_reused_by_a_function_leaves_the_base_reverse_links(self) -> None:
+        # ``Child`` edited from ``class Child(Base)`` into ``def Child(...)`` keeps its qname, so a
+        # live-node test that ignores kinds would keep the cached entry and restore the stale link.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir)
+            base_file = project_path / "base.py"
+            base_file.write_text("class Base:\n    pass\n", encoding="utf-8")
+            child_file = project_path / "child.py"
+            child_file.write_text("def Child():\n    pass\n", encoding="utf-8")
+
+            cg = CallGraph(language="python")
+            cg.add_node(
+                Node(
+                    fully_qualified_name="pkg.Base",
+                    node_type=NodeType.CLASS,
+                    file_path=str(base_file),
+                    line_start=1,
+                    line_end=2,
+                )
+            )
+            # The edited file now declares a function under the class's old qualified name.
+            cg.add_node(_node("pkg.Child", str(child_file)))
+            merged = AnalysisData.from_dict(
+                _result(
+                    cg,
+                    source_files=[str(base_file), str(child_file)],
+                    class_hierarchies={
+                        "pkg.Base": {"superclasses": [], "subclasses": ["pkg.Child"]},
+                        "pkg.Child": {"superclasses": ["pkg.Base"], "subclasses": []},
+                    },
+                )
+            )
+
+            live = _filter_to_live_files(merged)
+
+            self.assertNotIn("pkg.Child", live.class_hierarchies)
+            self.assertEqual(live.class_hierarchies["pkg.Base"]["subclasses"], [])
 
 
 def _declared(index: GraphIndex, definition: dict) -> Node | None:
