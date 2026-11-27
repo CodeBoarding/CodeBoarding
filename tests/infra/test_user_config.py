@@ -119,6 +119,20 @@ class TestUserConfigApplyToEnv:
             os.environ.clear()
             os.environ.update(original)
 
+    def test_injects_martllm_api_key(self):
+        cfg = UserConfig(provider=ProviderUserConfig(martllm_api_key="ull_test"))
+
+        original = os.environ.copy()
+        try:
+            os.environ.pop("MARTLLM_API_KEY", None)
+
+            cfg.apply_to_env()
+
+            assert os.environ["MARTLLM_API_KEY"] == "ull_test"
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+
     def test_injects_openai_base_url_for_self_hosted_proxy(self):
         cfg = UserConfig(provider=ProviderUserConfig(openai_base_url="http://127.0.0.1:8000/v1"))
 
