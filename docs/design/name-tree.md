@@ -221,9 +221,12 @@ so a box the root folded out of seventy candidates opens onto nine, not seventy.
 vocabulary rung (one candidate per word of the units' names) is gone: it produced the 51- and
 60-child scopes and nothing could fold its candidates, which share no links.
 
-The two rungs below the trie read the files themselves, since below a leaf the trie is
-flat. **Files**: every file is a candidate labelled by its own name (its key: the position
-plus the one class it declares), the grouper merges the ones sharing a distinctive word and
+**Files**: retain the directory boundaries the frontier left unopened and offer each
+remaining file as a candidate labelled by its name (its key: directory plus filename).
+A directory the walk already entered, including a dominant directory whose contents are
+flat, is refined rather than wrapped back into one candidate. Rejecting a partition with
+one directory and loose files does not erase that directory's boundary. The grouper merges
+the candidates sharing a distinctive word and
 folds the rest along the graph, and every group under the floor pools into one "Loose files"
 bucket, a fallback-only rule on the scope's own prefix, so a one-file box is never drawn.
 **Roles**: the same over the head word of each file's name (`Strategy`, `Options`,
