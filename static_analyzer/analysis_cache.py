@@ -452,7 +452,7 @@ def merge_results(
     merged_diagnostics.update(new_diagnostics)
 
     merged_call_graph = cached_result.call_graph.union(new.call_graph)
-    merged_class_hierarchies = {**cached_result.class_hierarchies, **new.class_hierarchies}
+    merged_class_hierarchies = _rederive_subclasses({**cached_result.class_hierarchies, **new.class_hierarchies})
     # A warm-start re-LSPs only changed files, so a changed subclass whose superclass lives in
     # an unchanged file emits no INHERITS edge during conversion (the superclass wasn't in that
     # partial graph). Re-derive INHERITS from the merged hierarchy against the merged node set so
@@ -469,6 +469,26 @@ def merge_results(
         diagnostics=merged_diagnostics or None,
     )
     return merged
+
+
+def _rederive_subclasses(class_hierarchies: dict[str, Any]) -> dict[str, Any]:
+    """Rebuild every ``subclasses`` list from the merged ``superclasses`` lists.
+
+    Why: each run fills ``superclasses`` only for the classes it rebuilds. A changed class's
+    fresh entry therefore carries an empty ``subclasses`` list even though its unchanged
+    subclasses live in files the run did not touch, and the merge lets that empty list replace
+    the cached one. Deriving the reverse links from ``superclasses`` — which each run does
+    compute for its own classes — restores the children without needing their files re-LSPed.
+    """
+    subclasses: dict[str, list[str]] = {class_name: [] for class_name in class_hierarchies}
+    for child in sorted(class_hierarchies):
+        for superclass in class_hierarchies[child].get("superclasses") or []:
+            children = subclasses.get(superclass)
+            if children is not None and child not in children:
+                children.append(child)
+    return {
+        class_name: {**info, "subclasses": subclasses[class_name]} for class_name, info in class_hierarchies.items()
+    }
 
 
 def _rederive_inherits_edges(call_graph: CallGraph, class_hierarchies: dict[str, Any]) -> None:

@@ -191,6 +191,52 @@ class TestMergeResults(unittest.TestCase):
 
         self.assertEqual(merged.diagnostics, {"a.py": ["old-a"], "b.py": ["new-b"]})
 
+    def test_changed_superclass_keeps_unchanged_subclasses(self) -> None:
+        # ``Child extends Base`` lives in the unchanged child.py; only ``Base`` is re-LSPed, so
+        # its fresh entry carries no subclasses. The merge must not drop the cached reverse link.
+        cached = _result(
+            CallGraph(language="python"),
+            source_files=["base.py", "child.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": ["pkg.Child"]},
+                "pkg.Child": {"file_path": "child.py", "superclasses": ["pkg.Base"], "subclasses": []},
+            },
+        )
+        new = _result(
+            CallGraph(language="python"),
+            source_files=["base.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": []},
+            },
+        )
+
+        merged = merge_results(_analysis_data(cached), new)
+
+        self.assertEqual(merged.class_hierarchies["pkg.Base"]["subclasses"], ["pkg.Child"])
+        self.assertEqual(merged.class_hierarchies["pkg.Child"]["superclasses"], ["pkg.Base"])
+
+    def test_subclasses_derived_from_superclasses_ignore_stale_links(self) -> None:
+        # A stale reverse link to a class that no longer declares this base must not survive:
+        # ``subclasses`` is rebuilt from the superclasses the merged hierarchy actually holds.
+        cached = _result(
+            CallGraph(language="python"),
+            source_files=["base.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": ["pkg.Stale"]},
+            },
+        )
+        new = _result(
+            CallGraph(language="python"),
+            source_files=["base.py"],
+            class_hierarchies={
+                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": []},
+            },
+        )
+
+        merged = merge_results(_analysis_data(cached), new)
+
+        self.assertEqual(merged.class_hierarchies["pkg.Base"]["subclasses"], [])
+
 
 class TestWarmStartDeletion(unittest.TestCase):
     def test_deleted_changed_file_is_removed_from_cached_cfg(self) -> None:
