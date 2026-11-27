@@ -282,6 +282,12 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     merged_analysis.class_hierarchies = {
         name: info for name, info in merged_analysis.class_hierarchies.items() if name in live_class_names
     }
+    # The reverse links were derived before this filter, so a subclass that just died still sits in
+    # its base's list; drop it here or the stored hierarchy names a class that no longer exists.
+    merged_analysis.class_hierarchies = {
+        name: {**info, "subclasses": [child for child in info.get("subclasses", []) if child in live_class_names]}
+        for name, info in merged_analysis.class_hierarchies.items()
+    }
 
     return merged_analysis
 

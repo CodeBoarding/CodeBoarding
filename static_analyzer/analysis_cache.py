@@ -474,11 +474,8 @@ def merge_results(
 def _rederive_subclasses(class_hierarchies: dict[str, Any]) -> dict[str, Any]:
     """Rebuild every ``subclasses`` list from the merged ``superclasses`` lists.
 
-    Why: each run fills ``superclasses`` only for the classes it rebuilds. A changed class's
-    fresh entry therefore carries an empty ``subclasses`` list even though its unchanged
-    subclasses live in files the run did not touch, and the merge lets that empty list replace
-    the cached one. Deriving the reverse links from ``superclasses`` — which each run does
-    compute for its own classes — restores the children without needing their files re-LSPed.
+    Why: each run fills ``superclasses`` only for the classes it rebuilds, so a changed class's
+    fresh empty ``subclasses`` list would replace the cached one naming its unchanged children.
     """
     subclasses: dict[str, list[str]] = {class_name: [] for class_name in class_hierarchies}
     for child in sorted(class_hierarchies):

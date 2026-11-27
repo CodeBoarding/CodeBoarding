@@ -273,6 +273,47 @@ class TestWarmStartDeletion(unittest.TestCase):
             self.assertIn("b.bar", updated["call_graph"].nodes)
             self.assertEqual([str(path) for path in updated["source_files"]], [str(live_file)])
 
+    def test_a_deleted_subclass_is_dropped_from_its_base_reverse_links(self) -> None:
+        # The changed base kept a reverse link to a child whose file is gone; the merged hierarchy
+        # derives it before the live-file filter runs, so the filter has to drop it as well.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir)
+            base_file = project_path / "base.py"
+            base_file.write_text("class Base:\n    pass\n", encoding="utf-8")
+
+            cg = CallGraph(language="python")
+            cg.add_node(_node("pkg.Base", str(base_file)))
+            cached = _result(
+                cg,
+                source_files=[str(base_file)],
+                class_hierarchies={
+                    "pkg.Base": {"superclasses": [], "subclasses": ["pkg.Child"]},
+                },
+            )
+            cached["class_hierarchies"]["pkg.Child"] = {"superclasses": ["pkg.Base"], "subclasses": []}
+            cached["source_files"] = [base_file, project_path / "child.py"]
+
+            adapter = MagicMock()
+            adapter.file_extensions = [".py"]
+            adapter.language = "python"
+            engine_client = MagicMock()
+            engine_client.get_collected_diagnostics.return_value = {}
+            ignore_manager = MagicMock()
+            ignore_manager.should_ignore.return_value = False
+
+            updated = update_cfg_for_changed_files(
+                cached,
+                {project_path / "child.py"},
+                adapter,
+                project_path,
+                project_path,
+                engine_client,
+                ignore_manager,
+            )
+
+            self.assertNotIn("pkg.Child", updated["class_hierarchies"])
+            self.assertEqual(updated["class_hierarchies"]["pkg.Base"]["subclasses"], [])
+
 
 def _declared(index: GraphIndex, definition: dict) -> Node | None:
     location = definition_location(definition)
