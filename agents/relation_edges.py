@@ -1,11 +1,14 @@
 """Merge component relations and index their source endpoints."""
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
+from types import MappingProxyType
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from infra.clustering_ids import is_self_or_descendant
 from infra.repo_utils.path_utils import normalize_repo_path
+
+_NO_NAME_OVERRIDES: Mapping[str, str] = MappingProxyType({})
 
 
 def append_or_merge_relation(
@@ -197,6 +200,46 @@ def prune_ungrounded_edges(
     return drop_reverse_duplicates(settled, changed_members)
 
 
+def refresh_edges_from_calls(
+    relations: list[Relation],
+    live_calls: Callable[[str, str], list[RelationEdge]],
+    repo_dir: Path,
+) -> list[Relation]:
+    """Copy call sites and endpoint spans onto each edge from its live CFG call, keeping its names.
+
+    Why: a kept baseline edge still carries the baseline's line numbers.
+    """
+
+    def files(edge: RelationEdge) -> tuple[str, str]:
+        return (
+            normalize_repo_path(edge.source.reference_file or "", repo_dir),
+            normalize_repo_path(edge.target.reference_file or "", repo_dir),
+        )
+
+    def refresh(edge: RelationEdge) -> RelationEdge:
+        calls = live_calls(edge.source.qualified_name, edge.target.qualified_name)
+        if not calls:
+            return edge
+        call = next((call for call in calls if files(call) == files(edge)), calls[0])
+        return edge.model_copy(
+            update={
+                "source": _with_span_of(edge.source, call.source),
+                "target": _with_span_of(edge.target, call.target),
+                "call_sites": call.call_sites,
+            }
+        )
+
+    return [
+        relation.model_copy(
+            update={
+                "all_edges": [refresh(edge) for edge in relation.all_edges],
+                "key_edges": [refresh(edge) for edge in relation.key_edges],
+            }
+        )
+        for relation in relations
+    ]
+
+
 def drop_reverse_duplicates(relations: list[Relation], changed_members: set[str] | None = None) -> list[Relation]:
     """Collapse an ungrounded relation duplicated in the opposite direction."""
     grounded_pairs = {
@@ -239,20 +282,38 @@ def _qualified_names_match(first: str, second: str) -> bool:
     return first == second or first.endswith(f".{second}") or second.endswith(f".{first}")
 
 
-def _relation_backing_survives(relation: Relation, live_qnames: set[str]) -> bool:
-    """Whether a baseline relation's static backing still exists in live code.
+def _restore_relation_backing(
+    relation: Relation,
+    has_call: Callable[[str, str], bool],
+    has_symbol: Callable[[str], bool],
+    owner_of: Callable[[SourceCodeReference], str],
+) -> Relation | None:
+    """Keep edgeless relations, keep evidence relations with a live in-pair edge, filter the rest to live calls.
 
-    A relation is supported by concrete method-to-method calls; restoring it verbatim keeps them. If the only edges connecting the two
-    components pointed at a symbol since deleted, restoring the relation resurrects an edge
-    citing code that is gone — a phantom. A relation with no static edge at all is a
-    runtime/config relation with nothing to invalidate, so it is left alone.
+    Why: evidence links (queue, REST, config) are not direct calls, so the call graph cannot confirm them.
     """
     edges = relation.all_edges or relation.key_edges
     if not edges:
-        return True
-    return any(
-        edge.source.qualified_name in live_qnames and edge.target.qualified_name in live_qnames for edge in edges
-    )
+        return relation
+    if relation.evidence.strip() and not relation.is_static:
+        if any(
+            has_symbol(edge.source.qualified_name)
+            and has_symbol(edge.target.qualified_name)
+            and not _filed_elsewhere(edge, relation, owner_of)
+            for edge in edges
+        ):
+            return relation
+        return None
+
+    all_edges = [
+        edge for edge in relation.all_edges if has_call(edge.source.qualified_name, edge.target.qualified_name)
+    ]
+    key_edges = [
+        edge for edge in relation.key_edges if has_call(edge.source.qualified_name, edge.target.qualified_name)
+    ]
+    if not (all_edges or key_edges):
+        return None
+    return relation.model_copy(update={"all_edges": all_edges, "key_edges": key_edges})
 
 
 def _backing_edge_pairs(relation: Relation) -> set[tuple[str, str]]:
@@ -350,9 +411,13 @@ def preserve_unchanged_relations(
     baseline_by_pair: dict[tuple[str, str], Relation],
     changed_component_ids: set[str],
     live_ids: set[str],
-    live_qnames: set[str],
+    has_call: Callable[[str, str], bool],
     changed_members: set[str] | None = None,
     gated_members: Collection[str] = (),
+    *,
+    has_symbol: Callable[[str], bool],
+    owner_of: Callable[[SourceCodeReference], str],
+    live_names: Mapping[str, str] = _NO_NAME_OVERRIDES,
 ) -> list[Relation]:
     """Keep the wording a reader already read for any relation whose call edges did not move.
 
@@ -373,14 +438,14 @@ def preserve_unchanged_relations(
     alternate runtime/config evidence.
 
     A baseline relation between two unchanged, still-live components that regeneration
-    dropped is restored — but only when its backing edges still exist in live code. The
-    deterministic rebuild drops a pair when the code connecting the two components was
-    deleted; restoring it then would resurrect an edge citing a symbol that no longer
-    exists.
+    dropped is restored with only its surviving CFG calls. Relations without static backing
+    are also eligible. An evidence-backed baseline relation is restored only while one of its
+    backing edges still has both endpoints in ``has_symbol`` and is not owned
+    entirely by other components under ``owner_of``. Passing ``gated_members`` restores a pair even when an endpoint component
+    is flagged changed, as long as the commit did not touch the pair's own qualified names
+    and the rebuilt pair is backed by the same calls as the baseline pair.
 
-    Wording is all this layer carries; CFG-backed edges always come from the fresh rebuild.
-    Why: extraction is deterministic, and a baseline edge carried forward keeps the line
-    numbers its call sites had when it was written.
+    Why: a repartitioned pair with unchanged backing calls is the same connection, so it keeps the baseline wording.
 
     Keyed on ``(src_id, dst_id)``, the stable component identity, not on displayed names.
     """
@@ -390,6 +455,8 @@ def preserve_unchanged_relations(
 
     kept: list[Relation] = []
     rebuilt_pairs: set[tuple[str, str]] = set()
+    adopted_baseline_pairs: set[tuple[str, str]] = set()
+    baseline_by_backing: dict[frozenset[tuple[str, str]], list[tuple[tuple[str, str], Relation]]] | None = None
     for relation in rebuilt_relations:
         if (relation.src_id, relation.dst_id) not in baseline_by_pair:
             relation = _restore_baseline_orientation(relation, baseline_by_pair)
@@ -397,9 +464,23 @@ def preserve_unchanged_relations(
         rebuilt_pairs.add(pair)
         previous = baseline_by_pair.get(pair)
         if previous is None:
-            # No baseline for this pair. A genuinely new connection into a changed area is
-            # kept; a fresh edge invented between two untouched components is a re-attribution
-            # artifact and is dropped.
+            if baseline_by_backing is None:
+                baseline_by_backing = {}
+                if changed_members is not None:
+                    for baseline_pair, baseline_relation in baseline_by_pair.items():
+                        backing = frozenset(_backing_edge_pairs(baseline_relation))
+                        if backing:
+                            baseline_by_backing.setdefault(backing, []).append((baseline_pair, baseline_relation))
+            # No baseline for this pair. The same untouched calls filed under new component
+            # ids keep the baseline wording once; the baseline pair is not restored as well.
+            matches = _untouched_baseline_matches(relation, baseline_by_backing, changed_members, gated_members)
+            if matches:
+                relation = _restore_baseline_wording(relation, matches[0][1])
+                adopted_baseline_pairs.update(matched_pair for matched_pair, _baseline in matches)
+                kept.append(relation)
+                continue
+            # A genuinely new connection into a changed area is kept; a fresh edge invented
+            # between two untouched components is a re-attribution artifact and is dropped.
             if not touches_change(*pair):
                 continue
             # The pair asserts no connection at all.
@@ -409,7 +490,12 @@ def preserve_unchanged_relations(
             continue
         if changed_members is not None and _commit_deleted_the_backing(relation, previous, changed_members):
             continue
-        pair_untouched = pair_untouched_by_change(relation, gated_members, previous)
+        # The member gate only vouches for the names it saw. A repartition can reuse the
+        # component pair for different calls, so the wording carries over only while the
+        # rebuilt pair is still backed by the baseline's calls.
+        pair_untouched = pair_untouched_by_change(relation, gated_members, previous) and _same_backing_or_edgeless(
+            relation, previous
+        )
         pair_has_edges = bool(relation.all_edges or relation.key_edges or previous.all_edges or previous.key_edges)
         pair_touched = bool(gated_members) and pair_has_edges and not pair_untouched
         if pair_untouched or (
@@ -423,11 +509,70 @@ def preserve_unchanged_relations(
             relation = _restore_baseline_wording(relation, previous)
         kept.append(relation)
     for pair, relation in baseline_by_pair.items():
-        if pair in rebuilt_pairs or pair[0] not in live_ids or pair[1] not in live_ids:
+        if (
+            pair in rebuilt_pairs
+            or pair in adopted_baseline_pairs
+            or pair[0] not in live_ids
+            or pair[1] not in live_ids
+        ):
             continue
         if touches_change(*pair) and not pair_untouched_by_change(relation, gated_members):
             continue
-        if not _relation_backing_survives(relation, live_qnames):
-            continue
-        kept.append(relation)
+        restored = _restore_relation_backing(relation, has_call, has_symbol, owner_of)
+        if restored is not None:
+            kept.append(_with_live_names(restored, live_names))
     return drop_internal_self_relations(sorted(kept, key=lambda rel: (rel.src_id, rel.dst_id)))
+
+
+def _untouched_baseline_matches(
+    relation: Relation,
+    baseline_by_backing: dict[frozenset[tuple[str, str]], list[tuple[tuple[str, str], Relation]]],
+    changed_members: set[str] | None,
+    gated_members: Collection[str] = (),
+) -> list[tuple[tuple[str, str], Relation]]:
+    """Baseline relations whose call pairs equal this one's, when the commit left those names alone.
+
+    Why: evidence-backed relations match only with the member gate on, so a config-only change keeps fresh evidence.
+    """
+    backing = _backing_edge_pairs(relation)
+    if not backing or changed_members is None:
+        return []
+    if relation.evidence.strip() and changed_members and not gated_members:
+        return []
+    if any(source in changed_members or target in changed_members for source, target in backing):
+        return []
+    own_pair = (relation.src_id, relation.dst_id)
+    return [(pair, previous) for pair, previous in baseline_by_backing.get(frozenset(backing), []) if pair != own_pair]
+
+
+def _same_backing_or_edgeless(rebuilt: Relation, previous: Relation) -> bool:
+    """False when both relations have backing calls and those calls differ."""
+    rebuilt_edges = _backing_edge_pairs(rebuilt)
+    previous_edges = _backing_edge_pairs(previous)
+    return not (rebuilt_edges and previous_edges) or rebuilt_edges == previous_edges
+
+
+def _with_live_names(relation: Relation, live_names: Mapping[str, str]) -> Relation:
+    """Rebind a restored relation's endpoint names to its components' current names."""
+    src_name = live_names.get(relation.src_id, relation.src_name)
+    dst_name = live_names.get(relation.dst_id, relation.dst_name)
+    if (src_name, dst_name) == (relation.src_name, relation.dst_name):
+        return relation
+    return relation.model_copy(update={"src_name": src_name, "dst_name": dst_name})
+
+
+def _filed_elsewhere(edge: RelationEdge, relation: Relation, owner_of: Callable[[SourceCodeReference], str]) -> bool:
+    """Whether both endpoints have owners and those owners no longer span the relation's pair."""
+    if not (owner_of(edge.source) and owner_of(edge.target)):
+        return False
+    return not edge_crosses_components(edge, owner_of, relation.src_id, relation.dst_id)
+
+
+def _with_span_of(reference: SourceCodeReference, live: SourceCodeReference) -> SourceCodeReference:
+    return reference.model_copy(
+        update={
+            "reference_file": live.reference_file,
+            "reference_start_line": live.reference_start_line,
+            "reference_end_line": live.reference_end_line,
+        }
+    )

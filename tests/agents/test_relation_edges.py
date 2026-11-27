@@ -2,7 +2,7 @@ from pathlib import Path
 
 from agents.agent_responses import AnalysisInsights, Relation, RelationEdge, SourceCodeReference
 from agents.file_index_models import FileEntry, MethodEntry
-from agents.relation_edges import _edge_touches_changed_method, index_relation_endpoints
+from agents.relation_edges import _edge_touches_changed_method, index_relation_endpoints, refresh_edges_from_calls
 from static_analyzer.config import NodeType
 
 
@@ -129,3 +129,31 @@ def test_a_new_call_to_an_untouched_function_still_counts() -> None:
     # The commonest way a real dependency appears: a caller edited to call something that
     # already existed. Requiring BOTH ends to change would suppress it.
     assert _edge_touches_changed_method(_changed_edge("pkg.caller", "pkg.old"), {"pkg.caller"})
+
+
+def test_refresh_takes_the_call_from_the_edges_own_files() -> None:
+    # A Python and a Go CFG can both hold pkg.caller -> other.target; the Go edge must not
+    # pick up the Python call's files and spans.
+    python_call = _located_edge("/repo/pkg.py", "/repo/other.py", 10)
+    go_call = _located_edge("/repo/pkg.go", "/repo/other.go", 20)
+    stale_go_edge = _located_edge("pkg.go", "other.go", 1)
+    relation = Relation(relation="calls", src_name="A", dst_name="B", all_edges=[stale_go_edge])
+
+    [refreshed] = refresh_edges_from_calls([relation], lambda _s, _t: [python_call, go_call], Path("/repo"))
+
+    assert refreshed.all_edges[0].source.reference_file == "/repo/pkg.go"
+    assert refreshed.all_edges[0].source.reference_start_line == 20
+
+
+def _located_edge(source_file: str, target_file: str, line: int) -> RelationEdge:
+    return RelationEdge(
+        source=SourceCodeReference(
+            qualified_name="pkg.caller", reference_file=source_file, reference_start_line=line, reference_end_line=line
+        ),
+        target=SourceCodeReference(
+            qualified_name="other.target",
+            reference_file=target_file,
+            reference_start_line=line,
+            reference_end_line=line,
+        ),
+    )

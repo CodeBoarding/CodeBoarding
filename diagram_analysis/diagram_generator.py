@@ -19,6 +19,7 @@ from agents.agent_responses import (
     AnalysisInsights,
     Component,
     Relation,
+    RelationEdge,
     SourceCodeReference,
 )
 from agents.component_ownership import ComponentOwnershipIndex
@@ -35,6 +36,7 @@ from agents.relation_edges import (
     index_relation_endpoints,
     preserve_unchanged_relations,
     prune_ungrounded_edges,
+    refresh_edges_from_calls,
 )
 from agents.scope_ids import ROOT_SCOPE_ID
 from infra.clustering_ids import CodeBoardingClusterIds
@@ -1475,31 +1477,57 @@ class DiagramGenerator:
                 self._changed_members,
                 self._changed_unattributed_files,
             )
-            live_ids = {
-                component.component_id
+            live_names = {
+                component.component_id: component.name
                 for _scope_id, analysis in _iter_incremental_scopes(root_analysis, sub_analyses)
                 for component in analysis.components
                 if component.component_id
             }
-            live_qnames = {
-                qualified_name
-                for lang in self.static_analysis.get_languages()
-                for qualified_name in self.static_analysis.get_cfg(lang).nodes
-            }
+            live_ids = set(live_names)
+
+            def live_calls(source_name: str, target_name: str) -> list[RelationEdge]:
+                return [
+                    RelationEdge.from_edge(edge)
+                    for cfg in cfg_graphs.values()
+                    if (edge := cfg.get_edge(source_name, target_name)) is not None
+                    and edge.get_source() != edge.get_destination()
+                ]
+
+            def has_call(source_name: str, target_name: str) -> bool:
+                return bool(live_calls(source_name, target_name))
+
+            def has_symbol(name: str) -> bool:
+                return any(cfg.has_node(name) for cfg in cfg_graphs.values())
+
             global_relations = preserve_unchanged_relations(
                 global_relations,
                 self._baseline_global_relations,
                 changed_ids,
                 live_ids,
-                live_qnames,
+                has_call,
                 self._changed_members,
+                # Same rule as the per-scope path: a change outside any member body
+                # (an import binding, say) may move calls the member set cannot see.
+                gated_members=set() if self._changed_unattributed_files else self._changed_members,
+                has_symbol=has_symbol,
+                owner_of=ownership.owner_of,
+                live_names=live_names,
             )
             # Same reason as the per-scope path: preservation re-injects baseline edges after
             # the grounding filters ran, so the assembled list is filtered once more.
+            # keep_relation_edge rejects a CFG edge whose C++ name is an alias or a display[usr]
+            # key the reference list does not store. Check the CFG for those calls.
+            resolver = StaticReferenceResolver(self.repo_location, self.static_analysis)
+
+            def keep_preserved_edge(edge: RelationEdge) -> bool:
+                return resolver.keep_relation_edge(edge) or has_call(
+                    edge.source.qualified_name, edge.target.qualified_name
+                )
+
             global_relations = prune_ungrounded_edges(
-                global_relations,
+                refresh_edges_from_calls(global_relations, live_calls, self.repo_location),
                 ownership.owner_of,
-                StaticReferenceResolver(self.repo_location, self.static_analysis).keep_relation_edge,
+                keep_preserved_edge,
                 self._changed_members,
             )
         root_analysis.components_relations = global_relations

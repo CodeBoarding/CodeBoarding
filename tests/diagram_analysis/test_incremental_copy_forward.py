@@ -8,6 +8,7 @@ crash, so each helper is driven directly on hand-built trees.
 
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 
 from agents.agent_responses import (
@@ -233,6 +234,20 @@ def _ref(qualified_name: str) -> SourceCodeReference:
     return SourceCodeReference(qualified_name=qualified_name, reference_file="pkg/mod.py")
 
 
+def _live_calls(*pairs: tuple[str, str]) -> Callable[[str, str], bool]:
+    calls = set(pairs)
+    return lambda source, target: (source, target) in calls
+
+
+def _every_symbol_live(_name: str) -> bool:
+    """Treat every referenced symbol as still present."""
+    return True
+
+
+def _unowned(_reference: SourceCodeReference) -> str:
+    return ""
+
+
 class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
     @staticmethod
     def _relation(src: str, dst: str, label: str) -> Relation:
@@ -243,7 +258,13 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
         kept = preserve_unchanged_relations(
-            rebuilt, baseline, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+            rebuilt,
+            baseline,
+            changed_component_ids=set(),
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
@@ -256,7 +277,15 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         stale = self._relation("1", "2", "baseline wording")
         stale.key_edges = [RelationEdge(source=_ref("gone.caller"), target=_ref("gone.callee"))]
 
-        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, set(), {"1", "2"}, set())
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            set(),
+            {"1", "2"},
+            _live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
         self.assertEqual([edge.source.qualified_name for edge in kept[0].key_edges], ["live.caller"])
@@ -269,7 +298,13 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.old_callee"))]
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, changed_component_ids={"2"}, live_ids={"1", "2"}, live_qnames=set()
+            [fresh],
+            {("1", "2"): stale},
+            changed_component_ids={"2"},
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
@@ -282,7 +317,13 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
 
         kept = preserve_unchanged_relations(
-            rebuilt, baseline, changed_component_ids={"2"}, live_ids={"1", "2"}, live_qnames=set()
+            rebuilt,
+            baseline,
+            changed_component_ids={"2"},
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
@@ -296,7 +337,15 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         stale = self._relation("1", "2", "baseline wording")
         stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.callee"))]
 
-        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, {"2"}, {"1", "2"}, set())
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"2"},
+            {"1", "2"},
+            _live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
         self.assertEqual([edge.source.qualified_name for edge in kept[0].all_edges], ["pkg.caller"])
@@ -307,7 +356,15 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         stale = self._relation("1", "2", "baseline wording")
         stale.all_edges = [RelationEdge(source=_ref("pkg.caller"), target=_ref("pkg.old_callee"))]
 
-        kept = preserve_unchanged_relations([fresh], {("1", "2"): stale}, {"2"}, {"1", "2"}, set())
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"2"},
+            {"1", "2"},
+            _live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual([rel.relation for rel in kept], ["rebuilt wording"])
 
@@ -324,7 +381,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         ]
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): baseline}, {"2"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
+            [fresh],
+            {("1", "2"): baseline},
+            {"2"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.changed"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         edge_pairs = {(e.source.qualified_name, e.target.qualified_name) for e in kept[0].all_edges}
@@ -344,27 +408,66 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         ]
 
         kept = preserve_unchanged_relations(
-            [fresh], {}, {"1", "2"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+            [fresh],
+            {},
+            {"1", "2"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.elsewhere"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual(len(kept), 1)
         self.assertTrue(kept[0].is_static)
         self.assertEqual(len(kept[0].all_edges), 2)
 
-    def test_baseline_edge_the_rebuild_dropped_is_restored(self):
-        baseline = {("1", "2"): self._relation("1", "2", "baseline wording")}
+    def test_edgeless_runtime_relation_the_rebuild_dropped_is_restored(self):
+        relation = self._relation("1", "2", "baseline wording")
+        relation.evidence = "Configured at runtime."
+        baseline = {("1", "2"): relation}
 
         kept = preserve_unchanged_relations(
-            [], baseline, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+            [],
+            baseline,
+            changed_component_ids=set(),
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
-        self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
+        self.assertEqual(kept, [relation])
+
+    def test_restored_relation_takes_the_renamed_components_current_names(self):
+        relation = self._relation("1", "2", "baseline wording")
+        relation.evidence = "Configured at runtime."
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): relation},
+            changed_component_ids=set(),
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+            live_names={"1": "Renamed Source", "2": "Renamed Target"},
+        )
+
+        self.assertEqual([(rel.src_name, rel.dst_name) for rel in kept], [("Renamed Source", "Renamed Target")])
+        self.assertEqual(kept[0].relation, "baseline wording")
 
     def test_baseline_edge_to_a_component_that_no_longer_exists_is_dropped(self):
         baseline = {("1", "9"): self._relation("1", "9", "baseline wording")}
 
         kept = preserve_unchanged_relations(
-            [], baseline, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+            [],
+            baseline,
+            changed_component_ids=set(),
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual(kept, [])
@@ -373,7 +476,13 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         rebuilt = [self._relation("1", "2", "invented")]
 
         kept = preserve_unchanged_relations(
-            rebuilt, {}, changed_component_ids=set(), live_ids={"1", "2"}, live_qnames=set()
+            rebuilt,
+            {},
+            changed_component_ids=set(),
+            live_ids={"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual(kept, [])
@@ -384,7 +493,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         fresh = self._relation("1", "2", "invented wording")
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.caller"}
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.caller"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual(kept, [])
@@ -395,7 +511,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         fresh = self._relation("1", "2", "invented wording")
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.elsewhere"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
@@ -405,7 +528,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         fresh = self._relation("1", "2", "rebuilt wording")
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.changed"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([rel.relation for rel in kept], ["baseline wording"])
@@ -430,7 +560,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         ]
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): baseline}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+            [fresh],
+            {("1", "2"): baseline},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.elsewhere"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([edge.description for edge in kept[0].key_edges], [""])
@@ -447,7 +584,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         fresh = self._relation("1", "2", "rebuilt wording")
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.changed"}
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.changed"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual(kept, [])
@@ -470,7 +614,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         ]
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.elsewhere"}
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.elsewhere"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [52])
@@ -484,7 +635,14 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         fresh.evidence = "Routes requests through a configured endpoint."
 
         kept = preserve_unchanged_relations(
-            [fresh], {("1", "2"): stale}, {"1"}, {"1", "2"}, set(), changed_members={"pkg.caller"}
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(),
+            changed_members={"pkg.caller"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
         self.assertEqual(
@@ -497,19 +655,306 @@ class TestPreserveUnchangedGlobalRelations(unittest.TestCase):
         stale = self._relation("1", "2", "baseline wording")
         stale.all_edges = [RelationEdge(source=_ref("gone.caller"), target=_ref("still.here"))]
 
-        kept = preserve_unchanged_relations([], {("1", "2"): stale}, set(), {"1", "2"}, live_qnames={"still.here"})
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): stale},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual(kept, [])
 
-    def test_restored_relation_with_a_live_backing_edge_is_kept(self):
-        live = self._relation("1", "2", "baseline wording")
-        live.all_edges = [RelationEdge(source=_ref("a.caller"), target=_ref("b.callee"))]
+    def test_restored_relation_retains_only_surviving_calls(self):
+        baseline = self._relation("1", "2", "baseline wording")
+        surviving = RelationEdge(source=_ref("a.caller"), target=_ref("b.callee"))
+        removed = RelationEdge(source=_ref("a.other"), target=_ref("b.callee"))
+        baseline.all_edges = [surviving, removed]
+        baseline.key_edges = [surviving, removed]
 
         kept = preserve_unchanged_relations(
-            [], {("1", "2"): live}, set(), {"1", "2"}, live_qnames={"a.caller", "b.callee"}
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(("a.caller", "b.callee")),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
         )
 
-        self.assertEqual([(rel.src_id, rel.dst_id) for rel in kept], [("1", "2")])
+        self.assertEqual(kept, [baseline.model_copy(update={"all_edges": [surviving], "key_edges": [surviving]})])
+        self.assertEqual(baseline.all_edges, [surviving, removed])
+
+    def test_restored_evidence_relation_without_a_cfg_call_is_kept(self):
+        # A queue link between live, unchanged components has key edges and evidence but no
+        # direct call, so the call graph has nothing to confirm.
+        baseline = self._relation("1", "2", "publishes jobs to")
+        baseline.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(kept, [baseline])
+
+    def test_restored_static_evidence_relation_without_a_live_call_is_dropped(self):
+        # Scope assembly keeps LLM evidence on CFG-backed relations. A redirected caller leaves
+        # both endpoints live, so only the call graph can say the cross-scope call is gone.
+        baseline = self._relation("1", "2", "calls")
+        baseline.evidence = "a.caller invokes b.callee"
+        baseline.is_static = True
+        edge = RelationEdge(source=_ref("a.caller"), target=_ref("b.callee"))
+        baseline.all_edges = [edge]
+        baseline.key_edges = [edge]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(kept, [])
+
+    def test_restored_evidence_relation_whose_backing_symbols_are_gone_is_dropped(self):
+        # Both components stay live, but the queue producer the relation cites was deleted, so
+        # no backing edge has two live endpoints and the relation would cite missing code.
+        baseline = self._relation("1", "2", "publishes jobs to")
+        baseline.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol={"consumer.handle"}.__contains__,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(kept, [])
+
+    def test_restored_evidence_relation_with_live_backing_symbols_is_kept(self):
+        baseline = self._relation("1", "2", "publishes jobs to")
+        baseline.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): baseline},
+            set(),
+            {"1", "2"},
+            has_call=_live_calls(),
+            has_symbol={"producer.enqueue", "consumer.handle"}.__contains__,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(kept, [baseline])
+
+    def test_restored_evidence_relation_whose_producer_moved_to_another_component_is_dropped(self):
+        # A repartition moved the untouched producer from 1 into 3, which already relates to 2.
+        # An unrelated edit marks 1 changed; the member gate must not bring back 1 -> 2 beside 3 -> 2.
+        edge = RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))
+        baseline_moved = self._relation("1", "2", "publishes jobs to")
+        baseline_moved.evidence = "producer.enqueue writes to the jobs queue consumer.handle reads"
+        baseline_moved.key_edges = [edge]
+        baseline_existing = self._relation("3", "2", "feeds")
+        baseline_existing.evidence = "other.send writes to the jobs queue consumer.handle reads"
+        rebuilt = self._relation("3", "2", "feeds")
+        rebuilt.evidence = baseline_existing.evidence
+        rebuilt.key_edges = [edge]
+        owners = {"producer.enqueue": "3", "consumer.handle": "2", "edited.method": "1"}
+
+        kept = preserve_unchanged_relations(
+            [rebuilt],
+            {("1", "2"): baseline_moved, ("3", "2"): baseline_existing},
+            {"1"},
+            {"1", "2", "3"},
+            has_call=_live_calls(),
+            changed_members={"edited.method"},
+            gated_members={"edited.method"},
+            has_symbol=_every_symbol_live,
+            owner_of=lambda reference: owners.get(reference.qualified_name, ""),
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("3", "2")])
+
+    def test_rebuilt_pair_with_the_same_untouched_backing_is_kept_once(self):
+        # The calls moved to new component ids, but neither qualified name changed. Keep the
+        # rebuilt filing, with the reader's wording and the fresh call sites, and do not also
+        # restore the baseline pair the changed endpoints would otherwise bring back.
+        stale = self._relation("1", "2", "instantiates default sink from")
+        stale.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=12, column=4)],
+            )
+        ]
+        fresh = self._relation("3", "4", "rebuilt wording")
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=268, column=12)],
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"1", "2"},
+            {"1", "2", "3", "4"},
+            _live_calls(("log.use_stderr_sink", "log.make_stderr_sink")),
+            changed_members={"object_identity.cache_key"},
+            gated_members={"object_identity.cache_key"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("3", "4")])
+        self.assertEqual(kept[0].relation, "instantiates default sink from")
+        self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [268])
+
+    def test_changed_co_owner_keeps_untouched_logging_relation_with_fresh_call_sites(self):
+        # The endpoint is flagged because it co-owns the moved symbol. The logging names are
+        # absent from that set, so the relation stays, and its call sites come from the rebuild.
+        stale = self._relation("1", "2", "instantiates default sink from")
+        stale.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=12, column=4)],
+            )
+        ]
+        fresh = self._relation("1", "2", "rebuilt wording")
+        fresh.all_edges = [
+            RelationEdge(
+                source=_ref("log.use_stderr_sink"),
+                target=_ref("log.make_stderr_sink"),
+                call_sites=[RelationCallSite(line=268, column=12)],
+            )
+        ]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"1"},
+            {"1", "2"},
+            _live_calls(("log.use_stderr_sink", "log.make_stderr_sink")),
+            changed_members={"object_identity.cache_key"},
+            gated_members={"object_identity.cache_key"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("1", "2")])
+        self.assertEqual(kept[0].relation, "instantiates default sink from")
+        self.assertEqual([site.line for edge in kept[0].all_edges for site in edge.call_sites], [268])
+
+    def test_repartitioned_evidence_relation_keeps_fresh_evidence_after_unattributed_change(self):
+        # A config edit renamed the queue, so callers cleared the member gate. The producer and
+        # consumer names are unchanged and the pair moved to new ids, but the jobs-v1 evidence
+        # is stale and must not be copied over the fresh jobs-v2 relation.
+        stale = self._relation("1", "2", "enqueues jobs-v1 for")
+        stale.evidence = "queue jobs-v1"
+        stale.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+        fresh = self._relation("3", "4", "enqueues jobs-v2 for")
+        fresh.evidence = "queue jobs-v2"
+        fresh.key_edges = [RelationEdge(source=_ref("producer.enqueue"), target=_ref("consumer.handle"))]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): stale},
+            {"1", "2", "3", "4"},
+            {"3", "4"},
+            _live_calls(),
+            changed_members={"pkg.unrelated"},
+            gated_members=set(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(
+            [(relation.evidence, relation.relation) for relation in kept], [("queue jobs-v2", "enqueues jobs-v2 for")]
+        )
+
+    def test_reused_pair_backing_different_calls_keeps_fresh_wording(self):
+        # The repartition moved a -> b under 3 -> 2 and filed an unrelated x -> y under 1 -> 2.
+        # The gate saw no changed name on either call, but 1 -> 2 now backs different calls, so
+        # its baseline label must not land on x -> y; the moved call keeps it under 3 -> 2.
+        baseline = self._relation("1", "2", "a calls b")
+        baseline.all_edges = [RelationEdge(source=_ref("pkg.a"), target=_ref("pkg.b"))]
+        reused = self._relation("1", "2", "x calls y")
+        reused.all_edges = [RelationEdge(source=_ref("pkg.x"), target=_ref("pkg.y"))]
+        moved = self._relation("3", "2", "rebuilt wording")
+        moved.all_edges = [RelationEdge(source=_ref("pkg.a"), target=_ref("pkg.b"))]
+
+        kept = preserve_unchanged_relations(
+            [reused, moved],
+            {("1", "2"): baseline},
+            {"1", "2", "3"},
+            {"1", "2", "3"},
+            _live_calls(("pkg.a", "pkg.b"), ("pkg.x", "pkg.y")),
+            changed_members={"pkg.unrelated"},
+            gated_members={"pkg.unrelated"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        wording = {(relation.src_id, relation.dst_id): relation.relation for relation in kept}
+        self.assertEqual(wording, {("1", "2"): "x calls y", ("3", "2"): "a calls b"})
+
+    def test_baseline_whose_backing_names_changed_stays_dropped_when_rebuild_misses_it(self):
+        stale = self._relation("1", "2", "baseline wording")
+        stale.all_edges = [RelationEdge(source=_ref("pkg.changed"), target=_ref("pkg.callee"))]
+
+        kept = preserve_unchanged_relations(
+            [],
+            {("1", "2"): stale},
+            {"1", "2"},
+            {"1", "2"},
+            _live_calls(("pkg.changed", "pkg.callee")),
+            changed_members={"pkg.changed"},
+            gated_members={"pkg.changed"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual(kept, [])
+
+    def test_fresh_edge_with_no_matching_baseline_backing_stays_dropped(self):
+        baseline = self._relation("1", "2", "baseline wording")
+        baseline.all_edges = [RelationEdge(source=_ref("log.use_stderr_sink"), target=_ref("log.make_stderr_sink"))]
+        fresh = self._relation("3", "4", "invented")
+        fresh.all_edges = [RelationEdge(source=_ref("pkg.other"), target=_ref("pkg.else"))]
+
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("1", "2"): baseline},
+            {"1", "2"},
+            {"1", "2", "3", "4"},
+            _live_calls(("log.use_stderr_sink", "log.make_stderr_sink"), ("pkg.other", "pkg.else")),
+            changed_members={"object_identity.cache_key"},
+            gated_members={"object_identity.cache_key"},
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
+
+        self.assertEqual([(relation.src_id, relation.dst_id) for relation in kept], [("1", "2")])
 
 
 class TestGraftEnteredMethods(unittest.TestCase):
@@ -659,7 +1104,15 @@ if __name__ == "__main__":
         stale = self._relation("4", "5", "captures user intent")
         stale.evidence = "runtime dispatch"
 
-        kept = preserve_unchanged_relations([fresh], {("4", "5"): stale}, {"5"}, {"4", "5"}, set())
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("4", "5"): stale},
+            {"5"},
+            {"4", "5"},
+            _live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("4", "5")])
         self.assertEqual([r.relation for r in kept], ["captures user intent"])
@@ -671,7 +1124,15 @@ if __name__ == "__main__":
         fresh.all_edges = [RelationEdge(source=_ref("pkg.a.caller"), target=_ref("pkg.b.callee"))]
         stale = self._relation("4", "5", "captures user intent")
 
-        kept = preserve_unchanged_relations([fresh], {("4", "5"): stale}, {"5"}, {"4", "5"}, set())
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("4", "5"): stale},
+            {"5"},
+            {"4", "5"},
+            _live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("5", "4")])
 
@@ -682,7 +1143,15 @@ if __name__ == "__main__":
         stale = self._relation("4", "5", "calls")
         stale.is_static = True
 
-        kept = preserve_unchanged_relations([fresh], {("4", "5"): stale}, {"5"}, {"4", "5"}, set())
+        kept = preserve_unchanged_relations(
+            [fresh],
+            {("4", "5"): stale},
+            {"5"},
+            {"4", "5"},
+            _live_calls(),
+            has_symbol=_every_symbol_live,
+            owner_of=_unowned,
+        )
 
         self.assertEqual([(r.src_id, r.dst_id) for r in kept], [("5", "4")])
 
