@@ -218,6 +218,8 @@ class TestMergeResults(unittest.TestCase):
     def test_subclasses_derived_from_superclasses_ignore_stale_links(self) -> None:
         # A stale reverse link to a class that no longer declares this base must not survive:
         # ``subclasses`` is rebuilt from the superclasses the merged hierarchy actually holds.
+        # The fresh half carries no hierarchy, so nothing overwrites the cached entry — only the
+        # rebuild can drop the stale link.
         cached = _result(
             CallGraph(language="python"),
             source_files=["base.py"],
@@ -225,13 +227,7 @@ class TestMergeResults(unittest.TestCase):
                 "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": ["pkg.Stale"]},
             },
         )
-        new = _result(
-            CallGraph(language="python"),
-            source_files=["base.py"],
-            class_hierarchies={
-                "pkg.Base": {"file_path": "base.py", "superclasses": [], "subclasses": []},
-            },
-        )
+        new = _result(CallGraph(language="python"), source_files=["other.py"])
 
         merged = merge_results(_analysis_data(cached), new)
 
