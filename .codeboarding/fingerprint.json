@@ -61,7 +61,7 @@
     "infra/tool_registry/registry.py": "e215c13e51a98205",
     "infra/tool_registry/java.py": "3b68a8245d2a057a",
     "infra/tool_registry/installers.py": "8c8deab0ee53cd49",
-    "infra/tool_registry/kotlin-server-1.json": "ce9c9d5cd3972a68",
+    "infra/tool_registry/kotlin-server-1.json": "b7d5873ecf739119",
     "infra/tool_registry/paths.py": "bf5822307912bb7c",
     "infra/repo_utils/path_utils.py": "6326d2c1426e20a6",
     "infra/repo_utils/__init__.py": "32e98f63ef0c9146",
