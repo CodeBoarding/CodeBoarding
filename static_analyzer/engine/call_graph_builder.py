@@ -250,6 +250,7 @@ class CallGraphBuilder:
                 parent_chain=[],
                 project_root=self._repository,
                 function_values=self._source_inspector.function_values(file_path),
+                arrow_bindings=self._source_inspector.arrow_bindings(file_path),
             )
             pbar.set_postfix(symbols=len(self._symbol_table.symbols))
             pbar.update(1)

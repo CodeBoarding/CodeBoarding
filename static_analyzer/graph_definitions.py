@@ -17,7 +17,12 @@ from static_analyzer.cfg import CallGraph, EdgeKind
 from static_analyzer.config import NodeType
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
-from static_analyzer.engine.lsp_constants import DISPATCHED_KINDS, RUNTIME_REFERENCE_KINDS
+from static_analyzer.engine.lsp_constants import (
+    CALLABLE_KINDS,
+    CLASS_LIKE_KINDS,
+    DISPATCHED_KINDS,
+    RUNTIME_REFERENCE_KINDS,
+)
 from static_analyzer.engine.models import CallSite
 from static_analyzer.engine.protocols import EdgeBuildAdapter
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -52,6 +57,10 @@ class PotentialCalls:
     iterated: set[tuple[int, int]]
     runtime_reference: set[tuple[int, int]]
 
+    @cached_property
+    def definition_positions(self) -> set[tuple[int, int]]:
+        return {(site.lsp_line, site.lsp_column) for site in self.call_sites}
+
     def definition_kind_at(self, position: tuple[int, int]) -> str:
         """Which shape a definition query at this position resolves as."""
         if position in self.runtime_reference:
@@ -74,9 +83,9 @@ class PotentialCalls:
         over it, so restoring the cached edge cannot ask only one of them.
         """
         if position not in self.iterated:
-            return [("definition", self.definition_kind_at(position))]
+            return [("definition", self.definition_kind_at(position))] if position in self.definition_positions else []
         iterating = ("type_definition", ITERATED)
-        if not any((site.lsp_line, site.lsp_column) == position for site in self.call_sites):
+        if position not in self.definition_positions:
             return [iterating]
         return [("definition", self.definition_kind_at(position)), iterating]
 
@@ -194,7 +203,7 @@ class GraphIndex:
         return {
             simple_name(getattr(node, "symbol_name", "") or node.fully_qualified_name)
             for node in self.call_graph.nodes.values()
-            if node.is_callable()
+            if node.declaration_kind in CALLABLE_KINDS
         }
 
     @cached_property
@@ -234,7 +243,7 @@ class GraphIndex:
             return cached
         by_name: dict[str, dict[tuple[int, int], Node]] = {}
         for node in self.nodes_in(file_path):
-            if not (node.is_callable() or node.is_class()):
+            if node.declaration_kind not in CALLABLE_KINDS and node.declaration_kind not in CLASS_LIKE_KINDS:
                 continue
             at = by_name.setdefault(simple_name(getattr(node, "symbol_name", "") or node.fully_qualified_name), {})
             position = (node.line_start, node.col_start)
@@ -259,14 +268,17 @@ def _innermost(nodes: Iterable[Node]) -> Node | None:
 def _with_owning_class(index: GraphIndex, target: Node, include_owner: bool) -> list[Node]:
     """The declaration, and the class it belongs to when a call on it reaches that too."""
     if not (
-        (include_owner and (target.is_callable() or target.type == NodeType.ENUM_MEMBER))
-        or target.type.name == "CONSTRUCTOR"
+        (
+            include_owner
+            and (target.declaration_kind in CALLABLE_KINDS or target.declaration_kind == NodeType.ENUM_MEMBER)
+        )
+        or target.declaration_kind == NodeType.CONSTRUCTOR
     ):
         return [target]
     owner = index.call_graph.nodes.get(
         getattr(target, "owner_qualified_name", "") or parent_qualified_name(target.fully_qualified_name)
     )
-    return [target, owner] if owner is not None and owner.is_class() else [target]
+    return [target, owner] if owner is not None and owner.declaration_kind in CLASS_LIKE_KINDS else [target]
 
 
 def implemented_by(
@@ -345,18 +357,18 @@ def targets_for(
     if declaration is None:
         return CallTargets.none()
     if kind == RUNTIME_REFERENCE:
-        if declaration.type not in RUNTIME_REFERENCE_KINDS:
+        if declaration.declaration_kind not in RUNTIME_REFERENCE_KINDS:
             return CallTargets.none()
         return CallTargets(_with_owning_class(index, declaration, include_owner=True), [])
     if kind == IMPLEMENTATION:
         return CallTargets(_with_owning_class(index, declaration, include_owner=False), [])
     if kind == METHOD_GROUP and not (
-        declaration.is_callable()
-        or declaration.is_class()
+        declaration.declaration_kind in CALLABLE_KINDS
+        or declaration.declaration_kind in CLASS_LIKE_KINDS
         or inspector.declares_function_value(Path(file_path), line, character)
     ):
         return CallTargets.none()
-    if kind in (MEMBER_READ, MEMBER_WRITE) and not declaration.is_callable():
+    if kind in (MEMBER_READ, MEMBER_WRITE) and declaration.declaration_kind not in CALLABLE_KINDS:
         return CallTargets.none()
     if kind == MEMBER_WRITE and not inspector.declares_setter(Path(file_path), line, character):
         return CallTargets.none()

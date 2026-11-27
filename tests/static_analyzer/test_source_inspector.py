@@ -1138,6 +1138,41 @@ class TestDeclaresFunctionValue:
 
         assert si.declares_function_value(f, 0, 6) is True
 
+    def test_arrow_bindings_follow_wrappers_and_nested_declarations(self, tmp_path: Path):
+        path = tmp_path / "app.ts"
+        path.write_text(
+            'export const label = "\U0001f9ed", a = (/* comment */ () => 1);\n'
+            "const b = (() => 2) as () => number;\n"
+            "let c = (() => 3) satisfies () => number;\n"
+            "var d = <() => number>(() => 4);\n"
+            "const e = (() => 5)!;\n"
+            "const f = (<T>(x: T) => x)<string>;\n"
+            "const value = (() => 5)()!;\n"
+            "const object = { handler: () => 6 };\n"
+            "function outer() { const a = () => 7; return a(); }\n",
+            encoding="utf-8",
+        )
+
+        assert SourceInspector().arrow_bindings(path) == {
+            (0, 27),
+            (1, 6),
+            (2, 4),
+            (3, 4),
+            (4, 6),
+            (5, 6),
+            (7, 17),
+            (8, 25),
+        }
+
+    @pytest.mark.parametrize("extension", ["ts", "js"])
+    def test_a_callback_array_is_not_a_function_binding(self, tmp_path: Path, extension: str):
+        path = tmp_path / f"app.{extension}"
+        path.write_text("export const handlers = [() => 1];\nexport const handler = (() => 2);\n")
+        inspector = SourceInspector()
+
+        assert inspector.arrow_bindings(path) == {(1, 13)}
+        assert not inspector.declares_function_value(path, 0, 13)
+
     def test_a_function_in_an_object_literal(self, tmp_path: Path):
         f = tmp_path / "app.ts"
         f.write_text("const api = { load: function () {} };\n")

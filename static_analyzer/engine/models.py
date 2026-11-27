@@ -33,6 +33,8 @@ class SymbolInfo:
     owner_qualified_name: str = ""
     explicit_identity: bool = False
     is_definition: bool = True
+    # Graph classification and caller credit can differ from the kind used to resolve targets.
+    graph_kind: int | None = None
 
     @property
     def definition_location(self) -> tuple[str, int, int]:

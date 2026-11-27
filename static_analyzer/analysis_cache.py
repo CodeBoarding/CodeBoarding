@@ -78,8 +78,9 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v15: C++ compiler identities unify declarations and definitions; nodes retain declared names and owners.
 # v16: compiler-identity metadata is explicit; other languages retain their existing name resolution.
 # v17: Dart accessors and tear-offs contribute edges; incremental package dependencies follow the live graph.
+# v18: named TypeScript and JavaScript arrows are function nodes; cached nodes preserve the resolver kind.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v17"
+_TAG_VERSION = "v18"
 
 
 class StaticAnalysisCache:
