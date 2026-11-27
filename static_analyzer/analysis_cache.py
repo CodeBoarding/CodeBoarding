@@ -79,8 +79,10 @@ _LEGACY_CACHE_SUBDIR = "cache"
 # v16: compiler-identity metadata is explicit; other languages retain their existing name resolution.
 # v17: Dart accessors and tear-offs contribute edges; incremental package dependencies follow the live graph.
 # v18: named TypeScript and JavaScript arrows are function nodes; cached nodes preserve the resolver kind.
+# v19: a class hierarchy records a base that only a lookup resolved, so an incremental merge can rebuild
+#      its reverse links without the base's file; caches written before it may name a stale child.
 # Older pickles are treated as cache misses and re-run.
-_TAG_VERSION = "v18"
+_TAG_VERSION = "v19"
 
 
 class StaticAnalysisCache:

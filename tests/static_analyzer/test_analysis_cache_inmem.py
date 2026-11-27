@@ -19,6 +19,7 @@ from static_analyzer.node import Node
 from static_analyzer.graph_definitions import GraphIndex, potential_calls, implemented_by
 from static_analyzer.incremental_orchestrator import (
     _declarations,
+    _filter_to_live_files,
     _restore_inbound_edges_via_definitions,
     update_cfg_for_changed_files,
 )
@@ -282,7 +283,15 @@ class TestWarmStartDeletion(unittest.TestCase):
             base_file.write_text("class Base:\n    pass\n", encoding="utf-8")
 
             cg = CallGraph(language="python")
-            cg.add_node(_node("pkg.Base", str(base_file)))
+            cg.add_node(
+                Node(
+                    fully_qualified_name="pkg.Base",
+                    node_type=NodeType.CLASS,
+                    file_path=str(base_file),
+                    line_start=1,
+                    line_end=2,
+                )
+            )
             cached = _result(
                 cg,
                 source_files=[str(base_file)],
@@ -313,6 +322,44 @@ class TestWarmStartDeletion(unittest.TestCase):
 
             self.assertNotIn("pkg.Child", updated["class_hierarchies"])
             self.assertEqual(updated["class_hierarchies"]["pkg.Base"]["subclasses"], [])
+
+    def test_a_class_name_reused_by_a_function_leaves_the_base_reverse_links(self) -> None:
+        # ``Child`` edited from ``class Child(Base)`` into ``def Child(...)`` keeps its qname, so a
+        # live-node test that ignores kinds would keep the cached entry and restore the stale link.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir)
+            base_file = project_path / "base.py"
+            base_file.write_text("class Base:\n    pass\n", encoding="utf-8")
+            child_file = project_path / "child.py"
+            child_file.write_text("def Child():\n    pass\n", encoding="utf-8")
+
+            cg = CallGraph(language="python")
+            cg.add_node(
+                Node(
+                    fully_qualified_name="pkg.Base",
+                    node_type=NodeType.CLASS,
+                    file_path=str(base_file),
+                    line_start=1,
+                    line_end=2,
+                )
+            )
+            # The edited file now declares a function under the class's old qualified name.
+            cg.add_node(_node("pkg.Child", str(child_file)))
+            merged = AnalysisData.from_dict(
+                _result(
+                    cg,
+                    source_files=[str(base_file), str(child_file)],
+                    class_hierarchies={
+                        "pkg.Base": {"superclasses": [], "subclasses": ["pkg.Child"]},
+                        "pkg.Child": {"superclasses": ["pkg.Base"], "subclasses": []},
+                    },
+                )
+            )
+
+            live = _filter_to_live_files(merged)
+
+            self.assertNotIn("pkg.Child", live.class_hierarchies)
+            self.assertEqual(live.class_hierarchies["pkg.Base"]["subclasses"], [])
 
 
 def _declared(index: GraphIndex, definition: dict) -> Node | None:

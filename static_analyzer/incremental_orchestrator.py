@@ -23,6 +23,7 @@ from static_analyzer.config import Language
 from static_analyzer.engine.call_graph_builder import CallGraphBuilder, build_package_dependencies
 from static_analyzer.engine.language_adapter import LanguageAdapter
 from static_analyzer.engine.lsp_client import LSPClient
+from static_analyzer.engine.lsp_constants import CLASS_LIKE_KINDS
 from static_analyzer.engine.models import CallSite, SymbolInfo
 from static_analyzer.engine.result_converter import convert_to_codeboarding_format
 from static_analyzer.engine.source_inspector import SourceInspector
@@ -277,8 +278,12 @@ def _filter_to_live_files(merged_analysis: AnalysisData) -> AnalysisData:
     # Hierarchy entries are keyed by class qname and carry no file_path, so filter by whether the
     # class still exists as a live call-graph node (already filtered above) — the old
     # ``info.get("file_path")`` check was always None and dropped every hierarchy, which then
-    # starved the warm-start INHERITS re-derivation of its source on the next run.
-    live_class_names = set(merged_analysis.call_graph.nodes.keys())
+    # starved the warm-start INHERITS re-derivation of its source on the next run. A live node is
+    # not enough on its own: a class replaced by a function of the same name keeps the qname, so
+    # only class-like nodes can still own a hierarchy entry.
+    live_class_names = {
+        name for name, node in merged_analysis.call_graph.nodes.items() if node.declaration_kind in CLASS_LIKE_KINDS
+    }
     merged_analysis.class_hierarchies = {
         name: info for name, info in merged_analysis.class_hierarchies.items() if name in live_class_names
     }
